@@ -63,15 +63,15 @@ export default function LoginPage({ onLoginSuccess }) {
 
       const data = await res.json();
       if (res.ok) {
-        // Pass the entire user object (name + email)
-        onLoginSuccess({ name: data.user.name, email: data.user.email });
+        // Pass the entire user object (id, name, email) to App.jsx
+        onLoginSuccess({ id: data.user.id, name: data.user.name, email: data.user.email });
         navigate("/home");
       } else {
         alert(data.message);
       }
     } catch (err) {
       console.error("Login error:", err);
-      alert("Something went wrong. Please try again.");
+      alert("Something went wrong. Please check your network connection and server status.");
     } finally {
       setLoading(false);
     }
