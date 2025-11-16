@@ -63,7 +63,9 @@ export default function LoginPage({ onLoginSuccess }) {
 
       const data = await res.json();
       if (res.ok) {
-        // Pass the entire user object (id, name, email) to App.jsx
+        // CRITICAL FIX: Ensure userId is stored in localStorage to trigger HomePage re-fetch
+        localStorage.setItem('userId', data.user.id);
+        
         onLoginSuccess({ id: data.user.id, name: data.user.name, email: data.user.email });
         navigate("/home");
       } else {
