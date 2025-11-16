@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
-import RightPanel from '../components/RightPanel';
+import RightPanel from '../components/RightPanel'; // Ensure this path is correct
 
 // Utility function to format the time
 const getTimeSince = (date) => {
@@ -18,12 +18,57 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-const categories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
+// MODIFIED CATEGORIES: Separated Post and Job categories
+const POST_CATEGORIES = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
+const JOB_CATEGORIES = ["Full-Time", "Part-Time", "Contract", "Internship", "Remote", "On-Site"];
+
+
+// NEW UTILITY FUNCTION: Converts a flat array of responses into a nested tree structure
+const buildResponseTree = (flatResponses) => {
+    const responseMap = {};
+    flatResponses.forEach(response => {
+        responseMap[response.id] = { 
+            ...response, 
+            author: response.author || response.name, // Use author from server
+            time: response.time, // Use time from server
+            children: [] 
+        };
+    });
+
+    const tree = [];
+
+    Object.values(responseMap).forEach(response => {
+        if (response.parent_response_id === null) {
+            tree.push(response);
+        } else {
+            const parent = responseMap[response.parent_response_id];
+            if (parent) {
+                parent.children.push(response);
+            } else {
+                tree.push(response); 
+            }
+        }
+    });
+
+    tree.sort((a, b) => new Date(b.time) - new Date(a.time));
+    
+    const sortChildren = (node) => {
+        if (node.children.length > 0) {
+            node.children.sort((a, b) => new Date(a.time) - new Date(b.time));
+            node.children.forEach(sortChildren);
+        }
+    };
+    tree.forEach(sortChildren);
+
+
+    return tree;
+};
+
 
 export default function HomePage({ userName, userEmail }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
-    const [postCategory, setPostCategory] = useState(categories[0]);
+    const [postCategory, setPostCategory] = useState(POST_CATEGORIES[0]); 
     const [postType, setPostType] = useState("post");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -35,12 +80,18 @@ export default function HomePage({ userName, userEmail }) {
     const [parentResponseId, setParentResponseId] = useState(null); 
     const [responseContent, setResponseContent] = useState('');
     const [expandedThreadId, setExpandedThreadId] = useState(null);
-    const [responses, setResponses] = useState({}); 
+    const [responses, setResponses] = useState({}); // Stores the nested tree structure
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
+
+    const currentCategories = postType === 'job' ? JOB_CATEGORIES : POST_CATEGORIES;
+    
+    useEffect(() => {
+        setPostCategory(currentCategories[0]); 
+    }, [postType]);
 
     // Fetch threads on component mount
     useEffect(() => {
@@ -63,25 +114,24 @@ export default function HomePage({ userName, userEmail }) {
     
     // Function to fetch responses for a specific thread
     const fetchResponses = async (threadId, threadType) => {
-        setResponses(prevResponses => {
-            const newResponses = { ...prevResponses };
-            delete newResponses[threadId];
-            return newResponses;
-        });
-
         setIsFetchingResponses(true);
         try {
             const res = await fetch(`http://localhost:5000/api/responses/${threadType}/${threadId}`);
             if (!res.ok) throw new Error("Failed to fetch responses");
-            const data = await res.json();
             
-            // CRITICAL FIX: Reverse the array for newest-to-oldest display
+            const flatData = await res.json();
+            const nestedData = buildResponseTree(flatData); 
+            
             setResponses(prevResponses => ({
                 ...prevResponses,
-                [threadId]: data.reverse() 
+                [threadId]: nestedData // Store the nested tree
             }));
         } catch (error) {
             console.error("Error fetching responses:", error);
+            setResponses(prevResponses => ({
+                ...prevResponses,
+                [threadId]: [] 
+            }));
         } finally {
             setIsFetchingResponses(false);
         }
@@ -97,6 +147,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
+    // Handler for submitting a new top-level post/job
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -105,23 +156,28 @@ export default function HomePage({ userName, userEmail }) {
         }
 
         if (!postContent.trim()) return alert('Post cannot be empty!');
+        if (!postCategory) return alert(`Please select a category for your ${postType}.`);
 
+        // --- 1. OPTIMISTIC UI UPDATE (INSTANT DISPLAY) ---
         const tempId = Date.now();
         const optimisticThread = {
-            id: tempId,
+            id: tempId, 
             type: postType,
-            title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
             author: userName || 'User',
-            time: new Date(),
+            time: new Date().toISOString(),
             tag: postCategory,
             body: postContent,
             reactions: 0,
             responseCount: 0, 
-            isSubmitting: true, 
+            isSubmitting: true, // Flag for the "Posting..." message
         };
-        setThreads([optimisticThread, ...threads]);
-        setIsModalOpen(false);
         
+        // INSTANTLY add the temporary post to the top of the feed
+        setThreads(prevThreads => [optimisticThread, ...prevThreads]); 
+        setIsModalOpen(false);
+        setPostContent(''); // Clear content immediately
+        // --- END OPTIMISTIC UI UPDATE ---
+
         try {
             const res = await fetch("http://localhost:5000/api/threads", {
                 method: "POST",
@@ -136,29 +192,40 @@ export default function HomePage({ userName, userEmail }) {
 
             const data = await res.json();
             
+            // --- 2. FINAL STATE UPDATE (REPLACEMENT/REMOVAL) ---
             setThreads(prevThreads => {
-                const updatedThreads = prevThreads.filter(t => t.id !== tempId);
-                
-                if (res.ok && data.thread) {
-                    return [data.thread, ...updatedThreads];
-                } else {
-                    alert(data.message || "Something went wrong while posting. Please try again.");
+                // Find the index of the temporary thread
+                const tempIndex = prevThreads.findIndex(t => t.id === tempId);
+
+                if (res.ok && data.thread && tempIndex !== -1) {
+                    // Success: Remove the temporary thread and insert the permanent server-side thread
+                    const updatedThreads = [...prevThreads];
+                    updatedThreads.splice(tempIndex, 1, data.thread);
                     return updatedThreads;
+                    
+                } else if (tempIndex !== -1) {
+                    // Failure: If the server failed, remove the temporary thread entirely
+                    alert(data.message || "Failed to post. Removing temporary item.");
+                    return prevThreads.filter(t => t.id !== tempId);
                 }
+                
+                // Fallback: If for some reason the temp item wasn't found
+                return prevThreads; 
             });
 
         } catch (err) {
             console.error("Post network error:", err);
-            alert("A network error occurred. Check server status.");
+            alert("A network error occurred. Check server status. Removing temporary item.");
+            
+            // Network Failure: Remove the temporary post
             setThreads(prevThreads => prevThreads.filter(t => t.id !== tempId));
         }
         
-        setPostContent('');
-        setPostCategory(categories[0]);
-        setPostType("post");
+        setPostCategory(currentCategories[0]); 
+        setPostType("post"); 
     };
     
-    // UPDATED: Handler function to open reply modal for a Thread OR a Response
+    // Handler function to open reply modal for a Thread OR a Response
     const handleReplyClick = (threadId, threadType, replyToResponseId = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         setThreadIdToReply(threadId);
@@ -168,6 +235,7 @@ export default function HomePage({ userName, userEmail }) {
         setIsResponseModalOpen(true);
     };
 
+    // Handler for submitting a new response
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -176,7 +244,7 @@ export default function HomePage({ userName, userEmail }) {
             threadId: threadIdToReply,
             threadType: threadTypeToReply,
             content: responseContent,
-            parentResponseId: parentResponseId // NEW: Include parent ID
+            parentResponseId: parentResponseId 
         };
         
         try {
@@ -189,14 +257,14 @@ export default function HomePage({ userName, userEmail }) {
             const data = await res.json();
 
             if (res.ok) {
-                // Manually update the response count (only for top-level responses)
+                // Update response count on the thread (immediate visibility)
                 if (!parentResponseId) {
                     setThreads(prevThreads => prevThreads.map(t => 
                         t.id === threadIdToReply ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t
                     ));
                 }
 
-                // If the response section is open, refetch the responses to display the new one
+                // CRITICAL: If the response section is open, refetch the responses to display the new one immediately
                 if(expandedThreadId === threadIdToReply) {
                     fetchResponses(threadIdToReply, threadTypeToReply);
                 }
@@ -215,47 +283,59 @@ export default function HomePage({ userName, userEmail }) {
         setResponseContent('');
         setThreadIdToReply(null);
         setThreadTypeToReply(null);
-        setParentResponseId(null); // IMPORTANT: Reset parent ID
+        setParentResponseId(null); 
     };
 
-    // UPDATED: Helper to render responses and their reply buttons (now without a card background)
-    const renderResponses = (threadResponses, threadId, threadType) => {
-        return threadResponses.map(response => (
-            <div key={response.id} style={{
-                ...styles.responseItem,
-                // Nested style for replies to responses (simple indentation)
-                marginLeft: response.parent_id ? '30px' : '0', 
-            }}>
-                {/* Meta line: Avatar and Author Name */}
-                <div style={styles.responseMeta}>
-                    <div style={styles.avatarCircleTiny}>{response.author[0]}</div>
-                    <span style={styles.responseAuthorName}>{response.author}</span>
-                    {/* Time is now in the action line below */}
-                </div>
-                
-                {/* Content */}
-                <p style={styles.responseContent}>
-                    {/* Display who they are replying to */}
-                    {response.parent_author && (
-                        <span style={styles.replyToText}>@{response.parent_author} </span>
-                    )}
-                    {response.content}
-                </p>
-                
-                {/* NEW Action Line: Reply Button and Time */}
-                <div style={styles.responseActionLine}>
-                    <div 
-                        style={styles.responseReplyButton}
-                        // Pass the response ID as the parent ID
-                        onClick={() => handleReplyClick(threadId, threadType, response.id)}
-                    >
-                        Reply
+    // Recursive function to render the response tree
+    const renderResponses = (responseTree, threadId, threadType, depth = 0) => {
+        return responseTree.map(response => (
+            <React.Fragment key={response.id}>
+                <div 
+                    style={{
+                        ...styles.responseItem,
+                        marginLeft: `${depth * 30}px`, 
+                        borderLeft: depth > 0 ? '2px solid #e0f2fe' : 'none',
+                        paddingLeft: depth > 0 ? '10px' : '0',
+                        marginBottom: '5px'
+                    }}
+                >
+                    {/* Meta line: Avatar and Author Name */}
+                    <div style={styles.responseMeta}>
+                        <div style={styles.avatarCircleTiny}>{response.author ? response.author[0] : 'U'}</div>
+                        <span style={styles.responseAuthorName}>{response.author || 'Unknown'}</span>
                     </div>
-                    <span style={styles.responseTimeSmall}>
-                        {getTimeSince(response.time)}
-                    </span>
+                    
+                    {/* Content */}
+                    <p style={styles.responseContent}>
+                        {/* Display who they are replying to */}
+                        {response.parent_author && (
+                            <span style={styles.replyToText}>@{response.parent_author} </span>
+                        )}
+                        {response.content}
+                    </p>
+                    
+                    {/* Action Line: Reply Button and Time */}
+                    <div style={styles.responseActionLine}>
+                        <div 
+                            style={styles.responseReplyButton}
+                            // Pass the response ID as the parent ID
+                            onClick={() => handleReplyClick(threadId, threadType, response.id)}
+                        >
+                            Reply
+                        </div>
+                        <span style={styles.responseTimeSmall}>
+                            {getTimeSince(response.time)}
+                        </span>
+                    </div>
                 </div>
-            </div>
+
+                {/* RECURSIVE CALL to render children immediately below the current parent */}
+                {response.children.length > 0 && (
+                    <div style={styles.responseChildrenContainer}>
+                        {renderResponses(response.children, threadId, threadType, depth + 1)}
+                    </div>
+                )}
+            </React.Fragment>
         ));
     };
 
@@ -273,11 +353,17 @@ export default function HomePage({ userName, userEmail }) {
                             <div style={styles.avatarCircle}>{firstName[0]}</div>
                             <div
                                 style={styles.newThreadInputTrigger}
-                                onClick={() => setIsModalOpen(true)}
+                                onClick={() => {
+                                    setPostType("post");
+                                    setIsModalOpen(true);
+                                }}
                             >
                                 What's on your mind, {firstName}?
                             </div>
-                            <button style={styles.newThreadButton} onClick={() => setIsModalOpen(true)}>
+                            <button style={styles.newThreadButton} onClick={() => {
+                                setPostType("post");
+                                setIsModalOpen(true);
+                            }}>
                                 <FiPlus size={24} color="#fff" />
                             </button>
                         </div>
@@ -338,7 +424,7 @@ export default function HomePage({ userName, userEmail }) {
                                             <p style={styles.loadingResponsesText}>Loading responses...</p>
                                         ) : (
                                             (responses[thread.id] && responses[thread.id].length > 0) ? (
-                                                renderResponses(responses[thread.id], thread.id, thread.type) // Use helper function
+                                                renderResponses(responses[thread.id], thread.id, thread.type) // Use recursive function
                                             ) : (
                                                 <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
                                             )
@@ -354,12 +440,12 @@ export default function HomePage({ userName, userEmail }) {
                 <RightPanel userName={userName} userEmail={userEmail} />
             </div>
 
-            {/* Post Modal (Unchanged) */}
+            {/* Post Modal */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}>Create {postType === "job" ? "Job" : "Post"}</h3>
+                            <h3 style={{ color: '#1e40af' }}>Create {postType === "job" ? "Job Listing" : "Post"}</h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsModalOpen(false)} />
                         </div>
 
@@ -389,9 +475,9 @@ export default function HomePage({ userName, userEmail }) {
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
 
-                        {/* Category Buttons */}
+                        {/* Category Buttons: Dynamically switch categories */}
                         <div style={styles.categoryContainer}>
-                            {categories.map(cat => (
+                            {currentCategories.map(cat => (
                                 <button
                                     key={cat}
                                     onClick={() => setPostCategory(cat)}
@@ -456,7 +542,7 @@ export default function HomePage({ userName, userEmail }) {
     );
 }
 
-// --- Styles (Updated for Facebook-style, no-card look) ---
+// --- Styles (Unchanged) ---
 const styles = {
     page: { minHeight: '100vh', padding: '10px' },
     container: { 
@@ -550,14 +636,19 @@ const styles = {
         borderTop: '1px solid #e5e7eb', 
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '0', // Set gap to 0 so recursive rendering handles spacing
         maxHeight: '350px', 
         overflowY: 'auto', 
     },
-    // UPDATED STYLE: Flat, no-card look
+    // NEW style to contain recursive children
+    responseChildrenContainer: {
+        paddingTop: '0', 
+    },
+    // Response Item is now responsible for its own margin-left (indentation)
     responseItem: {
         padding: '5px 0', 
         position: 'relative', 
+        // Removed marginLeft here as it's set dynamically in renderResponses
     },
     responseMeta: {
         display: 'flex',
@@ -565,27 +656,26 @@ const styles = {
         gap: '8px',
     },
     responseAuthorName: {
-        fontWeight: '700', // Made author name bold
+        fontWeight: '700', 
         color: '#2563eb',
         fontSize: '14px'
     },
+    // Adjusted margins to account for dynamic indentation
     responseContent: {
         fontSize: '14px',
         color: '#374151',
-        marginLeft: '33px', // Aligned under the avatar
+        marginLeft: '33px', 
         whiteSpace: 'pre-wrap',
-        marginTop: '2px', // Closer to the meta line
+        marginTop: '2px', 
         marginBottom: '2px',
     },
-    // NEW STYLE: For the Reply and Time line
     responseActionLine: {
         display: 'flex',
         alignItems: 'center',
         gap: '15px',
-        marginLeft: '33px', // Aligned with content
+        marginLeft: '33px', 
         marginTop: '2px'
     },
-    // MODIFIED STYLE: Reply button
     responseReplyButton: {
         fontSize: '12px',
         fontWeight: '600',
@@ -594,7 +684,6 @@ const styles = {
         padding: '2px 0',
         width: 'fit-content'
     },
-    // NEW STYLE: For small time text next to reply
     responseTimeSmall: {
         fontSize: '12px',
         color: '#9ca3af',

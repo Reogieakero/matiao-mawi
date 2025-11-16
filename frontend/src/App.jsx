@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 import Header from './components/Header';
@@ -15,12 +15,19 @@ const Placeholder = ({ title }) => (
 );
 
 const App = () => {
-    // Include userId in state/localStorage
+    // Authentication State
     const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem("isLoggedIn") === "true");
     const [userName, setUserName] = useState(() => localStorage.getItem("userName") || "");
     const [userEmail, setUserEmail] = useState(() => localStorage.getItem("userEmail") || "");
-    // Initialize userId from localStorage
     const [userId, setUserId] = useState(() => localStorage.getItem("userId") || null);
+
+    // NEW STATE: State for Job Counts shared between HomePage (producer) and Sidebar (consumer)
+    const [jobCounts, setJobCounts] = useState({});
+
+    // Callback to update job counts state, memoized with useCallback
+    const handleJobCountsCalculated = useCallback((counts) => {
+        setJobCounts(counts);
+    }, []);
 
     // Persist login info in localStorage (including userId)
     useEffect(() => {
@@ -41,11 +48,19 @@ const App = () => {
     const AppLayout = () => (
         <>
             <Header />
-            <Sidebar />
+            {/* MODIFIED: Pass jobCounts to Sidebar */}
+            <Sidebar jobCounts={jobCounts} />
             <div style={appStyles.contentArea}>
                 <Routes>
-                    {/* HomePage uses localStorage for userId, but is passed name/email for display */}
-                    <Route path="/home" element={<HomePage userName={userName} userEmail={userEmail} />} />
+                    {/* MODIFIED: Pass the callback function to HomePage */}
+                    <Route 
+                        path="/home" 
+                        element={<HomePage 
+                            userName={userName} 
+                            userEmail={userEmail} 
+                            onJobCountsCalculated={handleJobCountsCalculated} 
+                        />} 
+                    />
                     <Route path="/news" element={<Placeholder title="News" />} />
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
                     <Route path="/documents" element={<Placeholder title="Documents" />} />
