@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, FileText, Bell, File, Settings } from 'lucide-react';
 
-const Sidebar = ({ jobCounts = {} }) => {
+const Sidebar = () => {
     const location = useLocation();
     const [hoveredLink, setHoveredLink] = useState(null);
 
@@ -14,20 +14,12 @@ const Sidebar = ({ jobCounts = {} }) => {
         { name: 'Services', path: '/services', icon: <Settings size={20} /> },
     ];
 
-    const jobTemplates = [
-        { title: 'Full-Time', color: '#a5f3fc' }, 
-        { title: 'Part-Time', color: '#fde68a' }, 
-        { title: 'Contract', color: '#fbcfe8' }, 
-        { title: 'Internship', color: '#d9f99d' },
-        { title: 'Remote', color: '#e0c3fc' }, 
-        { title: 'On-Site', color: '#b9f2d0' }, 
+    const jobs = [
+        { title: 'Carpenter', vacancies: 3, color: '#a5f3fc' },
+        { title: 'Driver', vacancies: 5, color: '#fde68a' },
+        { title: 'Electrician', vacancies: 2, color: '#fbcfe8' },
+        { title: 'Plumber', vacancies: 1, color: '#d9f99d' },
     ];
-
-    // Mapped jobs: dynamically set vacancies based on the passed prop (jobCounts object)
-    const jobs = jobTemplates.map(job => ({
-        ...job,
-        vacancies: jobCounts[job.title] || 0,
-    }));
 
     const getLinkStyle = (path) => ({
         display: 'flex',
@@ -95,13 +87,12 @@ const Sidebar = ({ jobCounts = {} }) => {
                 </Link>
             </div>
 
-            {/* Developed by Mawii - outside the card */}
-            <p style={styles.developerNote}>Developed by Mawii</p>
+            {/* Developed by Mawi - outside the card */}
+            <p style={styles.developerNote}>Developed by Mawi</p>
         </aside>
     );
 };
 
-// --- Styles for Sidebar.jsx ---
 const styles = {
     sidebar: {
         position: 'fixed',
@@ -147,8 +138,6 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        maxHeight: '250px', 
-        overflowY: 'auto',
     },
     jobItem: {
         position: 'relative',
