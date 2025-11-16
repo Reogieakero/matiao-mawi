@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
-// Utility function to format the time
+// Utility function to format the time (Unchanged)
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -18,51 +18,145 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-const categories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
+// MODIFIED: Added Job-Specific Categories (Unchanged)
+const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
+const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
+// MODIFIED: Accepts onBookmarkChange prop to pass the handleBookmark function
 export default function HomePage({ userName, userEmail }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
-    const [postCategory, setPostCategory] = useState(categories[0]);
+    // Use an initial category that's valid for 'post' type
+    const [postCategory, setPostCategory] = useState(postCategories[0]); 
     const [postType, setPostType] = useState("post");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // --- STATE FOR RESPONSES ---
+    // NEW: State to force refresh job counts in sidebar
+    const [jobPostTrigger, setJobPostTrigger] = useState(0); 
+
+    // --- STATE FOR RESPONSES (Unchanged) ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
+    const [threadToReplyDetails, setThreadToReplyDetails] = useState(null); 
     const [parentResponseId, setParentResponseId] = useState(null); 
+    const [parentResponseAuthor, setParentResponseAuthor] = useState(null);
+    const [parentResponseContent, setParentResponseContent] = useState(null); 
     const [responseContent, setResponseContent] = useState('');
     const [expandedThreadId, setExpandedThreadId] = useState(null);
     const [responses, setResponses] = useState({}); 
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
+    
+    // Helper to get the correct categories based on post type (Unchanged)
+    const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
 
+    // Function to fetch threads, including bookmark status check
+    const fetchThreads = async () => {
+        // If coming from SavedPage, this prop won't be passed, 
+        // but we'll use a new SavedPage component for that.
+        // The main HomePage fetches all threads.
+        
+        // Step 1: Fetch All Threads
+        let allThreads = [];
+        try {
+            const res = await fetch("http://localhost:5000/api/threads");
+            if (!res.ok) throw new Error("Failed to fetch threads");
+            allThreads = await res.json();
+        } catch (error) {
+            console.error("Error fetching threads:", error);
+            setIsLoading(false);
+            return;
+        }
+
+        // Step 2: Fetch User Bookmarks to check status
+        if (userId) {
+            try {
+                const bookmarkRes = await fetch(`http://localhost:5000/api/bookmarks/${userId}`);
+                if (!bookmarkRes.ok) throw new Error("Failed to fetch bookmarks");
+                const bookmarks = await bookmarkRes.json();
+                
+                // Convert bookmarks to a fast lookup map: { 'post-12': true, 'job-5': true }
+                const bookmarkMap = bookmarks.reduce((acc, thread) => {
+                    acc[`${thread.type}-${thread.id}`] = true;
+                    return acc;
+                }, {});
+
+                // Step 3: Merge bookmark status into threads
+                const threadsWithStatus = allThreads.map(thread => ({
+                    ...thread,
+                    isBookmarked: bookmarkMap[`${thread.type}-${thread.id}`] || false,
+                }));
+                setThreads(threadsWithStatus);
+
+            } catch (error) {
+                console.warn("Error fetching bookmark status:", error);
+                // Fallback: If bookmark status fails, show threads without status
+                setThreads(allThreads.map(t => ({...t, isBookmarked: false})));
+            }
+        } else {
+             setThreads(allThreads.map(t => ({...t, isBookmarked: false})));
+        }
+        
+        setIsLoading(false);
+    };
+
     // Fetch threads on component mount
     useEffect(() => {
-        const fetchThreads = async () => {
-            try {
-                const res = await fetch("http://localhost:5000/api/threads");
-                if (!res.ok) throw new Error("Failed to fetch threads");
-                
-                const data = await res.json();
-                setThreads(data);
-            } catch (error) {
-                console.error("Error fetching threads:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchThreads();
-    }, []);
+    }, [userId]); // Re-fetch if the user changes
+
+    // Function to handle saving/unsaving a thread
+    const handleBookmark = async (threadId, threadType, isBookmarked) => {
+        if (!userId) return alert('You must be logged in to save a thread.');
+        
+        // Optimistic UI Update
+        setThreads(prevThreads => prevThreads.map(t => 
+            t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
+        ));
+
+        try {
+            const res = await fetch("http://localhost:5000/api/bookmarks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: userId,
+                    threadId: threadId,
+                    threadType: threadType,
+                }),
+            });
+            
+            if (!res.ok) throw new Error("API call failed");
+
+            const data = await res.json();
+            
+            if (!res.ok) {
+                 // Revert optimistic update on failure
+                 alert(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+                 setThreads(prevThreads => prevThreads.map(t => 
+                    t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
+                 ));
+            }
+            
+            // Note: If success, the optimistic update holds, and no further action is needed.
+
+        } catch (error) {
+            console.error("Bookmark network error:", error);
+            alert(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+            // Revert optimistic update on network error
+            setThreads(prevThreads => prevThreads.map(t => 
+                t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
+            ));
+        }
+    };
     
-    // Function to fetch responses for a specific thread
+    // Function to fetch responses for a specific thread (Unchanged)
     const fetchResponses = async (threadId, threadType) => {
+        // ... (implementation unchanged)
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
             delete newResponses[threadId];
@@ -75,10 +169,9 @@ export default function HomePage({ userName, userEmail }) {
             if (!res.ok) throw new Error("Failed to fetch responses");
             const data = await res.json();
             
-            // CRITICAL FIX: Reverse the array for newest-to-oldest display
             setResponses(prevResponses => ({
                 ...prevResponses,
-                [threadId]: data.reverse() 
+                [threadId]: data.reverse()
             }));
         } catch (error) {
             console.error("Error fetching responses:", error);
@@ -87,7 +180,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
     
-    // Function to toggle response view
+    // Function to toggle response view (Unchanged)
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -97,6 +190,14 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
+    // Handle category change when postType changes (Unchanged)
+    const handlePostTypeChange = (type) => {
+        setPostType(type);
+        setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
+    };
+
+
+    // MODIFIED: handlePostSubmit to update jobPostTrigger (Unchanged)
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -105,6 +206,7 @@ export default function HomePage({ userName, userEmail }) {
         }
 
         if (!postContent.trim()) return alert('Post cannot be empty!');
+        if (!postCategory) return alert('Please select a category.');
 
         const tempId = Date.now();
         const optimisticThread = {
@@ -118,6 +220,7 @@ export default function HomePage({ userName, userEmail }) {
             reactions: 0,
             responseCount: 0, 
             isSubmitting: true, 
+            isBookmarked: false, // Optimistic posts start as unsaved
         };
         setThreads([optimisticThread, ...threads]);
         setIsModalOpen(false);
@@ -140,6 +243,10 @@ export default function HomePage({ userName, userEmail }) {
                 const updatedThreads = prevThreads.filter(t => t.id !== tempId);
                 
                 if (res.ok && data.thread) {
+                    // NEW: If a job was successfully posted, update the trigger
+                    if (postType === 'job') {
+                        setJobPostTrigger(prev => prev + 1);
+                    }
                     return [data.thread, ...updatedThreads];
                 } else {
                     alert(data.message || "Something went wrong while posting. Please try again.");
@@ -154,20 +261,32 @@ export default function HomePage({ userName, userEmail }) {
         }
         
         setPostContent('');
-        setPostCategory(categories[0]);
+        setPostCategory(currentCategories[0]); 
         setPostType("post");
     };
     
-    // UPDATED: Handler function to open reply modal for a Thread OR a Response
-    const handleReplyClick = (threadId, threadType, replyToResponseId = null) => {
+    // handleReplyClick (Unchanged)
+    const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
+        
+        const thread = threads.find(t => t.id === threadId);
+        if (!thread) return alert('Thread not found.');
+
+        setThreadToReplyDetails({
+            title: thread.title,
+            body: thread.body
+        });
+
         setThreadIdToReply(threadId);
         setThreadTypeToReply(threadType);
-        setParentResponseId(replyToResponseId); // Set the parent ID if replying to a response
+        setParentResponseId(replyToResponseId); 
+        setParentResponseAuthor(replyToAuthor); 
+        setParentResponseContent(replyToContent); 
         setResponseContent('');
         setIsResponseModalOpen(true);
     };
 
+    // handleResponseSubmit (Unchanged)
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -176,7 +295,7 @@ export default function HomePage({ userName, userEmail }) {
             threadId: threadIdToReply,
             threadType: threadTypeToReply,
             content: responseContent,
-            parentResponseId: parentResponseId // NEW: Include parent ID
+            parentResponseId: parentResponseId 
         };
         
         try {
@@ -189,14 +308,11 @@ export default function HomePage({ userName, userEmail }) {
             const data = await res.json();
 
             if (res.ok) {
-                // Manually update the response count (only for top-level responses)
                 if (!parentResponseId) {
                     setThreads(prevThreads => prevThreads.map(t => 
                         t.id === threadIdToReply ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t
                     ));
                 }
-
-                // If the response section is open, refetch the responses to display the new one
                 if(expandedThreadId === threadIdToReply) {
                     fetchResponses(threadIdToReply, threadTypeToReply);
                 }
@@ -210,44 +326,60 @@ export default function HomePage({ userName, userEmail }) {
             alert("A network error occurred while submitting response.");
         }
 
-        // Close and reset all response-related states
         setIsResponseModalOpen(false);
         setResponseContent('');
         setThreadIdToReply(null);
         setThreadTypeToReply(null);
-        setParentResponseId(null); // IMPORTANT: Reset parent ID
+        setThreadToReplyDetails(null); 
+        setParentResponseId(null); 
+        setParentResponseAuthor(null);
+        setParentResponseContent(null); 
     };
 
-    // UPDATED: Helper to render responses and their reply buttons (now without a card background)
-    const renderResponses = (threadResponses, threadId, threadType) => {
-        return threadResponses.map(response => (
+    // handlePostKeyDown (Unchanged)
+    const handlePostKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); 
+            handlePostSubmit();
+        }
+    };
+
+    // handleResponseKeyDown (Unchanged)
+    const handleResponseKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); 
+            handleResponseSubmit();
+        }
+    };
+
+    // renderResponses (Unchanged)
+    const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
+        const children = threadResponses.filter(r => 
+            (parentId === null && r.parent_id === null) || 
+            (parentId !== null && r.parent_id === parentId)
+        );
+
+        return children.map(response => (
             <div key={response.id} style={{
                 ...styles.responseItem,
-                // Nested style for replies to responses (simple indentation)
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
-                {/* Meta line: Avatar and Author Name */}
                 <div style={styles.responseMeta}>
                     <div style={styles.avatarCircleTiny}>{response.author[0]}</div>
                     <span style={styles.responseAuthorName}>{response.author}</span>
-                    {/* Time is now in the action line below */}
                 </div>
                 
-                {/* Content */}
                 <p style={styles.responseContent}>
-                    {/* Display who they are replying to */}
                     {response.parent_author && (
                         <span style={styles.replyToText}>@{response.parent_author} </span>
                     )}
                     {response.content}
                 </p>
                 
-                {/* NEW Action Line: Reply Button and Time */}
                 <div style={styles.responseActionLine}>
                     <div 
                         style={styles.responseReplyButton}
-                        // Pass the response ID as the parent ID
-                        onClick={() => handleReplyClick(threadId, threadType, response.id)}
+                        onClick={() => handleReplyClick(threadId, threadType, response.id, response.author, response.content)}
                     >
                         Reply
                     </div>
@@ -255,6 +387,8 @@ export default function HomePage({ userName, userEmail }) {
                         {getTimeSince(response.time)}
                     </span>
                 </div>
+
+                {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
     };
@@ -266,8 +400,6 @@ export default function HomePage({ userName, userEmail }) {
                 {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Threads</h2>
-
-                    {/* New Thread Box */}
                     <div style={styles.newThreadBox}>
                         <div style={styles.newThreadHeader}>
                             <div style={styles.avatarCircle}>{firstName[0]}</div>
@@ -282,8 +414,6 @@ export default function HomePage({ userName, userEmail }) {
                             </button>
                         </div>
                     </div>
-
-                    {/* Threads Feed */}
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading threads...</p>
                     ) : (
@@ -292,7 +422,7 @@ export default function HomePage({ userName, userEmail }) {
                                 ...styles.threadPost, 
                                 opacity: thread.isSubmitting ? 0.7 : 1, 
                             }}>
-                                
+                                {/* ... (thread display content unchanged) */}
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
                                         <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
@@ -310,9 +440,17 @@ export default function HomePage({ userName, userEmail }) {
                                 
                                 <div style={styles.threadFooter}>
                                     <div style={styles.threadActions}>
-                                        <div style={styles.threadActionButton}><FiBookmark size={18} /> Bookmark</div>
-                                        
-                                        {/* Add onClick handler to open response modal (top-level thread reply) */}
+                                        {/* MODIFIED: Bookmark Button */}
+                                        <div 
+                                            style={{
+                                                ...styles.threadActionButton,
+                                                color: thread.isBookmarked ? '#3b82f6' : '#555',
+                                                fontWeight: thread.isBookmarked ? '600' : '500',
+                                            }}
+                                            onClick={() => handleBookmark(thread.id, thread.type, thread.isBookmarked)}
+                                        >
+                                            <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
+                                        </div>
                                         <div 
                                             style={styles.threadActionButton}
                                             onClick={() => handleReplyClick(thread.id, thread.type)}
@@ -320,8 +458,6 @@ export default function HomePage({ userName, userEmail }) {
                                             <FiMessageSquare size={18} /> Add Response
                                         </div>
                                     </div>
-                                    
-                                    {/* Toggle button for responses with correct count display */}
                                     <div
                                         style={styles.responseToggleButton}
                                         onClick={() => toggleResponses(thread.id, thread.type)}
@@ -331,14 +467,13 @@ export default function HomePage({ userName, userEmail }) {
                                     </div>
                                 </div>
                                 
-                                {/* Response Section */}
                                 {expandedThreadId === thread.id && (
                                     <div style={styles.responsesContainer}>
                                         {isFetchingResponses && expandedThreadId === thread.id ? (
                                             <p style={styles.loadingResponsesText}>Loading responses...</p>
                                         ) : (
                                             (responses[thread.id] && responses[thread.id].length > 0) ? (
-                                                renderResponses(responses[thread.id], thread.id, thread.type) // Use helper function
+                                                renderResponses(responses[thread.id], thread.id, thread.type, null)
                                             ) : (
                                                 <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
                                             )
@@ -350,13 +485,18 @@ export default function HomePage({ userName, userEmail }) {
                     )}
                 </div>
 
-                {/* Right Panel */}
-                <RightPanel userName={userName} userEmail={userEmail} />
+                {/* Right Panel (MODIFIED to pass jobPostTrigger) */}
+                <RightPanel 
+                    userName={userName} 
+                    userEmail={userEmail} 
+                    jobPostTrigger={jobPostTrigger} // Pass the trigger state
+                />
             </div>
 
             {/* Post Modal (Unchanged) */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
+                    {/* ... (modal content unchanged) */}
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
                             <h3 style={{ color: '#1e40af' }}>Create {postType === "job" ? "Job" : "Post"}</h3>
@@ -365,7 +505,7 @@ export default function HomePage({ userName, userEmail }) {
 
                         <div style={styles.postTypeToggle}>
                             <button
-                                onClick={() => setPostType("post")}
+                                onClick={() => handlePostTypeChange("post")}
                                 style={{
                                     ...styles.toggleButton,
                                     ...(postType === "post" ? styles.toggleButtonActive : {})
@@ -374,7 +514,7 @@ export default function HomePage({ userName, userEmail }) {
                                 Post
                             </button>
                             <button
-                                onClick={() => setPostType("job")}
+                                onClick={() => handlePostTypeChange("job")}
                                 style={{
                                     ...styles.toggleButton,
                                     ...(postType === "job" ? styles.toggleButtonActive : {})
@@ -389,9 +529,8 @@ export default function HomePage({ userName, userEmail }) {
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
 
-                        {/* Category Buttons */}
                         <div style={styles.categoryContainer}>
-                            {categories.map(cat => (
+                            {currentCategories.map(cat => (
                                 <button
                                     key={cat}
                                     onClick={() => setPostCategory(cat)}
@@ -409,6 +548,7 @@ export default function HomePage({ userName, userEmail }) {
                             placeholder={`What's on your mind, ${firstName}?`}
                             value={postContent}
                             onChange={e => setPostContent(e.target.value)}
+                            onKeyDown={handlePostKeyDown} 
                             style={styles.modalTextarea}
                         />
 
@@ -419,13 +559,14 @@ export default function HomePage({ userName, userEmail }) {
                 </div>
             )}
             
-            {/* RESPONSE MODAL */}
-            {isResponseModalOpen && (
+            {/* RESPONSE MODAL (Unchanged) */}
+            {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
+                    {/* ... (response modal content unchanged) */}
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
                             <h3 style={{ color: '#1e40af' }}>
-                                {parentResponseId ? "Reply to Response" : `Add Response to ${threadTypeToReply}`}
+                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'}
                             </h3>
                             <FiX 
                                 size={28} 
@@ -434,15 +575,40 @@ export default function HomePage({ userName, userEmail }) {
                             />
                         </div>
 
+                        <div style={styles.replyContextBox}>
+                            {parentResponseId ? (
+                                <>
+                                    <p style={styles.replyingToText}>
+                                        Replying to @{parentResponseAuthor}'s comment:
+                                    </p>
+                                    <p style={styles.replyContentSnippet}>
+                                        {parentResponseContent.substring(0, 150)}
+                                        {parentResponseContent.length > 150 ? '...' : ''}
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p style={styles.replyingToText}>
+                                        Replying to the main {threadTypeToReply} topic:
+                                    </p>
+                                    <p style={styles.threadSnippet}>
+                                        {threadToReplyDetails.body.substring(0, 150)}
+                                        {threadToReplyDetails.body.length > 150 ? '...' : ''}
+                                    </p>
+                                </>
+                            )}
+                        </div>
+
                         <div style={styles.modalUserSection}>
                             <div style={styles.avatarCircle}>{firstName[0]}</div>
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
 
                         <textarea
-                            placeholder={parentResponseId ? "Type your reply here..." : `Reply to the ${threadTypeToReply} here...`}
+                            placeholder={parentResponseId ? `Replying to @${parentResponseAuthor}...` : `Reply to the ${threadTypeToReply} here...`}
                             value={responseContent}
                             onChange={e => setResponseContent(e.target.value)}
+                            onKeyDown={handleResponseKeyDown} 
                             style={styles.modalTextarea}
                         />
 
@@ -456,7 +622,7 @@ export default function HomePage({ userName, userEmail }) {
     );
 }
 
-// --- Styles (Updated for Facebook-style, no-card look) ---
+// --- Styles (Unchanged) ---
 const styles = {
     page: { minHeight: '100vh', padding: '10px' },
     container: { 
@@ -554,7 +720,6 @@ const styles = {
         maxHeight: '350px', 
         overflowY: 'auto', 
     },
-    // UPDATED STYLE: Flat, no-card look
     responseItem: {
         padding: '5px 0', 
         position: 'relative', 
@@ -565,27 +730,25 @@ const styles = {
         gap: '8px',
     },
     responseAuthorName: {
-        fontWeight: '700', // Made author name bold
+        fontWeight: '700', 
         color: '#2563eb',
         fontSize: '14px'
     },
     responseContent: {
         fontSize: '14px',
         color: '#374151',
-        marginLeft: '33px', // Aligned under the avatar
+        marginLeft: '33px', 
         whiteSpace: 'pre-wrap',
-        marginTop: '2px', // Closer to the meta line
+        marginTop: '2px', 
         marginBottom: '2px',
     },
-    // NEW STYLE: For the Reply and Time line
     responseActionLine: {
         display: 'flex',
         alignItems: 'center',
         gap: '15px',
-        marginLeft: '33px', // Aligned with content
+        marginLeft: '33px', 
         marginTop: '2px'
     },
-    // MODIFIED STYLE: Reply button
     responseReplyButton: {
         fontSize: '12px',
         fontWeight: '600',
@@ -594,7 +757,6 @@ const styles = {
         padding: '2px 0',
         width: 'fit-content'
     },
-    // NEW STYLE: For small time text next to reply
     responseTimeSmall: {
         fontSize: '12px',
         color: '#9ca3af',
@@ -616,5 +778,38 @@ const styles = {
         padding: '10px', 
         fontSize: '14px', 
         color: '#9ca3af' 
+    },
+    replyContextBox: {
+        border: '1px solid #c7d2fe',
+        backgroundColor: '#f0f9ff',
+        padding: '12px',
+        borderRadius: '10px',
+        marginBottom: '10px',
+    },
+    replyingToText: {
+        fontSize: '14px',
+        color: '#475569',
+        fontWeight: '500',
+        margin: '0',
+    },
+    threadSnippet: {
+        fontSize: '15px',
+        color: '#1e40af',
+        fontWeight: '600',
+        margin: '5px 0 0 0',
+        maxHeight: '40px',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+    },
+    replyContentSnippet: {
+        fontSize: '14px',
+        color: '#1e40af',
+        fontWeight: '500',
+        margin: '5px 0 0 0',
+        maxHeight: '40px',
+        overflow: 'hidden',
+        whiteSpace: 'pre-wrap',
+        textOverflow: 'ellipsis',
     }
 };

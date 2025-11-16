@@ -1,24 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Bell, File, Settings } from 'lucide-react';
+import { Home, FileText, Bell, File, Settings, Bookmark } from 'lucide-react'; // Import Bookmark
 
-const Sidebar = () => {
+// Define job categories (matching those in HomePage.jsx)
+const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
+
+// Define a color map for the categories
+const categoryColors = {
+    "Full-Time": '#a5f3fc',
+    "Part-Time": '#fde68a',
+    "Contract": '#fbcfe8',
+    "Internship": '#d9f99d',
+};
+
+// MODIFIED: Accepts refetchTrigger prop
+const Sidebar = ({ refetchTrigger }) => {
     const location = useLocation();
     const [hoveredLink, setHoveredLink] = useState(null);
+    const [jobCounts, setJobCounts] = useState([]); 
+    
+    // NEW: Function to fetch job counts
+    const fetchJobCounts = async () => {
+        try {
+            const res = await fetch("http://localhost:5000/api/job-category-counts");
+            if (!res.ok) throw new Error("Failed to fetch job category counts");
+            
+            const data = await res.json();
+            
+            const countsMap = data.reduce((acc, item) => {
+                acc[item.tag] = item.count;
+                return acc;
+            }, {});
+            
+            const jobsList = jobCategories.map(cat => ({
+                title: cat,
+                vacancies: countsMap[cat] || 0, 
+                color: categoryColors[cat]
+            }));
+            
+            setJobCounts(jobsList);
+        } catch (error) {
+            console.error("Error fetching job category counts:", error);
+            setJobCounts(jobCategories.map(cat => ({
+                title: cat,
+                vacancies: 0,
+                color: categoryColors[cat]
+            })));
+        }
+    };
+
+    // MODIFIED: useEffect now depends on refetchTrigger
+    useEffect(() => {
+        fetchJobCounts();
+    }, [refetchTrigger]); // The effect re-runs whenever refetchTrigger changes
+
 
     const navItems = [
         { name: 'Home', path: '/home', icon: <Home size={20} /> },
+        { name: 'Saved', path: '/saved', icon: <Bookmark size={20} /> }, // NEW SAVED ITEM
         { name: 'News', path: '/news', icon: <FileText size={20} /> },
         { name: 'Announcements', path: '/announcements', icon: <Bell size={20} /> },
         { name: 'Documents', path: '/documents', icon: <File size={20} /> },
         { name: 'Services', path: '/services', icon: <Settings size={20} /> },
-    ];
-
-    const jobs = [
-        { title: 'Carpenter', vacancies: 3, color: '#a5f3fc' },
-        { title: 'Driver', vacancies: 5, color: '#fde68a' },
-        { title: 'Electrician', vacancies: 2, color: '#fbcfe8' },
-        { title: 'Plumber', vacancies: 1, color: '#d9f99d' },
     ];
 
     const getLinkStyle = (path) => ({
@@ -67,7 +110,7 @@ const Sidebar = () => {
                 </div>
 
                 <ul style={styles.jobList}>
-                    {jobs.map((job, index) => (
+                    {jobCounts.map((job, index) => (
                         <li key={index} style={styles.jobItem}>
                             {/* Subtle wavy background */}
                             <div style={{ 
@@ -93,6 +136,7 @@ const Sidebar = () => {
     );
 };
 
+// Styles remain unchanged
 const styles = {
     sidebar: {
         position: 'fixed',

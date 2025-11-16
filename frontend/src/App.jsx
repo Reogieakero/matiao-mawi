@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import CreateAccountPage from './pages/CreateAccountPage';
+import SavedPage from './pages/SavedPage'; // NEW IMPORT
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -41,11 +42,15 @@ const App = () => {
     const AppLayout = () => (
         <>
             <Header />
-            <Sidebar />
+            {/* The Sidebar component remains the same for simplicity; 
+                if we needed to force a re-render of the Sidebar on every bookmark action 
+                we'd need more prop drilling here. Since we only want to show the 'Saved' link, this is fine. */}
+            <Sidebar /> 
             <div style={appStyles.contentArea}>
                 <Routes>
                     {/* HomePage uses localStorage for userId, but is passed name/email for display */}
                     <Route path="/home" element={<HomePage userName={userName} userEmail={userEmail} />} />
+                    <Route path="/saved" element={<SavedPage userName={userName} userEmail={userEmail} />} /> {/* NEW SAVED ROUTE */}
                     <Route path="/news" element={<Placeholder title="News" />} />
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
                     <Route path="/documents" element={<Placeholder title="Documents" />} />
