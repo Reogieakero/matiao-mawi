@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
-// Utility function to format the time (Unchanged)
+// Utility function to format the time
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -18,7 +18,7 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// MODIFIED: Added Job-Specific Categories (Unchanged)
+// MODIFIED: Added Job-Specific Categories
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
@@ -35,7 +35,7 @@ export default function HomePage({ userName, userEmail }) {
     // NEW: State to force refresh job counts in sidebar
     const [jobPostTrigger, setJobPostTrigger] = useState(0); 
 
-    // --- STATE FOR RESPONSES (Unchanged) ---
+    // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
@@ -49,7 +49,7 @@ export default function HomePage({ userName, userEmail }) {
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
-    // Helper to get the correct categories based on post type (Unchanged)
+    // Helper to get the correct categories based on post type
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
@@ -57,9 +57,6 @@ export default function HomePage({ userName, userEmail }) {
 
     // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
-        // If coming from SavedPage, this prop won't be passed, 
-        // but we'll use a new SavedPage component for that.
-        // The main HomePage fetches all threads.
         
         // Step 1: Fetch All Threads
         let allThreads = [];
@@ -154,9 +151,8 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
     
-    // Function to fetch responses for a specific thread (Unchanged)
+    // Function to fetch responses for a specific thread
     const fetchResponses = async (threadId, threadType) => {
-        // ... (implementation unchanged)
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
             delete newResponses[threadId];
@@ -180,7 +176,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
     
-    // Function to toggle response view (Unchanged)
+    // Function to toggle response view
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -190,14 +186,14 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
-    // Handle category change when postType changes (Unchanged)
+    // Handle category change when postType changes
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
     };
 
 
-    // MODIFIED: handlePostSubmit to update jobPostTrigger (Unchanged)
+    // MODIFIED: handlePostSubmit to update jobPostTrigger
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -265,7 +261,7 @@ export default function HomePage({ userName, userEmail }) {
         setPostType("post");
     };
     
-    // handleReplyClick (Unchanged)
+    // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -286,7 +282,7 @@ export default function HomePage({ userName, userEmail }) {
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit (Unchanged)
+    // handleResponseSubmit
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -336,7 +332,7 @@ export default function HomePage({ userName, userEmail }) {
         setParentResponseContent(null); 
     };
 
-    // handlePostKeyDown (Unchanged)
+    // handlePostKeyDown
     const handlePostKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -344,7 +340,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
-    // handleResponseKeyDown (Unchanged)
+    // handleResponseKeyDown
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -352,7 +348,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
-    // renderResponses (Unchanged)
+    // renderResponses
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -388,6 +384,7 @@ export default function HomePage({ userName, userEmail }) {
                     </span>
                 </div>
 
+                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
@@ -399,30 +396,25 @@ export default function HomePage({ userName, userEmail }) {
             <div style={styles.container}>
                 {/* Main Content */}
                 <div style={styles.mainContent}>
-                    <h2 style={styles.sectionTitle}>Community Threads</h2>
-                    <div style={styles.newThreadBox}>
-                        <div style={styles.newThreadHeader}>
-                            <div style={styles.avatarCircle}>{firstName[0]}</div>
-                            <div
-                                style={styles.newThreadInputTrigger}
-                                onClick={() => setIsModalOpen(true)}
-                            >
-                                What's on your mind, {firstName}?
-                            </div>
-                            <button style={styles.newThreadButton} onClick={() => setIsModalOpen(true)}>
-                                <FiPlus size={24} color="#fff" />
-                            </button>
-                        </div>
-                    </div>
+                    <h2 style={styles.sectionTitle}>Community Feed</h2>
+                    
+                    <button style={styles.createPostButton} onClick={() => setIsModalOpen(true)}>
+                        <FiPlus size={20} /> Create New Post
+                    </button>
+                    
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading threads...</p>
+                    ) : (threads.length === 0) ? (
+                        <p style={styles.loadingText}>No threads found.</p>
                     ) : (
                         threads.map(thread => (
-                            <div key={thread.id} style={{
-                                ...styles.threadPost, 
-                                opacity: thread.isSubmitting ? 0.7 : 1, 
-                            }}>
-                                {/* ... (thread display content unchanged) */}
+                            <div 
+                                key={thread.id} 
+                                style={{ 
+                                    ...styles.threadPost, 
+                                    opacity: thread.isSubmitting ? 0.7 : 1, 
+                                }}
+                            >
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
                                         <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
@@ -433,6 +425,7 @@ export default function HomePage({ userName, userEmail }) {
                                     </div>
                                     <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
+                                <h3 style={styles.threadTitle}>{thread.title}</h3>
                                 
                                 <p style={styles.threadBodyModified}>
                                     {thread.body}
@@ -451,6 +444,7 @@ export default function HomePage({ userName, userEmail }) {
                                         >
                                             <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
                                         </div>
+
                                         <div 
                                             style={styles.threadActionButton}
                                             onClick={() => handleReplyClick(thread.id, thread.type)}
@@ -458,15 +452,16 @@ export default function HomePage({ userName, userEmail }) {
                                             <FiMessageSquare size={18} /> Add Response
                                         </div>
                                     </div>
-                                    <div
+                                    
+                                    <div 
                                         style={styles.responseToggleButton}
                                         onClick={() => toggleResponses(thread.id, thread.type)}
                                     >
-                                        {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'} 
+                                        {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'}
                                         {expandedThreadId === thread.id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
                                     </div>
                                 </div>
-                                
+
                                 {expandedThreadId === thread.id && (
                                     <div style={styles.responsesContainer}>
                                         {isFetchingResponses && expandedThreadId === thread.id ? (
@@ -493,51 +488,50 @@ export default function HomePage({ userName, userEmail }) {
                 />
             </div>
 
-            {/* Post Modal (Unchanged) */}
+            {/* Post Modal */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
-                    {/* ... (modal content unchanged) */}
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}>Create {postType === "job" ? "Job" : "Post"}</h3>
+                            <h3 style={{ color: '#1e40af' }}>Create New {postType === 'job' ? 'Job Post' : 'Community Post'}</h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsModalOpen(false)} />
                         </div>
 
-                        <div style={styles.postTypeToggle}>
-                            <button
-                                onClick={() => handlePostTypeChange("post")}
+                        <div style={styles.toggleContainer}>
+                            <button 
                                 style={{
-                                    ...styles.toggleButton,
-                                    ...(postType === "post" ? styles.toggleButtonActive : {})
+                                    ...styles.toggleButton, 
+                                    ...(postType === 'post' ? styles.toggleButtonActive : {})
                                 }}
+                                onClick={() => handlePostTypeChange('post')}
                             >
-                                Post
+                                Community Post
                             </button>
-                            <button
-                                onClick={() => handlePostTypeChange("job")}
+                            <button 
                                 style={{
-                                    ...styles.toggleButton,
-                                    ...(postType === "job" ? styles.toggleButtonActive : {})
+                                    ...styles.toggleButton, 
+                                    ...(postType === 'job' ? styles.toggleButtonActive : {})
                                 }}
+                                onClick={() => handlePostTypeChange('job')}
                             >
-                                Job
+                                Job Post
                             </button>
                         </div>
-
+                        
                         <div style={styles.modalUserSection}>
                             <div style={styles.avatarCircle}>{firstName[0]}</div>
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
-
+                        
                         <div style={styles.categoryContainer}>
                             {currentCategories.map(cat => (
                                 <button
                                     key={cat}
-                                    onClick={() => setPostCategory(cat)}
                                     style={{
                                         ...styles.categoryButton,
                                         ...(postCategory === cat ? styles.categoryButtonActive : {})
                                     }}
+                                    onClick={() => setPostCategory(cat)}
                                 >
                                     {cat}
                                 </button>
@@ -545,36 +539,31 @@ export default function HomePage({ userName, userEmail }) {
                         </div>
 
                         <textarea
-                            placeholder={`What's on your mind, ${firstName}?`}
+                            placeholder={`What's on your mind, ${firstName}? (Title will be the first 50 characters of the post content)`}
                             value={postContent}
                             onChange={e => setPostContent(e.target.value)}
-                            onKeyDown={handlePostKeyDown} 
+                            onKeyDown={handlePostKeyDown}
                             style={styles.modalTextarea}
                         />
 
                         <button onClick={handlePostSubmit} style={styles.modalPostButton}>
-                            <FiPlus color="#fff" /> {postType === "job" ? "Post Job" : "Post"}
+                            <FiPlus color="#fff" /> Submit Post
                         </button>
                     </div>
                 </div>
             )}
-            
-            {/* RESPONSE MODAL (Unchanged) */}
+
+            {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
-                    {/* ... (response modal content unchanged) */}
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
                             <h3 style={{ color: '#1e40af' }}>
                                 Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'}
                             </h3>
-                            <FiX 
-                                size={28} 
-                                style={{ cursor: 'pointer', color: '#1e3a8a' }} 
-                                onClick={() => setIsResponseModalOpen(false)} 
-                            />
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsResponseModalOpen(false)} />
                         </div>
-
+                        
                         <div style={styles.replyContextBox}>
                             {parentResponseId ? (
                                 <>
@@ -582,8 +571,7 @@ export default function HomePage({ userName, userEmail }) {
                                         Replying to @{parentResponseAuthor}'s comment:
                                     </p>
                                     <p style={styles.replyContentSnippet}>
-                                        {parentResponseContent.substring(0, 150)}
-                                        {parentResponseContent.length > 150 ? '...' : ''}
+                                        {parentResponseContent.substring(0, 150)} {parentResponseContent.length > 150 ? '...' : ''}
                                     </p>
                                 </>
                             ) : (
@@ -592,8 +580,7 @@ export default function HomePage({ userName, userEmail }) {
                                         Replying to the main {threadTypeToReply} topic:
                                     </p>
                                     <p style={styles.threadSnippet}>
-                                        {threadToReplyDetails.body.substring(0, 150)}
-                                        {threadToReplyDetails.body.length > 150 ? '...' : ''}
+                                        {threadToReplyDetails.body.substring(0, 150)} {threadToReplyDetails.body.length > 150 ? '...' : ''}
                                     </p>
                                 </>
                             )}
@@ -608,7 +595,7 @@ export default function HomePage({ userName, userEmail }) {
                             placeholder={parentResponseId ? `Replying to @${parentResponseAuthor}...` : `Reply to the ${threadTypeToReply} here...`}
                             value={responseContent}
                             onChange={e => setResponseContent(e.target.value)}
-                            onKeyDown={handleResponseKeyDown} 
+                            onKeyDown={handleResponseKeyDown}
                             style={styles.modalTextarea}
                         />
 
@@ -622,135 +609,322 @@ export default function HomePage({ userName, userEmail }) {
     );
 }
 
-// --- Styles (Unchanged) ---
+// --- Styles ---
 const styles = {
-    page: { minHeight: '100vh', padding: '10px' },
+    page: { 
+        minHeight: '100vh', 
+        padding: '10px' 
+    },
     container: { 
         display: 'flex', 
         gap: '30px', 
         alignItems: 'flex-start', 
         width: '100%', 
         maxWidth: '1200px', 
-        margin: '0 auto',
-        paddingRight: '340px', 
+        margin: '0 auto', 
+        paddingRight: '340px', // Space for the fixed RightPanel
         boxSizing: 'border-box'
     },
-    mainContent: { flex: 1, minWidth: '600px' },
-    sectionTitle: { fontSize: '24px', fontWeight: '700', color: '#1e40af', marginBottom: '20px', borderBottom: '2px solid #1e40af', paddingBottom: '5px' },
-    avatarCircle: { width: '45px', height: '45px', borderRadius: '50%', backgroundColor: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '18px', flexShrink: 0 },
-    avatarCircleSmall: { width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#93c5fd', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px', flexShrink: 0 },
-    avatarCircleTiny: { width: '25px', height: '25px', borderRadius: '50%', backgroundColor: '#bfdbfe', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '12px', flexShrink: 0 },
-    newThreadBox: { backgroundColor: '#fff', borderRadius: '15px', boxShadow: '0 6px 20px rgba(0,0,0,0.1)', padding: '12px 15px', marginBottom: '20px' },
-    newThreadHeader: { display: 'flex', alignItems: 'center', gap: '10px' },
-    newThreadInputTrigger: { flex: 1, border: 'none', padding: '12px 15px', fontSize: '16px', outline: 'none', cursor: 'pointer', color: '#555', borderRadius: '12px', backgroundColor: '#f1f5f9', transition: 'all 0.2s' },
-    newThreadButton: { backgroundColor: '#1e40af', border: 'none', borderRadius: '50%', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' },
-
-    postTypeToggle: { display: 'flex', gap: '10px', marginBottom: '10px' },
-    toggleButton: { flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #93c5fd', backgroundColor: '#e0f2fe', cursor: 'pointer', fontWeight: 500, transition: 'all 0.2s' },
-    toggleButtonActive: { backgroundColor: '#3b82f6', color: '#fff', border: '1px solid #2563eb' },
-
-    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-    modalContent: { backgroundColor: '#ffffff', padding: '25px', borderRadius: '16px', width: '520px', maxWidth: '95%', display: 'flex', flexDirection: 'column', gap: '18px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)' },
-    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #c7d2fe', paddingBottom: '12px' },
-    modalUserSection: { display: 'flex', alignItems: 'center', gap: '12px' },
-    modalUserName: { fontWeight: 600, fontSize: '16px', color: '#1e3a8a' },
-
-    categoryContainer: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' },
-    categoryButton: { padding: '8px 14px', borderRadius: '20px', border: '1px solid #93c5fd', backgroundColor: '#e0f2fe', color: '#1e3a8a', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s', fontSize: '14px' },
-    categoryButtonActive: { backgroundColor: '#3b82f6', color: '#fff', border: '1px solid #2563eb' },
-
-    modalTextarea: { width: '94%', minHeight: '160px', padding: '15px', borderRadius: '14px', border: '1px solid #93c5fd', resize: 'vertical', outline: 'none', fontSize: '16px', backgroundColor: '#f0f9ff' },
-    modalPostButton: { padding: '12px 18px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '16px', transition: 'all 0.2s' },
-
-    threadPost: { backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '15px', boxShadow: '0 6px 18px rgba(0,0,0,0.08)' },
-    
-    threadMetaTop: { 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '10px', 
+    mainContent: { 
+        flex: 1, 
+        minWidth: '600px' 
     },
-    
-    threadTagModified: { 
-        backgroundColor: '#dbeafe', 
-        color: '#1e3a8a', 
-        padding: '6px 12px', 
-        borderRadius: '15px', 
-        fontSize: '14px', 
-        fontWeight: '600',
-        whiteSpace: 'nowrap' 
-    },
-    
-    threadBodyModified: { 
-        fontSize: '15px', 
-        fontWeight: '500', 
-        color: '#111827', 
-        lineHeight: '1.4', 
+    sectionTitle: {
+        fontSize: '24px',
+        fontWeight: '700',
+        color: '#1e40af',
         marginBottom: '15px',
-        marginTop: '10px', 
-        whiteSpace: 'pre-wrap', 
     },
-    
-    threadAuthorInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
-    threadAuthorName: { fontWeight: '600', color: '#1e40af' },
-    threadTime: { fontSize: '14px', color: '#555' },
-    threadFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #c7d2fe' },
-    threadActions: { display: 'flex', gap: '20px' },
-    threadActionButton: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: '#555', padding: '6px', borderRadius: '6px', transition: 'all 0.2s' },
-    loadingText: { textAlign: 'center', padding: '20px', fontSize: '18px', color: '#6b7280' },
-    
-    // Styles for the response section
-    responseToggleButton: {
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '6px', 
-        cursor: 'pointer', 
-        color: '#3b82f6', 
+    createPostButton: {
+        width: '100%',
+        padding: '12px 20px',
+        marginBottom: '20px',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'pointer',
         fontWeight: '600',
-        transition: 'all 0.2s',
-        fontSize: '15px'
+        fontSize: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        transition: 'background-color 0.2s',
+    },
+    loadingText: {
+        textAlign: 'center',
+        padding: '50px',
+        fontSize: '18px',
+        color: '#9ca3af',
+    },
+    threadPost: {
+        backgroundColor: '#fff',
+        padding: '20px',
+        borderRadius: '16px',
+        marginBottom: '20px',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        border: '1px solid #e5e7eb',
+    },
+    threadMetaTop: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px',
+    },
+    threadAuthorInfo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    avatarCircleSmall: {
+        width: '28px',
+        height: '28px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '600',
+        fontSize: '14px',
+    },
+    threadAuthorName: {
+        fontWeight: '600',
+        fontSize: '15px',
+        color: '#1e40af',
+    },
+    threadTime: {
+        fontSize: '13px',
+        color: '#9ca3af',
+        marginLeft: '10px',
+    },
+    threadTagModified: {
+        padding: '4px 10px',
+        backgroundColor: '#e0f2fe',
+        color: '#1e40af',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '600',
+    },
+    threadTitle: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1f2937',
+        margin: '0 0 8px 0',
+    },
+    threadBodyModified: {
+        fontSize: '16px',
+        color: '#4b5563',
+        margin: '0 0 15px 0',
+        lineHeight: '1.5',
+    },
+    threadFooter: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: '15px',
+        borderTop: '1px solid #f3f4f6',
+    },
+    threadActions: {
+        display: 'flex',
+        gap: '15px',
+    },
+    threadActionButton: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        fontSize: '14px',
+        color: '#555',
+        cursor: 'pointer',
+        padding: '5px 8px',
+        borderRadius: '6px',
+        transition: 'background-color 0.2s',
+    },
+    responseToggleButton: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '14px',
+        color: '#1e40af',
+        fontWeight: '600',
+        cursor: 'pointer',
+        padding: '5px 8px',
+        borderRadius: '6px',
+        backgroundColor: '#eff6ff',
+    },
+    toggleContainer: {
+        display: 'flex',
+        width: '100%',
+        backgroundColor: '#f0f9ff',
+        borderRadius: '10px',
+        overflow: 'hidden',
+    },
+    toggleButton: {
+        flex: 1,
+        padding: '10px',
+        border: '1px solid #93c5fd',
+        backgroundColor: '#e0f2fe',
+        cursor: 'pointer',
+        fontWeight: 500,
+        transition: 'all 0.2s'
+    },
+    toggleButtonActive: {
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        border: '1px solid #2563eb'
+    },
+    modalOverlay: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        padding: '25px',
+        borderRadius: '16px',
+        width: '520px',
+        maxWidth: '95%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '18px',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.25)'
+    },
+    modalHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: '1px solid #c7d2fe',
+        paddingBottom: '12px'
+    },
+    modalUserSection: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+    },
+    avatarCircle: {
+        width: '40px',
+        height: '40px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '700',
+        fontSize: '18px',
+    },
+    modalUserName: {
+        fontWeight: 600,
+        fontSize: '16px',
+        color: '#1e3a8a'
+    },
+    categoryContainer: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        marginBottom: '15px'
+    },
+    categoryButton: {
+        padding: '8px 14px',
+        borderRadius: '20px',
+        border: '1px solid #93c5fd',
+        backgroundColor: '#e0f2fe',
+        color: '#1e40af',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '500',
+        transition: 'all 0.2s'
+    },
+    categoryButtonActive: {
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        borderColor: '#2563eb'
+    },
+    modalTextarea: {
+        width: '94%',
+        minHeight: '160px',
+        padding: '15px',
+        borderRadius: '14px',
+        border: '1px solid #93c5fd',
+        resize: 'vertical',
+        outline: 'none',
+        fontSize: '16px',
+        backgroundColor: '#f0f9ff'
+    },
+    modalPostButton: {
+        padding: '12px 18px',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        fontWeight: '600',
+        fontSize: '16px',
+        transition: 'all 0.2s'
     },
     responsesContainer: {
         marginTop: '15px',
-        paddingTop: '15px', 
-        borderTop: '1px solid #e5e7eb', 
+        paddingTop: '15px',
+        borderTop: '1px solid #e5e7eb',
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
-        maxHeight: '350px', 
-        overflowY: 'auto', 
+        maxHeight: '350px',
+        overflowY: 'auto',
     },
     responseItem: {
-        padding: '5px 0', 
-        position: 'relative', 
+        padding: '5px 0',
+        position: 'relative',
     },
     responseMeta: {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
     },
+    avatarCircleTiny: {
+        width: '20px',
+        height: '20px',
+        borderRadius: '50%',
+        backgroundColor: '#60a5fa',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '600',
+        fontSize: '10px',
+    },
     responseAuthorName: {
-        fontWeight: '700', 
-        color: '#2563eb',
-        fontSize: '14px'
+        fontWeight: '700',
+        fontSize: '14px',
+        color: '#1e40af',
     },
     responseContent: {
-        fontSize: '14px',
-        color: '#374151',
-        marginLeft: '33px', 
-        whiteSpace: 'pre-wrap',
-        marginTop: '2px', 
-        marginBottom: '2px',
+        fontSize: '15px',
+        color: '#4b5563',
+        margin: '5px 0 5px 28px',
+        lineHeight: '1.4',
     },
     responseActionLine: {
         display: 'flex',
         alignItems: 'center',
         gap: '15px',
-        marginLeft: '33px', 
-        marginTop: '2px'
+        marginLeft: '28px',
     },
     responseReplyButton: {
-        fontSize: '12px',
+        fontSize: '13px',
         fontWeight: '600',
         color: '#60a5fa',
         cursor: 'pointer',
@@ -799,17 +973,14 @@ const styles = {
         margin: '5px 0 0 0',
         maxHeight: '40px',
         overflow: 'hidden',
-        whiteSpace: 'nowrap',
         textOverflow: 'ellipsis',
     },
     replyContentSnippet: {
-        fontSize: '14px',
-        color: '#1e40af',
-        fontWeight: '500',
+        fontSize: '15px',
+        color: '#4b5563',
         margin: '5px 0 0 0',
         maxHeight: '40px',
         overflow: 'hidden',
-        whiteSpace: 'pre-wrap',
         textOverflow: 'ellipsis',
     }
 };

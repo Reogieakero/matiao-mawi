@@ -9,15 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
-// Middleware
 app.use(cors({
-    origin: 'http://localhost:3000', // React dev server
+    origin: 'http://localhost:3000', 
     methods: 'GET,POST',
     credentials: true,
 }));
 app.use(bodyParser.json());
 
-// MySQL Connection - IMPORTANT: Configure your environment variables (.env file)
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -35,39 +33,32 @@ db.connect(err => {
     console.log('Connected to MySQL as id ' + db.threadId);
 });
 
-// ------------------- UTILITY FUNCTIONS -------------------
 
-// Function to format the threads for the frontend
 const formatThread = (row, type) => ({
     id: row.id,
-    type: type, // 'post' or 'job'
+    type: type, 
     title: row.title,
-    author: row.name, // Fetched from users table
-    time: row.created_at, // Will be formatted on the frontend
+    author: row.name, 
+    time: row.created_at, 
     tag: row.tag,
     body: row.body,
-    reactions: 0, // Mock reaction count
+    reactions: 0, 
     responseCount: row.response_count || 0,
-    // NEW: Indicate if the thread is bookmarked (for fetching saved threads)
     isBookmarked: row.is_bookmarked || false,
-    // NEW: Add the time the user bookmarked the thread
     bookmarked_at: row.bookmarked_at || null,
 });
 
 const formatResponse = (row) => ({
     id: row.id,
-    author: row.name, // CRITICAL: Fetched from the JOIN operation
+    author: row.name, 
     content: row.content,
     time: row.created_at,
-    // NEW: Fields for nested replies
     parent_id: row.parent_id,
-    parent_author: row.parent_author_name, // Name of the user they are replying to
+    parent_author: row.parent_author_name,
 });
 
 
-// ------------------- ROUTES -------------------
 
-// POST /api/register (Unchanged)
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
@@ -91,7 +82,6 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// POST /api/login (Unchanged)
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
@@ -112,7 +102,6 @@ app.post('/api/login', async (req, res) => {
     });
 });
 
-// GET /api/threads (Unchanged)
 app.get('/api/threads', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT p.*, u.name, CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
@@ -146,7 +135,6 @@ app.get('/api/threads', (req, res) => {
     });
 });
 
-// POST /api/threads (Unchanged)
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 
     const { postType, postContent, postCategory } = req.body;
@@ -196,61 +184,45 @@ app.post('/api/threads', (req, res) => {
              if (fetchErr) {
                  console.error("Error fetching new thread details:", fetchErr);
                  return res.status(201).json({ message: 'Thread created successfully, but failed to return full details.' });
-            }
-
-            const newThread = formatThread(fetchResults[0], postType);
-            res.status(201).json({ message: 'Thread created successfully!', thread: newThread });
+             }
+             const newThread = formatThread(fetchResults[0], postType);
+             res.status(201).json({ message: 'Thread created successfully!', thread: newThread });
         });
     });
 });
 
-// POST /api/responses - Creates a new response (Unchanged)
 app.post('/api/responses', (req, res) => {
     const threadId = parseInt(req.body.threadId, 10);
-    const userId = parseInt(req.body.userId, 10); 
-    const parentResponseId = req.body.parentResponseId ? parseInt(req.body.parentResponseId, 10) : null; 
+    const userId = parseInt(req.body.userId, 10);
+    const parentResponseId = req.body.parentResponseId ? parseInt(req.body.parentResponseId, 10) : null;
     const { threadType, content } = req.body;
 
     if (!userId || isNaN(userId) || !threadId || isNaN(threadId) || !threadType || !content) {
-        return res.status(400).json({ message: 'Missing required fields for response or invalid IDs.' });
+         return res.status(400).json({ message: 'Missing required fields for response creation.' });
     }
 
-    if (parentResponseId !== null && isNaN(parentResponseId)) {
-        return res.status(400).json({ message: 'Invalid Parent Response ID.' });
+    const threadKey = threadType === 'post' ? 'post_id' : (threadType === 'job' ? 'job_id' : null);
+
+    if (!threadKey) {
+        return res.status(400).json({ message: 'Invalid thread type specified.' });
     }
     
-    let threadKey;
-    
-    if (threadType === 'post') {
-        threadKey = 'post_id';
-    } else if (threadType === 'job') {
-        threadKey = 'job_id';
-    } else {
-        return res.status(400).json({ message: 'Invalid thread type specified for response. Must be "post" or "job".' });
-    }
+    const SQL_INSERT = `INSERT INTO responses (user_id, ${threadKey}, content, parent_id) VALUES (?, ?, ?, ?)`;
 
-    const SQL_INSERT_RESPONSE = `
-        INSERT INTO responses (user_id, ${threadKey}, content, parent_id) VALUES (?, ?, ?, ?)
-    `;
-
-    db.query(SQL_INSERT_RESPONSE, [userId, threadId, content, parentResponseId], (err, result) => {
+    db.query(SQL_INSERT, [userId, threadId, content, parentResponseId], (err, result) => {
         if (err) {
-            console.error(`--- Database error inserting response into responses table ---`);
-            console.error("MySQL Error:", err.code, err.message);
+            console.error("Database error inserting response:", err);
             
             let userMessage = 'Failed to submit response.';
-            if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
-                userMessage = `Error: The associated ${threadType}, User, or Parent Response ID is invalid.`;
+            if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                userMessage = `Error: The associated ${threadType}, User ID, or parent response ID is invalid.`;
             }
-            
             return res.status(500).json({ message: userMessage });
         }
-        
         res.status(201).json({ message: 'Response submitted successfully!', responseId: result.insertId });
     });
 });
 
-// GET /api/responses/:threadType/:threadId - Fetches responses with author name (Unchanged)
 app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const { threadType, threadId } = req.params;
     const threadIdInt = parseInt(threadId, 10);
@@ -262,12 +234,9 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
 
     const SQL_FETCH_RESPONSES = `
-        SELECT 
-            r.*, 
-            u.name,
-            pr_u.name AS parent_author_name
+        SELECT r.*, u.name, pr_u.name AS parent_author_name
         FROM responses r
-        JOIN users u ON r.user_id = u.id  -- Author of the current response
+        JOIN users u ON r.user_id = u.id -- Author of the current response
         LEFT JOIN responses pr ON r.parent_id = pr.id -- Parent response (optional)
         LEFT JOIN users pr_u ON pr.user_id = pr_u.id -- Author of the parent response
         WHERE r.${threadKey} = ?
@@ -279,13 +248,12 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
             console.error("Database error fetching responses:", err);
             return res.status(500).json({ message: 'Failed to fetch responses.' });
         }
-        
         const responses = results.map(formatResponse);
         res.status(200).json(responses);
     });
 });
 
-// GET /api/job-category-counts (Unchanged)
+
 app.get('/api/job-category-counts', (req, res) => {
     const SQL_FETCH_COUNTS = `
         SELECT tag, COUNT(id) AS count
@@ -302,30 +270,30 @@ app.get('/api/job-category-counts', (req, res) => {
     });
 });
 
-// POST /api/bookmarks (Unchanged)
 app.post('/api/bookmarks', (req, res) => {
-    const { userId, threadId, threadType } = req.body;
+    const userId = parseInt(req.body.userId, 10);
+    const threadId = parseInt(req.body.threadId, 10);
+    const threadType = req.body.threadType;
 
-    if (!userId || !threadId || !threadType || !['post', 'job'].includes(threadType)) {
-        return res.status(400).json({ message: 'Missing required fields or invalid thread type.' });
+    if (!userId || isNaN(userId) || !threadId || isNaN(threadId) || !['post', 'job'].includes(threadType)) {
+        return res.status(400).json({ message: 'Invalid or missing fields for bookmark operation.' });
     }
 
     const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
-
-    const SQL_CHECK_EXISTENCE = `
-        SELECT id FROM bookmarks WHERE user_id = ? AND ${threadKey} = ?
-    `;
-
-    db.query(SQL_CHECK_EXISTENCE, [userId, threadId], (err, results) => {
+    
+    const SQL_CHECK = `SELECT id FROM bookmarks WHERE user_id = ? AND ${threadKey} = ?`;
+    
+    db.query(SQL_CHECK, [userId, threadId], (err, results) => {
         if (err) {
-            console.error("Database error checking bookmark:", err);
+            console.error("Database error checking bookmark status:", err);
             return res.status(500).json({ message: 'Failed to check bookmark status.' });
         }
 
         if (results.length > 0) {
-            // Bookmark exists, so delete it (Unsave)
+
             const bookmarkId = results[0].id;
             const SQL_DELETE = 'DELETE FROM bookmarks WHERE id = ?';
+
             db.query(SQL_DELETE, [bookmarkId], (deleteErr) => {
                 if (deleteErr) {
                     console.error("Database error deleting bookmark:", deleteErr);
@@ -334,13 +302,11 @@ app.post('/api/bookmarks', (req, res) => {
                 res.status(200).json({ message: 'Thread unsaved successfully.', bookmarked: false });
             });
         } else {
-            // Bookmark does not exist, so insert it (Save)
-            const SQL_INSERT = `
-                INSERT INTO bookmarks (user_id, ${threadKey}) VALUES (?, ?)
-            `;
+
+            const SQL_INSERT = `INSERT INTO bookmarks (user_id, ${threadKey}) VALUES (?, ?)`;
             db.query(SQL_INSERT, [userId, threadId], (insertErr) => {
                 if (insertErr) {
-                    // Check for foreign key error or other insertion issues
+
                     console.error("Database error inserting bookmark:", insertErr);
                     let userMessage = 'Failed to save thread.';
                     if (insertErr.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -354,62 +320,64 @@ app.post('/api/bookmarks', (req, res) => {
     });
 });
 
-// GET /api/bookmarks/:userId - Fetch all bookmarked threads (Unchanged)
 app.get('/api/bookmarks/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
 
-    // Join bookmarks with posts and jobs to retrieve the full thread data
     const SQL_FETCH_BOOKMARKS = `
         (
             SELECT 
-                p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body,
-                CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
-                TRUE AS is_bookmarked,
-                b.created_at AS bookmarked_at  /* <<< ADDED THIS FIELD */
+                p.id, 
+                'post' AS type, 
+                p.title, 
+                u.name, 
+                p.created_at, 
+                p.tag, 
+                p.body, 
+                b.created_at AS bookmarked_at,
+                (SELECT COUNT(r.id) FROM responses r WHERE r.post_id = p.id) AS response_count
             FROM bookmarks b
             JOIN posts p ON b.post_id = p.id
             JOIN users u ON p.user_id = u.id
-            LEFT JOIN responses r ON p.id = r.post_id
-            WHERE b.user_id = ? AND b.post_id IS NOT NULL
-            GROUP BY p.id
+            WHERE b.user_id = ? AND b.job_id IS NULL
         )
         UNION ALL
         (
             SELECT 
-                j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body,
-                CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
-                TRUE AS is_bookmarked,
-                b.created_at AS bookmarked_at  /* <<< ADDED THIS FIELD */
+                j.id, 
+                'job' AS type, 
+                j.title, 
+                u.name, 
+                j.created_at, 
+                j.tag, 
+                j.body, 
+                b.created_at AS bookmarked_at,
+                (SELECT COUNT(r.id) FROM responses r WHERE r.job_id = j.id) AS response_count
             FROM bookmarks b
             JOIN jobs j ON b.job_id = j.id
             JOIN users u ON j.user_id = u.id
-            LEFT JOIN responses r ON j.id = r.job_id
-            WHERE b.user_id = ? AND b.job_id IS NOT NULL
-            GROUP BY j.id
+            WHERE b.user_id = ? AND b.post_id IS NULL
         )
-        ORDER BY created_at DESC;
+        ORDER BY bookmarked_at DESC
     `;
-    
+
     db.query(SQL_FETCH_BOOKMARKS, [userId, userId], (err, results) => {
         if (err) {
             console.error("Database error fetching bookmarks:", err);
-            return res.status(500).json({ message: 'Failed to fetch bookmarked threads.' });
+            return res.status(500).json({ message: 'Failed to fetch saved threads.' });
         }
-
-        const bookmarkedThreads = results.map(row => formatThread(row, row.type));
-        res.status(200).json(bookmarkedThreads);
+        
+        const savedThreads = results.map(row => formatThread(row, row.type));
+        res.status(200).json(savedThreads);
     });
 });
 
-// ⭐ NEW ROUTE: GET /api/search - Search threads by title or body
-app.get('/api/search', (req, res) => {
-    const searchTerm = req.query.q;
-    if (!searchTerm) {
-        return res.status(400).json({ message: 'Search query (q) is required.' });
-    }
 
-    const searchPattern = `%${searchTerm}%`;
+app.get('/api/search', (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ message: 'Search query is required.' });
+
+    const searchPattern = `%${q}%`;
 
     const SQL_SEARCH_POSTS = `
         SELECT p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body,
@@ -430,7 +398,6 @@ app.get('/api/search', (req, res) => {
         GROUP BY j.id
     `;
 
-    // Use multiple statements to run both queries simultaneously
     db.query(`${SQL_SEARCH_POSTS};${SQL_SEARCH_JOBS}`, 
         [searchPattern, searchPattern, searchPattern, searchPattern], 
         (err, results) => {
@@ -451,5 +418,6 @@ app.get('/api/search', (req, res) => {
     });
 });
 
-// Start server
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});

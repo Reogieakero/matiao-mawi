@@ -152,7 +152,6 @@ const styles = {
         boxShadow: '2px 0 15px rgba(0,0,0,0.1)',
     },
     findJobCard: {
-        marginTop: '20px',
         padding: '20px',
         borderRadius: '15px',
         backgroundColor: '#ffffff',
