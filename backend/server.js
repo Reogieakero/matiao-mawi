@@ -4,6 +4,9 @@ const mysql = require('mysql');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const multer = require('multer'); 
+const path = require('path'); 
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,6 +18,27 @@ app.use(cors({
     credentials: true,
 }));
 app.use(bodyParser.json());
+
+// --- MULTER CONFIGURATION ---
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir); 
+    },
+    filename: (req, file, cb) => {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } 
+}).array('media', 3); 
+
+app.use('/media', express.static(uploadDir));
 
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
@@ -34,19 +58,37 @@ db.connect(err => {
 });
 
 
-const formatThread = (row, type) => ({
-    id: row.id,
-    type: type, 
-    title: row.title,
-    author: row.name, 
-    time: row.created_at, 
-    tag: row.tag,
-    body: row.body,
-    reactions: 0, 
-    responseCount: row.response_count || 0,
-    isBookmarked: row.is_bookmarked || false,
-    bookmarked_at: row.bookmarked_at || null,
-});
+// FIX: Modified formatThread to safely parse media_url (Handles old single-URL format)
+const formatThread = (row, type) => {
+    let mediaUrls = [];
+    if (row.media_url) {
+        try {
+            // 1. Try to parse as a JSON array (for new posts)
+            mediaUrls = JSON.parse(row.media_url);
+        } catch (e) {
+            // 2. If JSON.parse fails, assume it's a single raw URL string (for old posts)
+            if (typeof row.media_url === 'string') {
+                mediaUrls = [row.media_url];
+            }
+        }
+    }
+    
+    return {
+        id: row.id,
+        type: type, 
+        title: row.title,
+        author: row.name, 
+        time: row.created_at, 
+        tag: row.tag,
+        body: row.body,
+        reactions: 0, 
+        responseCount: row.response_count || 0,
+        isBookmarked: row.is_bookmarked || false,
+        bookmarked_at: row.bookmarked_at || null,
+        mediaUrls: mediaUrls || [], // Use the safely determined mediaUrls
+    };
+};
+
 
 const formatResponse = (row) => ({
     id: row.id,
@@ -57,6 +99,32 @@ const formatResponse = (row) => ({
     parent_author: row.parent_author_name,
 });
 
+// --- API ENDPOINTS ---
+
+app.post('/api/upload-media', (req, res) => {
+    upload(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error("Multer Error:", err.message);
+            return res.status(400).json({ message: `File upload failed: ${err.message}` });
+        } else if (err) {
+            console.error("Unknown Upload Error:", err);
+            return res.status(500).json({ message: 'An unknown error occurred during file upload.' });
+        }
+
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: 'No file selected for upload.' });
+        }
+
+        const mediaUrls = req.files.map(file => 
+            `http://localhost:${PORT}/media/${file.filename}`
+        );
+        
+        res.status(200).json({ 
+            message: 'Files uploaded successfully.', 
+            mediaUrls: mediaUrls,
+        });
+    });
+});
 
 
 app.post('/api/register', async (req, res) => {
@@ -103,19 +171,27 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/threads', (req, res) => {
+    // FIX: Explicitly select all required columns including media_url
     const SQL_FETCH_POSTS = `
-        SELECT p.*, u.name, CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
+        SELECT 
+            p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, 
+            u.name, 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM posts p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN responses r ON p.id = r.post_id
-        GROUP BY p.id
+        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name -- Added to ensure compatibility with stricter MySQL GROUP BY settings
     `;
+    // FIX: Explicitly select all required columns including media_url
     const SQL_FETCH_JOBS = `
-        SELECT j.*, u.name, CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
+        SELECT 
+            j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, 
+            u.name, 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM jobs j
         JOIN users u ON j.user_id = u.id
         LEFT JOIN responses r ON j.id = r.job_id
-        GROUP BY j.id
+        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name -- Added to ensure compatibility with stricter MySQL GROUP BY settings
     `;
 
     db.query(`${SQL_FETCH_POSTS};${SQL_FETCH_JOBS}`, (err, results) => {
@@ -137,7 +213,7 @@ app.get('/api/threads', (req, res) => {
 
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 
-    const { postType, postContent, postCategory } = req.body;
+    const { postType, postContent, postCategory, mediaUrls } = req.body;
     
     if (!userId || isNaN(userId) || !postType || !postContent || !postCategory) {
         return res.status(400).json({ message: 'Missing required fields for thread creation or invalid User ID.' });
@@ -150,15 +226,15 @@ app.post('/api/threads', (req, res) => {
     
     if (postType === 'post') {
         table = 'posts';
-        SQL_INSERT = `INSERT INTO posts (user_id, title, body, tag) VALUES (?, ?, ?, ?)`;
+        SQL_INSERT = `INSERT INTO posts (user_id, title, body, tag, media_url) VALUES (?, ?, ?, ?, ?)`;
     } else if (postType === 'job') {
         table = 'jobs';
-        SQL_INSERT = `INSERT INTO jobs (user_id, title, body, tag) VALUES (?, ?, ?, ?)`;
+        SQL_INSERT = `INSERT INTO jobs (user_id, title, body, tag, media_url) VALUES (?, ?, ?, ?, ?)`;
     } else {
         return res.status(400).json({ message: 'Invalid post type specified.' });
     }
 
-    db.query(SQL_INSERT, [userId, title, postContent, postCategory], (err, result) => {
+    db.query(SQL_INSERT, [userId, title, postContent, postCategory, JSON.stringify(mediaUrls)], (err, result) => {
         if (err) {
             console.error(`--- Database error inserting into ${table} ---`);
             console.error("MySQL Error:", err.code, err.message);
@@ -168,7 +244,7 @@ app.post('/api/threads', (req, res) => {
             if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
                 userMessage = 'Error: The user ID is invalid or does not exist in the database. Please log in again.';
             } else if (err.code === 'ER_DATA_TOO_LONG') {
-                userMessage = 'Error: Content is too long. Please shorten your post.';
+                userMessage = 'Error: Content or media URL is too long. Please shorten your post/URL.';
             }
             
             return res.status(500).json({ message: userMessage });
@@ -236,9 +312,9 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const SQL_FETCH_RESPONSES = `
         SELECT r.*, u.name, pr_u.name AS parent_author_name
         FROM responses r
-        JOIN users u ON r.user_id = u.id -- Author of the current response
-        LEFT JOIN responses pr ON r.parent_id = pr.id -- Parent response (optional)
-        LEFT JOIN users pr_u ON pr.user_id = pr_u.id -- Author of the parent response
+        JOIN users u ON r.user_id = u.id 
+        LEFT JOIN responses pr ON r.parent_id = pr.id
+        LEFT JOIN users pr_u ON pr.user_id = pr_u.id 
         WHERE r.${threadKey} = ?
         ORDER BY r.created_at DESC
     `;
@@ -334,6 +410,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 p.created_at, 
                 p.tag, 
                 p.body, 
+                p.media_url, 
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.post_id = p.id) AS response_count
             FROM bookmarks b
@@ -351,6 +428,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 j.created_at, 
                 j.tag, 
                 j.body, 
+                j.media_url, 
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.job_id = j.id) AS response_count
             FROM bookmarks b
@@ -380,7 +458,7 @@ app.get('/api/search', (req, res) => {
     const searchPattern = `%${q}%`;
 
     const SQL_SEARCH_POSTS = `
-        SELECT p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body,
+        SELECT p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body, p.media_url, 
         CAST(COUNT(r.id) AS UNSIGNED) AS response_count
         FROM posts p
         JOIN users u ON p.user_id = u.id
@@ -389,7 +467,7 @@ app.get('/api/search', (req, res) => {
         GROUP BY p.id
     `;
     const SQL_SEARCH_JOBS = `
-        SELECT j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body,
+        SELECT j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body, j.media_url, 
         CAST(COUNT(r.id) AS UNSIGNED) AS response_count
         FROM jobs j
         JOIN users u ON j.user_id = u.id
@@ -406,7 +484,6 @@ app.get('/api/search', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch search results.' });
         }
 
-        // results is an array of two arrays: [posts_results, jobs_results]
         const posts = results[0].map(row => formatThread(row, 'post'));
         const jobs = results[1].map(row => formatThread(row, 'job'));
 

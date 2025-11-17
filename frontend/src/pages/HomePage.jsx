@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
 // Utility function to format the time
@@ -18,21 +18,24 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// MODIFIED: Added Job-Specific Categories
+// REMOVED: getMimeTypeFromUrl is no longer needed as we only support images.
+
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
-// MODIFIED: Accepts onBookmarkChange prop to pass the handleBookmark function
 export default function HomePage({ userName, userEmail }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
-    // Use an initial category that's valid for 'post' type
     const [postCategory, setPostCategory] = useState(postCategories[0]); 
     const [postType, setPostType] = useState("post");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // NEW: State to force refresh job counts in sidebar
+    // MODIFIED STATE: selectedFile changed to selectedFiles (array)
+    const [selectedFiles, setSelectedFiles] = useState([]); 
+    const [isUploadingFile, setIsUploadingFile] = useState(false); 
+
+    // State to force refresh job counts in sidebar
     const [jobPostTrigger, setJobPostTrigger] = useState(0); 
 
     // --- STATE FOR RESPONSES ---
@@ -49,7 +52,6 @@ export default function HomePage({ userName, userEmail }) {
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
-    // Helper to get the correct categories based on post type
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
@@ -57,8 +59,6 @@ export default function HomePage({ userName, userEmail }) {
 
     // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
-        
-        // Step 1: Fetch All Threads
         let allThreads = [];
         try {
             const res = await fetch("http://localhost:5000/api/threads");
@@ -70,33 +70,36 @@ export default function HomePage({ userName, userEmail }) {
             return;
         }
 
-        // Step 2: Fetch User Bookmarks to check status
+        const mapThreadMedia = (thread) => ({
+            ...thread,
+            isBookmarked: thread.isBookmarked || false,
+            // NEW: Use mediaUrls from server and ensure it is an array
+            mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
+        });
+
         if (userId) {
             try {
                 const bookmarkRes = await fetch(`http://localhost:5000/api/bookmarks/${userId}`);
                 if (!bookmarkRes.ok) throw new Error("Failed to fetch bookmarks");
                 const bookmarks = await bookmarkRes.json();
                 
-                // Convert bookmarks to a fast lookup map: { 'post-12': true, 'job-5': true }
                 const bookmarkMap = bookmarks.reduce((acc, thread) => {
                     acc[`${thread.type}-${thread.id}`] = true;
                     return acc;
                 }, {});
 
-                // Step 3: Merge bookmark status into threads
                 const threadsWithStatus = allThreads.map(thread => ({
-                    ...thread,
+                    ...mapThreadMedia(thread),
                     isBookmarked: bookmarkMap[`${thread.type}-${thread.id}`] || false,
                 }));
                 setThreads(threadsWithStatus);
 
             } catch (error) {
                 console.warn("Error fetching bookmark status:", error);
-                // Fallback: If bookmark status fails, show threads without status
-                setThreads(allThreads.map(t => ({...t, isBookmarked: false})));
+                setThreads(allThreads.map(mapThreadMedia));
             }
         } else {
-             setThreads(allThreads.map(t => ({...t, isBookmarked: false})));
+             setThreads(allThreads.map(mapThreadMedia));
         }
         
         setIsLoading(false);
@@ -105,7 +108,7 @@ export default function HomePage({ userName, userEmail }) {
     // Fetch threads on component mount
     useEffect(() => {
         fetchThreads();
-    }, [userId]); // Re-fetch if the user changes
+    }, [userId]); 
 
     // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
@@ -127,24 +130,17 @@ export default function HomePage({ userName, userEmail }) {
                 }),
             });
             
-            if (!res.ok) throw new Error("API call failed");
-
             const data = await res.json();
             
             if (!res.ok) {
-                 // Revert optimistic update on failure
                  alert(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
                  setThreads(prevThreads => prevThreads.map(t => 
                     t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
                  ));
             }
-            
-            // Note: If success, the optimistic update holds, and no further action is needed.
-
         } catch (error) {
             console.error("Bookmark network error:", error);
             alert(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
-            // Revert optimistic update on network error
             setThreads(prevThreads => prevThreads.map(t => 
                 t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
             ));
@@ -190,10 +186,12 @@ export default function HomePage({ userName, userEmail }) {
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
+        // MODIFIED: Clear selectedFiles
+        setSelectedFiles([]); 
     };
 
 
-    // MODIFIED: handlePostSubmit to update jobPostTrigger
+    // MODIFIED: handlePostSubmit to include multi-file upload logic
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -201,8 +199,46 @@ export default function HomePage({ userName, userEmail }) {
              return;
         }
 
-        if (!postContent.trim()) return alert('Post cannot be empty!');
+        // MODIFIED: Check selectedFiles length
+        if (!postContent.trim() && selectedFiles.length === 0) {
+            return alert('Post cannot be empty if no media is attached!');
+        }
         if (!postCategory) return alert('Please select a category.');
+
+        // --- File Upload Logic ---
+        let mediaUrls = []; // MODIFIED: array of URLs
+        if (selectedFiles.length > 0) {
+            setIsUploadingFile(true);
+            const formData = new FormData();
+            
+            // MODIFIED: Append all selected files
+            selectedFiles.forEach(file => {
+                 formData.append('media', file); 
+            });
+
+            try {
+                const uploadRes = await fetch("http://localhost:5000/api/upload-media", {
+                    method: "POST",
+                    body: formData, 
+                });
+
+                const uploadData = await uploadRes.json();
+                
+                if (!uploadRes.ok) {
+                    throw new Error(uploadData.message || "File upload failed.");
+                }
+                
+                mediaUrls = uploadData.mediaUrls; // MODIFIED: Expect array of URLs
+            } catch (err) {
+                console.error("Media upload error:", err);
+                alert(`Failed to upload media. Post was cancelled. Error: ${err.message}`);
+                setIsUploadingFile(false);
+                return;
+            } finally {
+                setIsUploadingFile(false);
+            }
+        }
+        // -----------------------------
 
         const tempId = Date.now();
         const optimisticThread = {
@@ -216,7 +252,8 @@ export default function HomePage({ userName, userEmail }) {
             reactions: 0,
             responseCount: 0, 
             isSubmitting: true, 
-            isBookmarked: false, // Optimistic posts start as unsaved
+            isBookmarked: false,
+            mediaUrls: mediaUrls, // MODIFIED: Use array
         };
         setThreads([optimisticThread, ...threads]);
         setIsModalOpen(false);
@@ -230,6 +267,7 @@ export default function HomePage({ userName, userEmail }) {
                     postType,
                     postContent,
                     postCategory,
+                    mediaUrls: mediaUrls, // MODIFIED: Send array of URLs
                 }),
             });
 
@@ -239,11 +277,15 @@ export default function HomePage({ userName, userEmail }) {
                 const updatedThreads = prevThreads.filter(t => t.id !== tempId);
                 
                 if (res.ok && data.thread) {
-                    // NEW: If a job was successfully posted, update the trigger
                     if (postType === 'job') {
                         setJobPostTrigger(prev => prev + 1);
                     }
-                    return [data.thread, ...updatedThreads];
+                    // NEW: Ensure the returned thread object has mediaUrls
+                    const newThreadWithUrls = {
+                        ...data.thread, 
+                        mediaUrls: data.thread.mediaUrls || (data.thread.mediaUrl ? [data.thread.mediaUrl] : []),
+                    };
+                    return [newThreadWithUrls, ...updatedThreads];
                 } else {
                     alert(data.message || "Something went wrong while posting. Please try again.");
                     return updatedThreads;
@@ -256,9 +298,11 @@ export default function HomePage({ userName, userEmail }) {
             setThreads(prevThreads => prevThreads.filter(t => t.id !== tempId));
         }
         
+        // Cleanup
         setPostContent('');
         setPostCategory(currentCategories[0]); 
         setPostType("post");
+        setSelectedFiles([]); // MODIFIED: Clear selectedFiles
     };
     
     // handleReplyClick
@@ -390,6 +434,68 @@ export default function HomePage({ userName, userEmail }) {
         ));
     };
 
+    // NEW HELPER: Function to render the media gallery with specific 1-on-2 layout
+    const renderMediaGallery = (mediaUrls) => {
+        if (!mediaUrls || mediaUrls.length === 0) return null;
+
+        // Common style for images in the gallery
+        const imageStyle = {
+            width: '100%', 
+            height: '100%', 
+            objectFit: 'cover',
+            display: 'block',
+        };
+
+        const imageElement = (url) => (
+            <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                <img 
+                    src={url} 
+                    alt="Post media" 
+                    style={imageStyle} 
+                />
+            </div>
+        );
+
+        if (mediaUrls.length === 1) {
+            return (
+                <div style={{ height: '350px' }}>
+                    {imageElement(mediaUrls[0])}
+                </div>
+            );
+        }
+
+        if (mediaUrls.length === 2) {
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', height: '350px' }}>
+                    {imageElement(mediaUrls[0])}
+                    {imageElement(mediaUrls[1])}
+                </div>
+            );
+        }
+
+        if (mediaUrls.length >= 3) {
+            // Facebook-like 3-photo layout: 1 full-height on left, 2 half-height on right
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', height: '400px' }}>
+                    {/* Left Side (First photo) */}
+                    <div style={{ gridRow: 'span 2', maxHeight: '100%', overflow: 'hidden' }}>
+                        {imageElement(mediaUrls[0])}
+                    </div>
+                    {/* Right Side Top (Second photo) */}
+                    <div style={{ maxHeight: 'calc(50% - 2.5px)', overflow: 'hidden' }}>
+                        {imageElement(mediaUrls[1])}
+                    </div>
+                    {/* Right Side Bottom (Third photo) */}
+                    <div style={{ maxHeight: 'calc(50% - 2.5px)', overflow: 'hidden' }}>
+                        {imageElement(mediaUrls[2])}
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
+    };
+
 
     return (
         <div style={styles.page}>
@@ -431,9 +537,16 @@ export default function HomePage({ userName, userEmail }) {
                                     {thread.body}
                                 </p>
                                 
+                                {/* MODIFIED: Media Display for photo gallery */}
+                                {thread.mediaUrls && thread.mediaUrls.length > 0 && (
+                                    <div style={styles.threadMediaContainer}>
+                                        {renderMediaGallery(thread.mediaUrls)}
+                                    </div>
+                                )}
+                                {/* END MODIFIED: Media Display */}
+                                
                                 <div style={styles.threadFooter}>
                                     <div style={styles.threadActions}>
-                                        {/* MODIFIED: Bookmark Button */}
                                         <div 
                                             style={{
                                                 ...styles.threadActionButton,
@@ -480,11 +593,11 @@ export default function HomePage({ userName, userEmail }) {
                     )}
                 </div>
 
-                {/* Right Panel (MODIFIED to pass jobPostTrigger) */}
+                {/* Right Panel */}
                 <RightPanel 
                     userName={userName} 
                     userEmail={userEmail} 
-                    jobPostTrigger={jobPostTrigger} // Pass the trigger state
+                    jobPostTrigger={jobPostTrigger}
                 />
             </div>
 
@@ -546,8 +659,45 @@ export default function HomePage({ userName, userEmail }) {
                             style={styles.modalTextarea}
                         />
 
-                        <button onClick={handlePostSubmit} style={styles.modalPostButton}>
-                            <FiPlus color="#fff" /> Submit Post
+                        {/* File Input Section - MODIFIED for multiple photos */}
+                        <label htmlFor="media-upload" style={styles.fileUploadLabel}>
+                            <FiPaperclip size={18} /> Attach up to 3 Images (Max 5MB total)
+                            <input
+                                id="media-upload"
+                                type="file"
+                                accept="image/*" // MODIFIED: Only images
+                                multiple // NEW: Allow multiple files
+                                onChange={e => {
+                                    const files = Array.from(e.target.files);
+                                    setSelectedFiles(files.slice(0, 3)); // Limit to 3 files
+                                }}
+                                style={styles.fileInputHidden}
+                            />
+                        </label>
+
+                        {selectedFiles.length > 0 && (
+                            <div style={styles.filePreviewContainer}>
+                                {selectedFiles.map((file, index) => (
+                                    <div key={index} style={styles.filePreview}>
+                                        <span style={styles.fileName}>{file.name}</span>
+                                        <FiX 
+                                            size={20} 
+                                            style={{ cursor: 'pointer', color: '#dc2626' }} 
+                                            onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))} 
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* END MODIFIED: File Input Section */}
+
+
+                        <button 
+                            onClick={handlePostSubmit} 
+                            style={styles.modalPostButton}
+                            disabled={isUploadingFile}
+                        >
+                            {isUploadingFile ? 'Uploading Files...' : <><FiPlus color="#fff" /> Submit Post</>}
                         </button>
                     </div>
                 </div>
@@ -622,7 +772,7 @@ const styles = {
         width: '100%', 
         maxWidth: '1200px', 
         margin: '0 auto', 
-        paddingRight: '340px', // Space for the fixed RightPanel
+        paddingRight: '340px', 
         boxSizing: 'border-box'
     },
     mainContent: { 
@@ -667,6 +817,27 @@ const styles = {
         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         border: '1px solid #e5e7eb',
     },
+    // Media container styles
+    threadMediaContainer: {
+        marginTop: '15px',
+        marginBottom: '15px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        border: '1px solid #e5e7eb',
+        backgroundColor: '#f9fafb',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    threadImage: {
+        width: '100%',
+        height: 'auto',
+        objectFit: 'cover',
+        display: 'block',
+        maxWidth: '100%',
+    },
+    // threadVideo style REMOVED
+    // End: Media container styles
     threadMetaTop: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -875,6 +1046,44 @@ const styles = {
         fontSize: '16px',
         transition: 'all 0.2s'
     },
+    // File upload related styles
+    fileInputHidden: {
+        display: 'none',
+    },
+    fileUploadLabel: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '10px 15px',
+        backgroundColor: '#eff6ff',
+        color: '#1e40af',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        border: '1px dashed #93c5fd',
+        fontWeight: '500',
+        fontSize: '15px',
+    },
+    // NEW style for multiple file previews
+    filePreviewContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+    },
+    filePreview: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 15px',
+        backgroundColor: '#f0fdf4',
+        borderRadius: '8px',
+        border: '1px solid #6ee7b7',
+    },
+    fileName: {
+        fontSize: '14px',
+        color: '#065f46',
+        fontWeight: '600',
+    },
+    // End: File upload related styles
     responsesContainer: {
         marginTop: '15px',
         paddingTop: '15px',
