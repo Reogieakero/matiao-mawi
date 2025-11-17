@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FiMessageSquare, FiBookmark,FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
-import RightPanel from '../components/RightPanel';
+import { useLocation } from 'react-router-dom';
+import { FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+// ⭐ IMPORT THE RIGHT PANEL
+import RightPanel from '../components/RightPanel'; 
 
-// Utility function to format the time
+// Utility function to format the time (Copied from HomePage.jsx)
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -18,11 +20,12 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-export default function SavedPage({ userName, userEmail }) {
+export default function SearchResultsPage({ userName }) {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const location = useLocation();
     
-    // --- STATE FOR RESPONSES ---
+    // --- STATE FOR RESPONSES (Copied from HomePage.jsx) ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
@@ -38,47 +41,80 @@ export default function SavedPage({ userName, userEmail }) {
     
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
-
-    // Function to fetch bookmarked threads
-    const fetchSavedThreads = async () => {
-        if (!userId) {
+    
+    // Extract search query from URL
+    const query = new URLSearchParams(location.search).get('q');
+    
+    // ⭐ MODIFIED: Function to fetch search results
+    const fetchSearchResults = async (searchTerm) => {
+        if (!searchTerm) {
             setThreads([]);
             setIsLoading(false);
             return;
         }
 
+        setIsLoading(true);
+        
+        // Step 1: Fetch Search Results
+        let searchResults = [];
         try {
-            const res = await fetch(`http://localhost:5000/api/bookmarks/${userId}`);
-            if (!res.ok) throw new Error("Failed to fetch saved threads");
-            
-            const data = await res.json();
-            // All fetched threads from the backend are marked as bookmarked
-            setThreads(data.map(t => ({...t, isBookmarked: true}))); 
+            const res = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(searchTerm)}`);
+            if (!res.ok) throw new Error("Failed to fetch search results");
+            searchResults = await res.json();
         } catch (error) {
-            console.error("Error fetching saved threads:", error);
+            console.error("Error fetching search results:", error);
             setThreads([]);
-        } finally {
             setIsLoading(false);
+            return;
         }
+
+        // Step 2: Fetch User Bookmarks to check status (Copied logic from HomePage.jsx)
+        if (userId) {
+            try {
+                const bookmarkRes = await fetch(`http://localhost:5000/api/bookmarks/${userId}`);
+                if (!bookmarkRes.ok) throw new Error("Failed to fetch bookmarks");
+                const bookmarks = await bookmarkRes.json();
+                
+                const bookmarkMap = bookmarks.reduce((acc, thread) => {
+                    acc[`${thread.type}-${thread.id}`] = true;
+                    return acc;
+                }, {});
+
+                // Step 3: Merge bookmark status into threads
+                const threadsWithStatus = searchResults.map(thread => ({
+                    ...thread,
+                    isBookmarked: bookmarkMap[`${thread.type}-${thread.id}`] || false,
+                }));
+                setThreads(threadsWithStatus);
+
+            } catch (error) {
+                console.warn("Error fetching bookmark status:", error);
+                setThreads(searchResults.map(t => ({...t, isBookmarked: false})));
+            }
+        } else {
+             setThreads(searchResults.map(t => ({...t, isBookmarked: false})));
+        }
+        
+        setIsLoading(false);
     };
 
-    // Fetch threads on component mount
+    // Fetch search results when the component mounts or the query changes
     useEffect(() => {
-        fetchSavedThreads();
-    }, [userId]); 
+        fetchSearchResults(query);
+    }, [query, userId]); 
 
-    // Function to handle unsaving a thread (Only unsaving is possible on this page)
-    const handleUnsave = async (threadId, threadType) => {
-        if (!userId) return alert('You must be logged in to unsave a thread.');
+    // Function to handle saving/unsaving a thread (Copied from HomePage.jsx)
+    const handleBookmark = async (threadId, threadType, isBookmarked) => {
+        if (!userId) return alert('You must be logged in to save a thread.');
         
-        // Optimistic UI Update: Remove from list
-        setThreads(prevThreads => prevThreads.filter(t => 
-            !(t.id === threadId && t.type === threadType)
+        // Optimistic UI Update
+        setThreads(prevThreads => prevThreads.map(t => 
+            t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
         ));
 
         try {
             const res = await fetch("http://localhost:5000/api/bookmarks", {
-                method: "POST", // POST handles both save and unsave
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     userId: userId,
@@ -87,22 +123,29 @@ export default function SavedPage({ userName, userEmail }) {
                 }),
             });
             
+            if (!res.ok) throw new Error("API call failed");
+
             const data = await res.json();
             
-            if (!res.ok || data.bookmarked) {
-                 // Revert optimistic update on failure or if it somehow saved instead of unsaved
-                 alert(data.message || `Failed to unsave thread. Please refresh.`);
-                 fetchSavedThreads(); // Re-fetch to restore on failure
+            if (!res.ok) {
+                 // Revert optimistic update on failure
+                 alert(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+                 setThreads(prevThreads => prevThreads.map(t => 
+                    t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
+                 ));
             }
-
+            
         } catch (error) {
-            console.error("Unsave network error:", error);
-            alert(`A network error occurred. Failed to unsave thread.`);
-            fetchSavedThreads(); // Re-fetch to restore on failure
+            console.error("Bookmark network error:", error);
+            alert(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+            // Revert optimistic update on network error
+            setThreads(prevThreads => prevThreads.map(t => 
+                t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
+            ));
         }
     };
     
-    // Function to fetch responses for a specific thread (Copied from HomePage)
+    // Function to fetch responses for a specific thread (Copied from HomePage.jsx)
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -127,7 +170,7 @@ export default function SavedPage({ userName, userEmail }) {
         }
     };
     
-    // Function to toggle response view (Copied from HomePage)
+    // Function to toggle response view (Copied from HomePage.jsx)
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -137,7 +180,7 @@ export default function SavedPage({ userName, userEmail }) {
         }
     };
 
-    // handleReplyClick (Copied from HomePage - simplified)
+    // handleReplyClick (Copied from HomePage.jsx)
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -158,7 +201,7 @@ export default function SavedPage({ userName, userEmail }) {
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit (Copied from HomePage - simplified)
+    // handleResponseSubmit (Copied from HomePage.jsx)
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -180,12 +223,13 @@ export default function SavedPage({ userName, userEmail }) {
             const data = await res.json();
 
             if (res.ok) {
-                // Manually update response count for the displayed saved thread
                 if (!parentResponseId) {
+                    // Update response count only for top-level responses
                     setThreads(prevThreads => prevThreads.map(t => 
                         t.id === threadIdToReply ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t
                     ));
                 }
+                // Refresh responses if the thread is currently expanded
                 if(expandedThreadId === threadIdToReply) {
                     fetchResponses(threadIdToReply, threadTypeToReply);
                 }
@@ -209,7 +253,7 @@ export default function SavedPage({ userName, userEmail }) {
         setParentResponseContent(null); 
     };
 
-    // handleResponseKeyDown (Copied from HomePage)
+    // handleResponseKeyDown (Copied from HomePage.jsx)
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -217,7 +261,7 @@ export default function SavedPage({ userName, userEmail }) {
         }
     };
 
-    // renderResponses (Copied from HomePage)
+    // renderResponses (Copied from HomePage.jsx)
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -264,97 +308,95 @@ export default function SavedPage({ userName, userEmail }) {
             <div style={styles.container}>
                 {/* Main Content */}
                 <div style={styles.mainContent}>
-                    <h2 style={styles.sectionTitle}>Saved Threads</h2>
+                    <h2 style={styles.sectionTitle}>
+                        Search Results for: "{query || ''}"
+                    </h2>
                     
                     {isLoading ? (
-                        <p style={styles.loadingText}>Loading saved threads...</p>
-                    ) : (threads.length === 0) ? (
-                        <p style={styles.loadingText}>You have no saved threads yet.</p>
+                        <p style={styles.loadingText}>Searching threads...</p>
                     ) : (
-                        threads.map(thread => (
-                            <div key={thread.id} style={styles.threadPost}>
-                                <div style={styles.threadMetaTop}>
-                                    <div style={styles.threadAuthorInfo}>
-                                        <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
-                                        <span style={styles.threadAuthorName}>{thread.author}</span>
-                                        <span style={styles.threadTime}>
-                                            {getTimeSince(thread.time)}
-                                        </span>
+                        threads.length > 0 ? (
+                            threads.map(thread => (
+                                <div key={thread.id + thread.type} style={styles.threadPost}>
+                                    <div style={styles.threadMetaTop}>
+                                        <div style={styles.threadAuthorInfo}>
+                                            <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
+                                            <span style={styles.threadAuthorName}>{thread.author}</span>
+                                            <span style={styles.threadTime}>
+                                                {getTimeSince(thread.time)}
+                                            </span>
+                                        </div>
+                                        <span style={styles.threadTagModified}>{thread.tag}</span>
                                     </div>
-                                    <span style={styles.threadTagModified}>{thread.tag}</span>
-                                </div>
-                                
-                                <p style={styles.threadBodyModified}>
-                                    {thread.body}
-                                </p>
-                                
-                                <div style={styles.threadFooter}>
-                                    <div style={styles.threadActions}>
-                                        {/* Bookmark Button (Always shows as Saved on this page) */}
-                                        <div 
-                                            style={{
-                                                ...styles.threadActionButton,
-                                                color: '#3b82f6', // Always blue to signify saved
-                                                fontWeight: '600',
-                                                // MODIFIED: Adjust style to wrap the text and time below the icon
-                                                flexDirection: 'column', 
-                                                alignItems: 'flex-start',
-                                                gap: '3px'
-                                            }}
-                                            onClick={() => handleUnsave(thread.id, thread.type)}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <FiBookmark size={18} /> Unsave
+                                    
+                                    <p style={styles.threadBodyModified}>
+                                        {thread.body}
+                                    </p>
+                                    
+                                    <div style={styles.threadFooter}>
+                                        <div style={styles.threadActions}>
+                                            {/* Bookmark Button (Same function as HomePage.jsx) */}
+                                            <div 
+                                                style={{
+                                                    ...styles.threadActionButton,
+                                                    color: thread.isBookmarked ? '#3b82f6' : '#555',
+                                                    fontWeight: thread.isBookmarked ? '600' : '500',
+                                                }}
+                                                onClick={() => handleBookmark(thread.id, thread.type, thread.isBookmarked)}
+                                            >
+                                                <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
                                             </div>
-                                            {/* ADDED: Saved Time Display */}
-                                            {thread.bookmarked_at && (
-                                                <span style={styles.savedTimeText}>
-                                                    Saved {getTimeSince(thread.bookmarked_at)}
-                                                </span>
+                                            {/* Add Response Button (Same function as HomePage.jsx) */}
+                                            <div 
+                                                style={styles.threadActionButton}
+                                                onClick={() => handleReplyClick(thread.id, thread.type)}
+                                            >
+                                                <FiMessageSquare size={18} /> Add Response
+                                            </div>
+                                        </div>
+                                        <div
+                                            style={styles.responseToggleButton}
+                                            onClick={() => toggleResponses(thread.id, thread.type)}
+                                        >
+                                            {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'} 
+                                            {expandedThreadId === thread.id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
+                                        </div>
+                                    </div>
+                                    
+                                    {expandedThreadId === thread.id && (
+                                        <div style={styles.responsesContainer}>
+                                            {isFetchingResponses && expandedThreadId === thread.id ? (
+                                                <p style={styles.loadingResponsesText}>Loading responses...</p>
+                                            ) : (
+                                                (responses[thread.id] && responses[thread.id].length > 0) ? (
+                                                    renderResponses(responses[thread.id], thread.id, thread.type, null)
+                                                ) : (
+                                                    <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
+                                                )
                                             )}
                                         </div>
-                                        <div 
-                                            style={styles.threadActionButton}
-                                            onClick={() => handleReplyClick(thread.id, thread.type)}
-                                        >
-                                            <FiMessageSquare size={18} /> Add Response
-                                        </div>
-                                    </div>
-                                    <div
-                                        style={styles.responseToggleButton}
-                                        onClick={() => toggleResponses(thread.id, thread.type)}
-                                    >
-                                        {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'} 
-                                        {expandedThreadId === thread.id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
-                                    </div>
+                                    )}
                                 </div>
-                                
-                                {expandedThreadId === thread.id && (
-                                    <div style={styles.responsesContainer}>
-                                        {isFetchingResponses && expandedThreadId === thread.id ? (
-                                            <p style={styles.loadingResponsesText}>Loading responses...</p>
-                                        ) : (
-                                            (responses[thread.id] && responses[thread.id].length > 0) ? (
-                                                renderResponses(responses[thread.id], thread.id, thread.type, null)
-                                            ) : (
-                                                <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
-                                            )
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        ))
+                            ))
+                        ) : (
+                            <p style={styles.loadingText}>No results found for "{query}".</p>
+                        )
                     )}
                 </div>
 
-                {/* Right Panel (No jobPostTrigger needed) */}
-                <RightPanel 
-                    userName={userName} 
-                    userEmail={userEmail} 
-                />
+                {/* ⭐ RIGHT PANEL IS BACK */}
+                <div style={styles.rightPanel}>
+                    <RightPanel 
+                        // Assuming you need to pass these props for it to function correctly
+                        userName={userName}
+                        userEmail={localStorage.getItem('userEmail')}
+                        // A placeholder prop, as it doesn't need to trigger post creation here
+                        jobPostTrigger={0} 
+                    />
+                </div>
             </div>
 
-            {/* RESPONSE MODAL (Copied from HomePage) */}
+            {/* RESPONSE MODAL (Copied from HomePage.jsx) */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -362,7 +404,7 @@ export default function SavedPage({ userName, userEmail }) {
                             <h3 style={{ color: '#1e40af' }}>
                                 Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'}
                             </h3>
-                            <FiX
+                            <FiX 
                                 size={28} 
                                 style={{ cursor: 'pointer', color: '#1e3a8a' }} 
                                 onClick={() => setIsResponseModalOpen(false)} 
@@ -416,7 +458,7 @@ export default function SavedPage({ userName, userEmail }) {
     );
 }
 
-// --- Styles (Copied from HomePage with one addition) ---
+// --- Styles (Modified to accommodate RightPanel) ---
 const styles = {
     page: { minHeight: '100vh', padding: '10px' },
     container: { 
@@ -426,10 +468,21 @@ const styles = {
         width: '100%', 
         maxWidth: '1200px', 
         margin: '0 auto',
-        paddingRight: '340px', 
+        // ⭐ REVERTED: Added padding back to align with RightPanel width
+        paddingRight: '10px', 
         boxSizing: 'border-box'
     },
-    mainContent: { flex: 1, minWidth: '600px' },
+    mainContent: { 
+        flex: 1, 
+        minWidth: '600px' // Ensure main content has a minimum width
+    },
+    // ⭐ NEW STYLE: Define the right panel's fixed width and position
+    rightPanel: { 
+        width: '300px', 
+        flexShrink: 0,
+        position: 'sticky', // Makes it scroll with the view
+        top: '80px', // Below the header
+    },
     sectionTitle: { fontSize: '24px', fontWeight: '700', color: '#1e40af', marginBottom: '20px', borderBottom: '2px solid #1e40af', paddingBottom: '5px' },
     avatarCircle: { width: '45px', height: '45px', borderRadius: '50%', backgroundColor: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '18px', flexShrink: 0 },
     avatarCircleSmall: { width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#93c5fd', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px', flexShrink: 0 },
@@ -593,11 +646,5 @@ const styles = {
         overflow: 'hidden',
         whiteSpace: 'pre-wrap',
         textOverflow: 'ellipsis',
-    },
-    // ADDED new style for saved time
-    savedTimeText: { 
-        fontSize: '12px', 
-        color: '#9ca3af', 
-        fontWeight: 'normal' 
     }
 };

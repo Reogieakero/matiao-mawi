@@ -6,7 +6,8 @@ import Sidebar from './components/Sidebar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import CreateAccountPage from './pages/CreateAccountPage';
-import SavedPage from './pages/SavedPage'; // NEW IMPORT
+import SavedPage from './pages/SavedPage'; 
+import SearchResultsPage from './pages/SearchResultsPage'; // ⭐ NEW IMPORT: Search Results Page
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -42,15 +43,17 @@ const App = () => {
     const AppLayout = () => (
         <>
             <Header />
-            {/* The Sidebar component remains the same for simplicity; 
-                if we needed to force a re-render of the Sidebar on every bookmark action 
-                we'd need more prop drilling here. Since we only want to show the 'Saved' link, this is fine. */}
             <Sidebar /> 
             <div style={appStyles.contentArea}>
                 <Routes>
-                    {/* HomePage uses localStorage for userId, but is passed name/email for display */}
+                    {/* Primary Routes */}
                     <Route path="/home" element={<HomePage userName={userName} userEmail={userEmail} />} />
-                    <Route path="/saved" element={<SavedPage userName={userName} userEmail={userEmail} />} /> {/* NEW SAVED ROUTE */}
+                    <Route path="/saved" element={<SavedPage userName={userName} userEmail={userEmail} />} />
+
+                    {/* ⭐ NEW SEARCH ROUTE: Handles URL like /search?q=query */}
+                    <Route path="/search" element={<SearchResultsPage />} /> 
+                    
+                    {/* Placeholder Routes */}
                     <Route path="/news" element={<Placeholder title="News" />} />
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
                     <Route path="/documents" element={<Placeholder title="Documents" />} />
@@ -60,6 +63,8 @@ const App = () => {
                     <Route path="/contact" element={<Placeholder title="Contact" />} />
                     <Route path="/profile" element={<Placeholder title="Profile" />} />
                     <Route path="/find-jobs" element={<Placeholder title="Find Jobs" />} />
+                    
+                    {/* Default Route */}
                     <Route path="/" element={<Navigate to="/login" replace />} />
                 </Routes>
             </div>
@@ -78,7 +83,13 @@ const App = () => {
 };
 
 const appStyles = {
-    contentArea: { paddingTop: '60px', marginLeft: '290px', paddingRight: '20px', minHeight: '100vh' }
+    contentArea: { 
+        // Adjusted padding to account for fixed Header and Sidebar
+        paddingTop: '60px', 
+        marginLeft: '290px', 
+        paddingRight: '20px', 
+        minHeight: '100vh' 
+    }
 };
 
 export default App;

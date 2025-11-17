@@ -50,6 +50,8 @@ const formatThread = (row, type) => ({
     responseCount: row.response_count || 0,
     // NEW: Indicate if the thread is bookmarked (for fetching saved threads)
     isBookmarked: row.is_bookmarked || false,
+    // NEW: Add the time the user bookmarked the thread
+    bookmarked_at: row.bookmarked_at || null,
 });
 
 const formatResponse = (row) => ({
@@ -65,7 +67,7 @@ const formatResponse = (row) => ({
 
 // ------------------- ROUTES -------------------
 
-// POST /api/register (No Change)
+// POST /api/register (Unchanged)
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
@@ -89,7 +91,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// POST /api/login (No Change)
+// POST /api/login (Unchanged)
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
@@ -110,7 +112,7 @@ app.post('/api/login', async (req, res) => {
     });
 });
 
-// GET /api/threads (No Change)
+// GET /api/threads (Unchanged)
 app.get('/api/threads', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT p.*, u.name, CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
@@ -144,7 +146,7 @@ app.get('/api/threads', (req, res) => {
     });
 });
 
-// POST /api/threads (No Change)
+// POST /api/threads (Unchanged)
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 
     const { postType, postContent, postCategory } = req.body;
@@ -202,7 +204,7 @@ app.post('/api/threads', (req, res) => {
     });
 });
 
-// POST /api/responses - Creates a new response (No Change)
+// POST /api/responses - Creates a new response (Unchanged)
 app.post('/api/responses', (req, res) => {
     const threadId = parseInt(req.body.threadId, 10);
     const userId = parseInt(req.body.userId, 10); 
@@ -248,7 +250,7 @@ app.post('/api/responses', (req, res) => {
     });
 });
 
-// GET /api/responses/:threadType/:threadId - Fetches responses with author name (No Change)
+// GET /api/responses/:threadType/:threadId - Fetches responses with author name (Unchanged)
 app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const { threadType, threadId } = req.params;
     const threadIdInt = parseInt(threadId, 10);
@@ -283,7 +285,7 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
     });
 });
 
-// GET /api/job-category-counts (No Change)
+// GET /api/job-category-counts (Unchanged)
 app.get('/api/job-category-counts', (req, res) => {
     const SQL_FETCH_COUNTS = `
         SELECT tag, COUNT(id) AS count
@@ -300,7 +302,7 @@ app.get('/api/job-category-counts', (req, res) => {
     });
 });
 
-// NEW ROUTE: POST /api/bookmarks - Save/Unsave a thread
+// POST /api/bookmarks (Unchanged)
 app.post('/api/bookmarks', (req, res) => {
     const { userId, threadId, threadType } = req.body;
 
@@ -309,7 +311,6 @@ app.post('/api/bookmarks', (req, res) => {
     }
 
     const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
-    const otherThreadKey = threadType === 'post' ? 'job_id' : 'post_id';
 
     const SQL_CHECK_EXISTENCE = `
         SELECT id FROM bookmarks WHERE user_id = ? AND ${threadKey} = ?
@@ -353,7 +354,7 @@ app.post('/api/bookmarks', (req, res) => {
     });
 });
 
-// NEW ROUTE: GET /api/bookmarks/:userId - Fetch all bookmarked threads
+// GET /api/bookmarks/:userId - Fetch all bookmarked threads (Unchanged)
 app.get('/api/bookmarks/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
@@ -364,7 +365,8 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             SELECT 
                 p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body,
                 CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
-                TRUE AS is_bookmarked
+                TRUE AS is_bookmarked,
+                b.created_at AS bookmarked_at  /* <<< ADDED THIS FIELD */
             FROM bookmarks b
             JOIN posts p ON b.post_id = p.id
             JOIN users u ON p.user_id = u.id
@@ -377,7 +379,8 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             SELECT 
                 j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body,
                 CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
-                TRUE AS is_bookmarked
+                TRUE AS is_bookmarked,
+                b.created_at AS bookmarked_at  /* <<< ADDED THIS FIELD */
             FROM bookmarks b
             JOIN jobs j ON b.job_id = j.id
             JOIN users u ON j.user_id = u.id
@@ -399,6 +402,54 @@ app.get('/api/bookmarks/:userId', (req, res) => {
     });
 });
 
+// ⭐ NEW ROUTE: GET /api/search - Search threads by title or body
+app.get('/api/search', (req, res) => {
+    const searchTerm = req.query.q;
+    if (!searchTerm) {
+        return res.status(400).json({ message: 'Search query (q) is required.' });
+    }
+
+    const searchPattern = `%${searchTerm}%`;
+
+    const SQL_SEARCH_POSTS = `
+        SELECT p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body,
+        CAST(COUNT(r.id) AS UNSIGNED) AS response_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN responses r ON p.id = r.post_id
+        WHERE p.title LIKE ? OR p.body LIKE ?
+        GROUP BY p.id
+    `;
+    const SQL_SEARCH_JOBS = `
+        SELECT j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body,
+        CAST(COUNT(r.id) AS UNSIGNED) AS response_count
+        FROM jobs j
+        JOIN users u ON j.user_id = u.id
+        LEFT JOIN responses r ON j.id = r.job_id
+        WHERE j.title LIKE ? OR j.body LIKE ?
+        GROUP BY j.id
+    `;
+
+    // Use multiple statements to run both queries simultaneously
+    db.query(`${SQL_SEARCH_POSTS};${SQL_SEARCH_JOBS}`, 
+        [searchPattern, searchPattern, searchPattern, searchPattern], 
+        (err, results) => {
+        if (err) {
+            console.error("Database error fetching search results:", err);
+            return res.status(500).json({ message: 'Failed to fetch search results.' });
+        }
+
+        // results is an array of two arrays: [posts_results, jobs_results]
+        const posts = results[0].map(row => formatThread(row, 'post'));
+        const jobs = results[1].map(row => formatThread(row, 'job'));
+
+        const allResults = [...posts, ...jobs].sort((a, b) => 
+            new Date(b.time) - new Date(a.time) 
+        );
+
+        res.status(200).json(allResults);
+    });
+});
 
 // Start server
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { FiSearch } from 'react-icons/fi';
-import { Link, useLocation } from 'react-router-dom';
+// ⭐ IMPORT useNavigate
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Header = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredLink, setHoveredLink] = useState(null);
     const location = useLocation();
+    // ⭐ INITIALIZE useNavigate
+    const navigate = useNavigate(); 
 
     const handleSearch = () => {
         if (searchTerm.trim()) {
-            console.log('Searching for:', searchTerm);
+            // ⭐ UPDATED: Use navigate to redirect to the search route
+            navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
+            setSearchTerm(''); // Clear search input after navigating
         }
     };
 
     const navItems = [
+// ... (rest of navItems unchanged)
         { name: 'About', path: '/about' },
         { name: 'Hotlines', path: '/hotlines' },
         { name: 'Contact', path: '/contact' },
@@ -23,6 +29,7 @@ const Header = () => {
 
     const profilePicUrl = "https://via.placeholder.com/30/2563eb/ffffff?text=P";
 
+// ... (rest of getLinkStyle unchanged)
     const getLinkStyle = (path) => {
         const isSidebarPage = sidebarPaths.includes(location.pathname);
         const isActive = !isSidebarPage && location.pathname === path;
@@ -102,6 +109,7 @@ const Header = () => {
     );
 };
 
+// ... (styles unchanged)
 const styles = {
     header: {
         position: 'fixed',
