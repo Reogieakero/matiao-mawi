@@ -3,7 +3,8 @@ import { FiSearch } from 'react-icons/fi';
 // ⭐ IMPORT useNavigate
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-const Header = () => {
+// ⭐ MODIFIED: Accept userName and profilePictureUrl props
+const Header = ({ userName, profilePictureUrl }) => { 
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredLink, setHoveredLink] = useState(null);
     const location = useLocation();
@@ -27,7 +28,14 @@ const Header = () => {
 
     const sidebarPaths = ['/home', '/news', '/announcements', '/documents', '/services'];
 
-    const profilePicUrl = "https://via.placeholder.com/30/2563eb/ffffff?text=P";
+    // ⭐ NEW: Calculate initials for fallback
+    const initials = userName
+        ? userName
+            .split(' ')
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+        : 'U';
 
 // ... (rest of getLinkStyle unchanged)
     const getLinkStyle = (path) => {
@@ -94,13 +102,19 @@ const Header = () => {
                             </Link>
                         ))}
 
-                        {/* Profile Picture */}
+                        {/* ⭐ MODIFIED: Profile Picture / Initials */}
                         <Link to="/profile" style={styles.navLink}>
-                            <img 
-                                src={profilePicUrl}
-                                alt="Profile"
-                                style={styles.profilePicture}
-                            />
+                            {profilePictureUrl ? (
+                                <img 
+                                    src={profilePictureUrl}
+                                    alt="Profile"
+                                    style={styles.profilePicture}
+                                />
+                            ) : (
+                                <div style={styles.avatarCircleHeader}> 
+                                    {initials}
+                                </div>
+                            )}
                         </Link>
                     </nav>
                 </div>
@@ -109,7 +123,6 @@ const Header = () => {
     );
 };
 
-// ... (styles unchanged)
 const styles = {
     header: {
         position: 'fixed',
@@ -193,6 +206,20 @@ const styles = {
         borderRadius: '50%',
         objectFit: 'cover',
         border: '2px solid #2563eb',
+    },
+    // ⭐ NEW STYLE: Initials fallback for Header (30px)
+    avatarCircleHeader: {
+        width: '30px',
+        height: '30px',
+        borderRadius: '50%',
+        backgroundColor: '#2563eb',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '14px',
+        fontWeight: '700',
+        border: '2px solid #2563eb', 
     }
 };
 

@@ -41,7 +41,7 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } 
 }).single('media'); 
 
-// ⭐ Dedicated storage for PROFILE PICTURES
+// Dedicated storage for PROFILE PICTURES
 const profilePicStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -85,6 +85,7 @@ db.connect(err => {
 });
 
 
+// ⭐ MODIFIED: To include author_id and author_picture_url
 const formatThread = (row, type) => {
     let mediaUrls = [];
     if (row.media_url) {
@@ -102,6 +103,8 @@ const formatThread = (row, type) => {
         type: type, 
         title: row.title,
         author: row.name, 
+        author_id: row.user_id, // ⭐ Added user_id
+        author_picture_url: row.profile_picture_url || '', // ⭐ Added profile_picture_url
         time: row.created_at, 
         tag: row.tag,
         body: row.body,
@@ -113,10 +116,11 @@ const formatThread = (row, type) => {
     };
 };
 
-
+// ⭐ MODIFIED: To include author_picture_url
 const formatResponse = (row) => ({
     id: row.id,
     author: row.name, 
+    author_picture_url: row.profile_picture_url || '', // ⭐ Added profile_picture_url
     content: row.content,
     time: row.created_at,
     parent_id: row.parent_id,
@@ -177,7 +181,14 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
 
-    const SQL_FIND_USER = 'SELECT id, name, email, password FROM users WHERE email = ?';
+    // ⭐ MODIFIED SQL: Join user_profiles to get the profile_picture_url
+    const SQL_FIND_USER = `
+        SELECT u.id, u.name, u.email, u.password, up.profile_picture_url 
+        FROM users u 
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
+        WHERE u.email = ?
+    `;
+    
     db.query(SQL_FIND_USER, [email], async (err, results) => {
         if (err) return res.status(500).json({ message: 'Database error during login.' });
         if (results.length === 0) return res.status(401).json({ message: 'Invalid credentials.' });
@@ -186,33 +197,47 @@ app.post('/api/login', async (req, res) => {
         const match = await bcrypt.compare(password, user.password);
 
         if (match) {
-            res.status(200).json({ message: 'Login successful!', user: { id: user.id, name: user.name, email: user.email } });
+            // ⭐ MODIFIED RESPONSE: Include profilePictureUrl
+            res.status(200).json({ 
+                message: 'Login successful!', 
+                user: { 
+                    id: user.id, 
+                    name: user.name, 
+                    email: user.email,
+                    profilePictureUrl: user.profile_picture_url || '' // Send the URL
+                } 
+            });
         } else {
             res.status(401).json({ message: 'Invalid credentials.' });
         }
     });
 });
 
+// ⭐ MODIFIED: SQL to include profile_picture_url in the thread fetch query
 app.get('/api/threads', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT 
             p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, 
             u.name, 
+            up.profile_picture_url, 
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM posts p
         JOIN users u ON p.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
         LEFT JOIN responses r ON p.id = r.post_id
-        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name 
+        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name, up.profile_picture_url 
     `;
     const SQL_FETCH_JOBS = `
         SELECT 
             j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, 
             u.name, 
+            up.profile_picture_url, 
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM jobs j
         JOIN users u ON j.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
         LEFT JOIN responses r ON j.id = r.job_id
-        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name 
+        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url 
     `;
 
     db.query(`${SQL_FETCH_POSTS};${SQL_FETCH_JOBS}`, (err, results) => {
@@ -232,6 +257,7 @@ app.get('/api/threads', (req, res) => {
     });
 });
 
+// ⭐ MODIFIED: SQL to include profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 
     const { postType, postContent, postCategory, mediaUrls } = req.body;
@@ -271,9 +297,12 @@ app.post('/api/threads', (req, res) => {
             return res.status(500).json({ message: userMessage });
         }
         
+        // ⭐ MODIFIED SQL: Join user_profiles to get the profile_picture_url
         const SQL_FETCH_NEW = `
-            SELECT t.*, u.name, 0 AS response_count FROM ${table} t
+            SELECT t.*, u.name, up.profile_picture_url, 0 AS response_count 
+            FROM ${table} t
             JOIN users u ON t.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
             WHERE t.id = ?;
         `;
         
@@ -282,7 +311,8 @@ app.post('/api/threads', (req, res) => {
                  console.error("Error fetching new thread details:", fetchErr);
                  return res.status(201).json({ message: 'Thread created successfully, but failed to return full details.' });
              }
-             const newThread = formatThread(fetchResults[0], postType);
+             // formatThread now includes profile_picture_url
+             const newThread = formatThread(fetchResults[0], postType); 
              res.status(201).json({ message: 'Thread created successfully!', thread: newThread });
         });
     });
@@ -320,6 +350,7 @@ app.post('/api/responses', (req, res) => {
     });
 });
 
+// ⭐ MODIFIED: SQL to include profile_picture_url for the response author
 app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const { threadType, threadId } = req.params;
     const threadIdInt = parseInt(threadId, 10);
@@ -331,9 +362,10 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
 
     const SQL_FETCH_RESPONSES = `
-        SELECT r.*, u.name, pr_u.name AS parent_author_name
+        SELECT r.*, u.name, up.profile_picture_url, pr_u.name AS parent_author_name -- ⭐ NEW: profile_picture_url
         FROM responses r
         JOIN users u ON r.user_id = u.id 
+        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
         LEFT JOIN responses pr ON r.parent_id = pr.id
         LEFT JOIN users pr_u ON pr.user_id = pr_u.id 
         WHERE r.${threadKey} = ?
@@ -345,7 +377,8 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
             console.error("Database error fetching responses:", err);
             return res.status(500).json({ message: 'Failed to fetch responses.' });
         }
-        const responses = results.map(formatResponse);
+        // formatResponse now includes profile_picture_url
+        const responses = results.map(formatResponse); 
         res.status(200).json(responses);
     });
 });
@@ -424,6 +457,8 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 'post' AS type, 
                 p.title, 
                 u.name, 
+                p.user_id, -- Need user_id for formatThread
+                up.profile_picture_url, -- ⭐ profile_picture_url
                 p.created_at, 
                 p.tag, 
                 p.body, 
@@ -433,6 +468,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             FROM bookmarks b
             JOIN posts p ON b.post_id = p.id
             JOIN users u ON p.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
             WHERE b.user_id = ? AND b.job_id IS NULL
         )
         UNION ALL
@@ -442,6 +478,8 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 'job' AS type, 
                 j.title, 
                 u.name, 
+                j.user_id, -- Need user_id for formatThread
+                up.profile_picture_url, -- ⭐ profile_picture_url
                 j.created_at, 
                 j.tag, 
                 j.body, 
@@ -451,6 +489,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             FROM bookmarks b
             JOIN jobs j ON b.job_id = j.id
             JOIN users u ON j.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
             WHERE b.user_id = ? AND b.post_id IS NULL
         )
         ORDER BY bookmarked_at DESC
@@ -475,19 +514,21 @@ app.get('/api/search', (req, res) => {
     const searchPattern = `%${q}%`;
 
     const SQL_SEARCH_POSTS = `
-        SELECT p.id, 'post' AS type, p.title, u.name, p.created_at, p.tag, p.body, p.media_url, 
+        SELECT p.id, 'post' AS type, p.title, u.name, p.user_id, up.profile_picture_url, p.created_at, p.tag, p.body, p.media_url, 
         CAST(COUNT(r.id) AS UNSIGNED) AS response_count
         FROM posts p
         JOIN users u ON p.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id
         LEFT JOIN responses r ON p.id = r.post_id
         WHERE p.title LIKE ? OR p.body LIKE ?
         GROUP BY p.id
     `;
     const SQL_SEARCH_JOBS = `
-        SELECT j.id, 'job' AS type, j.title, u.name, j.created_at, j.tag, j.body, j.media_url, 
+        SELECT j.id, 'job' AS type, j.title, u.name, j.user_id, up.profile_picture_url, j.created_at, j.tag, j.body, j.media_url, 
         CAST(COUNT(r.id) AS UNSIGNED) AS response_count
         FROM jobs j
         JOIN users u ON j.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id
         LEFT JOIN responses r ON j.id = r.job_id
         WHERE j.title LIKE ? OR j.body LIKE ?
         GROUP BY j.id

@@ -64,7 +64,11 @@ const App = () => {
 
     const AppLayout = () => (
         <>
-            <Header userName={userName} onLogout={handleLogout} />
+            <Header 
+                userName={userName} 
+                profilePictureUrl={profilePictureUrl} // Pass prop to Header
+                onLogout={handleLogout} 
+            />
             <Sidebar profilePictureUrl={profilePictureUrl} />
             <div style={appStyles.contentArea}>
                 <Routes>
@@ -73,7 +77,7 @@ const App = () => {
                         element={<HomePage 
                             userName={userName} 
                             userEmail={userEmail} 
-                            profilePictureUrl={profilePictureUrl} 
+                            profilePictureUrl={profilePictureUrl} // Pass prop to HomePage
                         />} 
                     />
                     <Route path="/saved" element={<SavedPage />} />

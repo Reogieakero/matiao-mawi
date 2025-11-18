@@ -18,12 +18,11 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// REMOVED: getMimeTypeFromUrl is no longer needed as we only support images.
-
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
-export default function HomePage({ userName, userEmail }) {
+// MODIFIED: Accept profilePictureUrl prop
+export default function HomePage({ userName, userEmail, profilePictureUrl }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
     const [postCategory, setPostCategory] = useState(postCategories[0]); 
@@ -31,11 +30,9 @@ export default function HomePage({ userName, userEmail }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // MODIFIED STATE: selectedFiles changed back to selectedFile (single)
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
 
-    // State to force refresh job counts in sidebar
     const [jobPostTrigger, setJobPostTrigger] = useState(0); 
 
     // --- STATE FOR RESPONSES ---
@@ -55,7 +52,41 @@ export default function HomePage({ userName, userEmail }) {
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
-    const userId = localStorage.getItem('userId'); 
+    // Use the user ID from localStorage
+    const userId = parseInt(localStorage.getItem('userId'), 10); 
+
+    // NEW HELPER: Function to render avatar based on URL presence
+    const renderAvatar = (url, initial, size = 'small') => {
+        let style;
+        switch (size) {
+            case 'large':
+                style = styles.avatarCircle;
+                break;
+            case 'tiny':
+                style = styles.avatarCircleTiny;
+                break;
+            case 'small':
+            default:
+                style = styles.avatarCircleSmall;
+                break;
+        }
+
+        if (url) {
+            return (
+                <div style={style}>
+                    <img 
+                        src={url} 
+                        alt={`${initial}`} 
+                        style={styles.avatarImage} 
+                    />
+                </div>
+            );
+        }
+
+        return (
+            <div style={style}>{initial ? initial[0] : 'U'}</div> 
+        );
+    };
 
     // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
@@ -73,8 +104,14 @@ export default function HomePage({ userName, userEmail }) {
         const mapThreadMedia = (thread) => ({
             ...thread,
             isBookmarked: thread.isBookmarked || false,
-            // NEW: Use mediaUrls from server and ensure it is an array
+            // Use mediaUrls from server and ensure it is an array
             mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
+            // ⭐ FIX: If the thread belongs to the current user (based on userId check), 
+            // and the thread is missing a picture URL (e.g., old data), use the current user's local URL.
+            author_picture_url: 
+                (thread.author_id === userId && !thread.author_picture_url && profilePictureUrl)
+                    ? profilePictureUrl
+                    : thread.author_picture_url
         });
 
         if (userId) {
@@ -84,6 +121,7 @@ export default function HomePage({ userName, userEmail }) {
                 const bookmarks = await bookmarkRes.json();
                 
                 const bookmarkMap = bookmarks.reduce((acc, thread) => {
+                    // Note: thread object from bookmarks only contains id and type in this API structure
                     acc[`${thread.type}-${thread.id}`] = true;
                     return acc;
                 }, {});
@@ -106,9 +144,10 @@ export default function HomePage({ userName, userEmail }) {
     };
 
     // Fetch threads on component mount
+    // ⭐ FIX: Added profilePictureUrl to dependencies
     useEffect(() => {
         fetchThreads();
-    }, [userId]); 
+    }, [userId, profilePictureUrl]); 
 
     // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
@@ -161,6 +200,7 @@ export default function HomePage({ userName, userEmail }) {
             if (!res.ok) throw new Error("Failed to fetch responses");
             const data = await res.json();
             
+            // Note: Data is ordered DESC by created_at in server, reversing here for chronological display
             setResponses(prevResponses => ({
                 ...prevResponses,
                 [threadId]: data.reverse()
@@ -186,7 +226,6 @@ export default function HomePage({ userName, userEmail }) {
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
-        // MODIFIED: Clear selectedFile
         setSelectedFile(null); 
     };
 
@@ -199,19 +238,17 @@ export default function HomePage({ userName, userEmail }) {
              return;
         }
 
-        // MODIFIED: Check selectedFile
         if (!postContent.trim() && !selectedFile) {
             return alert('Post cannot be empty if no media is attached!');
         }
         if (!postCategory) return alert('Please select a category.');
 
         // --- File Upload Logic ---
-        let mediaUrls = []; // MODIFIED: array of URLs
+        let mediaUrls = []; 
         if (selectedFile) {
             setIsUploadingFile(true);
             const formData = new FormData();
             
-            // MODIFIED: Append the single selected file
             formData.append('media', selectedFile); 
 
             try {
@@ -226,7 +263,6 @@ export default function HomePage({ userName, userEmail }) {
                     throw new Error(uploadData.message || "File upload failed.");
                 }
                 
-                // MODIFIED: Expect mediaUrls to be an array from server
                 mediaUrls = uploadData.mediaUrls; 
             } catch (err) {
                 console.error("Media upload error:", err);
@@ -245,6 +281,8 @@ export default function HomePage({ userName, userEmail }) {
             type: postType,
             title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
             author: userName || 'User',
+            author_id: userId, // ⭐ Added for optimistic and fallback logic
+            author_picture_url: profilePictureUrl, // ⭐ Added for optimistic display
             time: new Date(),
             tag: postCategory,
             body: postContent,
@@ -252,7 +290,7 @@ export default function HomePage({ userName, userEmail }) {
             responseCount: 0, 
             isSubmitting: true, 
             isBookmarked: false,
-            mediaUrls: mediaUrls, // MODIFIED: Use array
+            mediaUrls: mediaUrls,
         };
         setThreads([optimisticThread, ...threads]);
         setIsModalOpen(false);
@@ -266,7 +304,7 @@ export default function HomePage({ userName, userEmail }) {
                     postType,
                     postContent,
                     postCategory,
-                    mediaUrls: mediaUrls, // MODIFIED: Send array of URLs
+                    mediaUrls: mediaUrls,
                 }),
             });
 
@@ -279,10 +317,12 @@ export default function HomePage({ userName, userEmail }) {
                     if (postType === 'job') {
                         setJobPostTrigger(prev => prev + 1);
                     }
-                    // NEW: Ensure the returned thread object has mediaUrls
+                    
                     const newThreadWithUrls = {
                         ...data.thread, 
+                        // Ensure mediaUrls is an array
                         mediaUrls: data.thread.mediaUrls || (data.thread.mediaUrl ? [data.thread.mediaUrl] : []),
+                        // NOTE: author_picture_url is now correctly included by the server fix
                     };
                     return [newThreadWithUrls, ...updatedThreads];
                 } else {
@@ -301,7 +341,7 @@ export default function HomePage({ userName, userEmail }) {
         setPostContent('');
         setPostCategory(currentCategories[0]); 
         setPostType("post");
-        setSelectedFile(null); // MODIFIED: Clear selectedFile
+        setSelectedFile(null); 
     };
     
     // handleReplyClick
@@ -391,7 +431,7 @@ export default function HomePage({ userName, userEmail }) {
         }
     };
 
-    // renderResponses
+    // MODIFIED: renderResponses to use renderAvatar
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -404,7 +444,8 @@ export default function HomePage({ userName, userEmail }) {
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
-                    <div style={styles.avatarCircleTiny}>{response.author[0]}</div>
+                    {/* MODIFIED: Use renderAvatar for response author */}
+                    {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
                 
@@ -455,7 +496,7 @@ export default function HomePage({ userName, userEmail }) {
             </div>
         );
 
-        // MODIFIED: Only handles 1 photo now
+        // Only handles 1 photo now
         if (mediaUrls.length >= 1) { 
             return (
                 <div style={{ height: '350px' }}>
@@ -475,9 +516,9 @@ export default function HomePage({ userName, userEmail }) {
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
-                    {/* NEW: Facebook-like Create Post Bar */}
+                    {/* MODIFIED: Facebook-like Create Post Bar to use renderAvatar */}
                     <div style={styles.createPostBarContainer}>
-                        <div style={styles.avatarCircleSmall}>{firstName[0]}</div>
+                        {renderAvatar(profilePictureUrl, firstName, 'small')}
                         <div 
                             style={styles.createPostBarInput} 
                             onClick={() => setIsModalOpen(true)}
@@ -506,7 +547,8 @@ export default function HomePage({ userName, userEmail }) {
                             >
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
-                                        <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
+                                        {/* MODIFIED: Thread Author Avatar */}
+                                        {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                         <span style={styles.threadAuthorName}>{thread.author}</span>
                                         <span style={styles.threadTime}>
                                             {thread.isSubmitting ? "Posting..." : getTimeSince(thread.time)}
@@ -580,6 +622,7 @@ export default function HomePage({ userName, userEmail }) {
                 <RightPanel 
                     userName={userName} 
                     userEmail={userEmail} 
+                    profilePictureUrl={profilePictureUrl} // ⭐ ADDED PROP
                     jobPostTrigger={jobPostTrigger}
                 />
             </div>
@@ -614,8 +657,9 @@ export default function HomePage({ userName, userEmail }) {
                             </button>
                         </div>
                         
+                        {/* MODIFIED: Modal User Section to use renderAvatar */}
                         <div style={styles.modalUserSection}>
-                            <div style={styles.avatarCircle}>{firstName[0]}</div>
+                            {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
                         
@@ -717,8 +761,9 @@ export default function HomePage({ userName, userEmail }) {
                             )}
                         </div>
 
+                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
                         <div style={styles.modalUserSection}>
-                            <div style={styles.avatarCircle}>{firstName[0]}</div>
+                            {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
 
@@ -766,7 +811,6 @@ const styles = {
         color: '#1e40af',
         marginBottom: '15px',
     },
-    // REMOVED: createPostButton
     
     // NEW STYLES FOR CREATE POST BAR
     createPostBarContainer: {
@@ -839,7 +883,6 @@ const styles = {
         display: 'block',
         maxWidth: '100%',
     },
-    // threadVideo style REMOVED
     // End: Media container styles
     threadMetaTop: {
         display: 'flex',
@@ -852,6 +895,13 @@ const styles = {
         alignItems: 'center',
         gap: '8px',
     },
+    // NEW STYLE: For image inside the avatar circles
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: '50%',
+        objectFit: 'cover',
+    },
     avatarCircleSmall: {
         width: '28px',
         height: '28px',
@@ -863,7 +913,8 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '600',
         fontSize: '14px',
-        flexShrink: 0, // Ensure it doesn't shrink in the post bar
+        flexShrink: 0, 
+        overflow: 'hidden', // Added for image
     },
     threadAuthorName: {
         fontWeight: '600',
@@ -996,6 +1047,7 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '700',
         fontSize: '18px',
+        overflow: 'hidden', // Added for image
     },
     modalUserName: {
         fontWeight: 600,
@@ -1118,6 +1170,7 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '600',
         fontSize: '10px',
+        overflow: 'hidden', // Added for image
     },
     responseAuthorName: {
         fontWeight: '700',
