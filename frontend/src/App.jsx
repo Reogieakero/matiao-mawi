@@ -9,6 +9,7 @@ import CreateAccountPage from './pages/CreateAccountPage';
 import SavedPage from './pages/SavedPage'; 
 import SearchResultsPage from './pages/SearchResultsPage'; 
 import ProfilePage from './pages/ProfilePage'; 
+import DocumentsPage from './pages/DocumentsPage'; // <--- NEW IMPORT
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -32,6 +33,9 @@ const App = () => {
         localStorage.setItem("userId", userId);
         localStorage.setItem("profilePictureUrl", profilePictureUrl); 
     }, [isLoggedIn, userName, userEmail, userId, profilePictureUrl]); 
+
+    // This state is just for triggering a refetch in Sidebar/Header if needed after a main action (like a new post)
+    const [refetchTrigger, setRefetchTrigger] = useState(0);
 
     const handleLoginSuccess = (user) => {
         setIsLoggedIn(true);
@@ -66,21 +70,27 @@ const App = () => {
         <>
             <Header 
                 userName={userName} 
-                profilePictureUrl={profilePictureUrl} // Pass prop to Header
+                profilePictureUrl={profilePictureUrl} 
                 onLogout={handleLogout} 
             />
-            <Sidebar profilePictureUrl={profilePictureUrl} />
+            {/* REMOVED Sidebar and RightPanel from AppLayout, they are now inside DocumentsPage and HomePage */}
+            {/* The Sidebar component below is kept here for other routes that don't embed their own layout components */}
+            <Sidebar refetchTrigger={refetchTrigger} /> 
+            
             <div style={appStyles.contentArea}>
                 <Routes>
                     <Route 
                         path="/home" 
-                        element={<HomePage 
-                            userName={userName} 
-                            userEmail={userEmail} 
-                            profilePictureUrl={profilePictureUrl} // Pass prop to HomePage
-                        />} 
+                        element={
+                            <HomePage 
+                                userName={userName} 
+                                userEmail={userEmail} 
+                                profilePictureUrl={profilePictureUrl} 
+                                setRefetchTrigger={setRefetchTrigger}
+                            />
+                        } 
                     />
-                    {/* 👇 MODIFIED: Pass user props to SavedPage */}
+                    
                     <Route 
                         path="/saved" 
                         element={<SavedPage 
@@ -89,7 +99,6 @@ const App = () => {
                             profilePictureUrl={profilePictureUrl} 
                         />} 
                     />
-                    {/* 👆 END MODIFIED */}
                     <Route path="/search" element={<SearchResultsPage userName={userName} userEmail={userEmail} />} />
 
                     <Route 
@@ -102,9 +111,18 @@ const App = () => {
                         />} 
                     />
 
+                    {/* NEW DOCUMENT PAGE ROUTE */}
+                    <Route 
+                        path="/documents" 
+                        element={<DocumentsPage 
+                            userName={userName} 
+                            userEmail={userEmail} 
+                            profilePictureUrl={profilePictureUrl}
+                        />} 
+                    />
                     {/* Placeholder Routes */}
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
-                    <Route path="/documents" element={<Placeholder title="Documents" />} />
+                    {/* <Route path="/documents" element={<Placeholder title="Documents" />} /> <--- REMOVED */}
                     <Route path="/services" element={<Placeholder title="Services" />} />
                     <Route path="/about" element={<Placeholder title="About" />} />
                     <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
@@ -132,7 +150,7 @@ const App = () => {
 const appStyles = {
     contentArea: { 
         paddingTop: '60px', 
-        marginLeft: '290px', 
+        marginLeft: '290px', // Standard offset for the Sidebar
         paddingRight: '20px', 
         minHeight: '100vh' 
     }
