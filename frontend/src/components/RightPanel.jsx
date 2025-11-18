@@ -1,6 +1,8 @@
 import React from 'react';
+import { Link } from 'react-router-dom'; 
 
-export default function RightPanel({ userName, userEmail }) {
+// ⭐ MODIFIED: Accept profilePictureUrl prop
+export default function RightPanel({ userName, userEmail, profilePictureUrl }) {
   const initials = userName
     ? userName
         .split(' ')
@@ -30,18 +32,27 @@ export default function RightPanel({ userName, userEmail }) {
 
   return (
     <div style={styles.rightSidebar}>
-      {/* Account Overview */}
-      <div style={styles.sidebarBlock}>
-        <h3 style={styles.sidebarTitle}>Account Overview</h3>
-        <div style={styles.accountOverview}>
-          <div style={styles.avatarCircle}>{initials}</div>
-          <div style={styles.accountDetails}>
-            <span style={styles.accountName}>{userName}</span>
-            <span style={styles.accountEmail}>{userEmail}</span>
+      
+      {/* Account Overview (Wrapped in Link for navigation) */}
+      <Link to="/profile" style={styles.accountLinkWrapper}>
+        <div style={styles.sidebarBlock}>
+          <h3 style={styles.sidebarTitle}>Account Overview</h3>
+          <div style={styles.accountOverview}>
+            {/* ⭐ MODIFIED: Display profile picture or initials */}
+            {profilePictureUrl ? (
+                <img src={profilePictureUrl} alt="Profile" style={styles.profilePicture} />
+            ) : (
+                <div style={styles.avatarCircle}>{initials}</div>
+            )}
+            {/* END MODIFIED */}
+            <div style={styles.accountDetails}>
+              <span style={styles.accountName}>{userName}</span>
+              <span style={styles.accountEmail}>{userEmail}</span>
+            </div>
           </div>
         </div>
-      </div>
-
+      </Link>
+      
       {/* Official List */}
       <div style={{ ...styles.sidebarBlock, flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         <h3 style={styles.sidebarTitle}>Officials & Friends</h3>
@@ -89,11 +100,17 @@ const styles = {
     flexDirection: 'column',
     fontFamily: 'Arial, sans-serif',
   },
+  accountLinkWrapper: {
+    textDecoration: 'none',
+    color: 'inherit',
+    cursor: 'pointer',
+    display: 'block',
+    marginBottom: '20px', 
+  },
   sidebarBlock: {
     backgroundColor: '#fff',
     padding: '20px',
     borderRadius: '14px',
-    marginBottom: '20px',
     boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
     display: 'flex',
     flexDirection: 'column',
@@ -115,6 +132,15 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
   },
+  // ⭐ NEW STYLE: Profile Picture for image display
+  profilePicture: {
+    width: '80px',
+    height: '80px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    border: '3px solid #3b82f6', // Optional: border for style
+  },
+  // Initial display remains
   avatarCircle: {
     width: '80px',
     height: '80px',
@@ -140,7 +166,7 @@ const styles = {
   officialItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #e5e7eb', fontSize: '14px', color: '#333' },
   officialInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
   avatarSmall: { width: '36px', height: '36px', borderRadius: '50%', color: '#fff', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' },
-  officialName: { fontWeight: '500  ' },
+  officialName: { fontWeight: '500' },
   officialPosition: { fontSize: '12px', color: '#555', fontStyle: 'italic'  },
   statusWrapper: { display: 'flex', alignItems: 'center', gap: '6px' },
   statusDot: { width: '10px', height: '10px', borderRadius: '50%' },

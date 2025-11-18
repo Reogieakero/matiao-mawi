@@ -31,8 +31,8 @@ export default function HomePage({ userName, userEmail }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // MODIFIED STATE: selectedFile changed to selectedFiles (array)
-    const [selectedFiles, setSelectedFiles] = useState([]); 
+    // MODIFIED STATE: selectedFiles changed back to selectedFile (single)
+    const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
 
     // State to force refresh job counts in sidebar
@@ -186,12 +186,12 @@ export default function HomePage({ userName, userEmail }) {
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
-        // MODIFIED: Clear selectedFiles
-        setSelectedFiles([]); 
+        // MODIFIED: Clear selectedFile
+        setSelectedFile(null); 
     };
 
 
-    // MODIFIED: handlePostSubmit to include multi-file upload logic
+    // MODIFIED: handlePostSubmit to include single-file upload logic
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -199,22 +199,20 @@ export default function HomePage({ userName, userEmail }) {
              return;
         }
 
-        // MODIFIED: Check selectedFiles length
-        if (!postContent.trim() && selectedFiles.length === 0) {
+        // MODIFIED: Check selectedFile
+        if (!postContent.trim() && !selectedFile) {
             return alert('Post cannot be empty if no media is attached!');
         }
         if (!postCategory) return alert('Please select a category.');
 
         // --- File Upload Logic ---
         let mediaUrls = []; // MODIFIED: array of URLs
-        if (selectedFiles.length > 0) {
+        if (selectedFile) {
             setIsUploadingFile(true);
             const formData = new FormData();
             
-            // MODIFIED: Append all selected files
-            selectedFiles.forEach(file => {
-                 formData.append('media', file); 
-            });
+            // MODIFIED: Append the single selected file
+            formData.append('media', selectedFile); 
 
             try {
                 const uploadRes = await fetch("http://localhost:5000/api/upload-media", {
@@ -228,7 +226,8 @@ export default function HomePage({ userName, userEmail }) {
                     throw new Error(uploadData.message || "File upload failed.");
                 }
                 
-                mediaUrls = uploadData.mediaUrls; // MODIFIED: Expect array of URLs
+                // MODIFIED: Expect mediaUrls to be an array from server
+                mediaUrls = uploadData.mediaUrls; 
             } catch (err) {
                 console.error("Media upload error:", err);
                 alert(`Failed to upload media. Post was cancelled. Error: ${err.message}`);
@@ -302,7 +301,7 @@ export default function HomePage({ userName, userEmail }) {
         setPostContent('');
         setPostCategory(currentCategories[0]); 
         setPostType("post");
-        setSelectedFiles([]); // MODIFIED: Clear selectedFiles
+        setSelectedFile(null); // MODIFIED: Clear selectedFile
     };
     
     // handleReplyClick
@@ -456,39 +455,11 @@ export default function HomePage({ userName, userEmail }) {
             </div>
         );
 
-        if (mediaUrls.length === 1) {
+        // MODIFIED: Only handles 1 photo now
+        if (mediaUrls.length >= 1) { 
             return (
                 <div style={{ height: '350px' }}>
                     {imageElement(mediaUrls[0])}
-                </div>
-            );
-        }
-
-        if (mediaUrls.length === 2) {
-            return (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', height: '350px' }}>
-                    {imageElement(mediaUrls[0])}
-                    {imageElement(mediaUrls[1])}
-                </div>
-            );
-        }
-
-        if (mediaUrls.length >= 3) {
-            // Facebook-like 3-photo layout: 1 full-height on left, 2 half-height on right
-            return (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', height: '400px' }}>
-                    {/* Left Side (First photo) */}
-                    <div style={{ gridRow: 'span 2', maxHeight: '100%', overflow: 'hidden' }}>
-                        {imageElement(mediaUrls[0])}
-                    </div>
-                    {/* Right Side Top (Second photo) */}
-                    <div style={{ maxHeight: 'calc(50% - 2.5px)', overflow: 'hidden' }}>
-                        {imageElement(mediaUrls[1])}
-                    </div>
-                    {/* Right Side Bottom (Third photo) */}
-                    <div style={{ maxHeight: 'calc(50% - 2.5px)', overflow: 'hidden' }}>
-                        {imageElement(mediaUrls[2])}
-                    </div>
                 </div>
             );
         }
@@ -504,9 +475,21 @@ export default function HomePage({ userName, userEmail }) {
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
-                    <button style={styles.createPostButton} onClick={() => setIsModalOpen(true)}>
-                        <FiPlus size={20} /> Create New Post
-                    </button>
+                    {/* NEW: Facebook-like Create Post Bar */}
+                    <div style={styles.createPostBarContainer}>
+                        <div style={styles.avatarCircleSmall}>{firstName[0]}</div>
+                        <div 
+                            style={styles.createPostBarInput} 
+                            onClick={() => setIsModalOpen(true)}
+                            role="button"
+                            tabIndex="0"
+                        >
+                            What's on your mind, {firstName}?
+                        </div>
+                        <button style={styles.createPostBarButton} onClick={() => setIsModalOpen(true)}>
+                            <FiPlus size={20} color="#fff" />
+                        </button>
+                    </div>
                     
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading threads...</p>
@@ -659,34 +642,32 @@ export default function HomePage({ userName, userEmail }) {
                             style={styles.modalTextarea}
                         />
 
-                        {/* File Input Section - MODIFIED for multiple photos */}
+                        {/* File Input Section - MODIFIED for single photo */}
                         <label htmlFor="media-upload" style={styles.fileUploadLabel}>
-                            <FiPaperclip size={18} /> Attach up to 3 Images (Max 5MB total)
+                            <FiPaperclip size={18} /> Attach 1 Image (Max 5MB)
                             <input
                                 id="media-upload"
                                 type="file"
-                                accept="image/*" // MODIFIED: Only images
-                                multiple // NEW: Allow multiple files
+                                accept="image/*" 
+                                // REMOVED: multiple
                                 onChange={e => {
-                                    const files = Array.from(e.target.files);
-                                    setSelectedFiles(files.slice(0, 3)); // Limit to 3 files
+                                    setSelectedFile(e.target.files[0] || null); // Select only the first file
                                 }}
+                                onClick={(e) => { e.target.value = null }} // Allows selecting the same file again
                                 style={styles.fileInputHidden}
                             />
                         </label>
 
-                        {selectedFiles.length > 0 && (
+                        {selectedFile && (
                             <div style={styles.filePreviewContainer}>
-                                {selectedFiles.map((file, index) => (
-                                    <div key={index} style={styles.filePreview}>
-                                        <span style={styles.fileName}>{file.name}</span>
-                                        <FiX 
-                                            size={20} 
-                                            style={{ cursor: 'pointer', color: '#dc2626' }} 
-                                            onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))} 
-                                        />
-                                    </div>
-                                ))}
+                                <div style={styles.filePreview}>
+                                    <span style={styles.fileName}>{selectedFile.name}</span>
+                                    <FiX 
+                                        size={20} 
+                                        style={{ cursor: 'pointer', color: '#dc2626' }} 
+                                        onClick={() => setSelectedFile(null)} 
+                                    />
+                                </div>
                             </div>
                         )}
                         {/* END MODIFIED: File Input Section */}
@@ -697,7 +678,7 @@ export default function HomePage({ userName, userEmail }) {
                             style={styles.modalPostButton}
                             disabled={isUploadingFile}
                         >
-                            {isUploadingFile ? 'Uploading Files...' : <><FiPlus color="#fff" /> Submit Post</>}
+                            {isUploadingFile ? 'Uploading File...' : <><FiPlus color="#fff" /> Submit Post</>}
                         </button>
                     </div>
                 </div>
@@ -785,24 +766,46 @@ const styles = {
         color: '#1e40af',
         marginBottom: '15px',
     },
-    createPostButton: {
-        width: '100%',
-        padding: '12px 20px',
+    // REMOVED: createPostButton
+    
+    // NEW STYLES FOR CREATE POST BAR
+    createPostBarContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+        padding: '15px 20px',
         marginBottom: '20px',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '10px',
+        backgroundColor: '#fff',
+        borderRadius: '16px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        border: '1px solid #e5e7eb',
+    },
+    createPostBarInput: {
+        flexGrow: 1,
+        padding: '10px 15px',
+        backgroundColor: '#f3f4f6',
+        borderRadius: '25px',
+        color: '#6b7280',
         cursor: 'pointer',
-        fontWeight: '600',
         fontSize: '16px',
+        outline: 'none',
+        transition: 'background-color 0.2s',
+    },
+    createPostBarButton: {
+        backgroundColor: '#3b82f6',
+        border: 'none',
+        borderRadius: '50%',
+        width: '40px',
+        height: '40px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        cursor: 'pointer',
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
         transition: 'background-color 0.2s',
     },
+    // END NEW STYLES
+    
     loadingText: {
         textAlign: 'center',
         padding: '50px',
@@ -860,6 +863,7 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '600',
         fontSize: '14px',
+        flexShrink: 0, // Ensure it doesn't shrink in the post bar
     },
     threadAuthorName: {
         fontWeight: '600',

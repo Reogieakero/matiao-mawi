@@ -25,6 +25,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
+// Generic storage configuration (used by /api/upload-media)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -33,10 +34,36 @@ const storage = multer.diskStorage({
         cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
     }
 });
+
+// For Post/Job media upload 
 const upload = multer({ 
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 } 
-}).array('media', 3); 
+}).single('media'); 
+
+// ⭐ Dedicated storage for PROFILE PICTURES
+const profilePicStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir); 
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const userId = req.params.userId || 'temp'; 
+        cb(null, `profile-${userId}-${Date.now()}${ext}`);
+    }
+});
+
+const profilePicUploader = multer({ 
+    storage: profilePicStorage, 
+    limits: { fileSize: 2 * 1024 * 1024 }, 
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed!'), false);
+        }
+    }
+}).single('profile_picture'); 
 
 app.use('/media', express.static(uploadDir));
 
@@ -58,15 +85,12 @@ db.connect(err => {
 });
 
 
-// FIX: Modified formatThread to safely parse media_url (Handles old single-URL format)
 const formatThread = (row, type) => {
     let mediaUrls = [];
     if (row.media_url) {
         try {
-            // 1. Try to parse as a JSON array (for new posts)
             mediaUrls = JSON.parse(row.media_url);
         } catch (e) {
-            // 2. If JSON.parse fails, assume it's a single raw URL string (for old posts)
             if (typeof row.media_url === 'string') {
                 mediaUrls = [row.media_url];
             }
@@ -85,7 +109,7 @@ const formatThread = (row, type) => {
         responseCount: row.response_count || 0,
         isBookmarked: row.is_bookmarked || false,
         bookmarked_at: row.bookmarked_at || null,
-        mediaUrls: mediaUrls || [], // Use the safely determined mediaUrls
+        mediaUrls: mediaUrls || [],
     };
 };
 
@@ -111,21 +135,20 @@ app.post('/api/upload-media', (req, res) => {
             return res.status(500).json({ message: 'An unknown error occurred during file upload.' });
         }
 
-        if (!req.files || req.files.length === 0) {
+        if (!req.file) {
             return res.status(400).json({ message: 'No file selected for upload.' });
         }
 
-        const mediaUrls = req.files.map(file => 
-            `http://localhost:${PORT}/media/${file.filename}`
-        );
+        const mediaUrls = [
+            `http://localhost:${PORT}/media/${req.file.filename}`
+        ];
         
         res.status(200).json({ 
-            message: 'Files uploaded successfully.', 
+            message: 'File uploaded successfully.', 
             mediaUrls: mediaUrls,
         });
     });
 });
-
 
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
@@ -171,7 +194,6 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/threads', (req, res) => {
-    // FIX: Explicitly select all required columns including media_url
     const SQL_FETCH_POSTS = `
         SELECT 
             p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, 
@@ -180,9 +202,8 @@ app.get('/api/threads', (req, res) => {
         FROM posts p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN responses r ON p.id = r.post_id
-        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name -- Added to ensure compatibility with stricter MySQL GROUP BY settings
+        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name 
     `;
-    // FIX: Explicitly select all required columns including media_url
     const SQL_FETCH_JOBS = `
         SELECT 
             j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, 
@@ -191,7 +212,7 @@ app.get('/api/threads', (req, res) => {
         FROM jobs j
         JOIN users u ON j.user_id = u.id
         LEFT JOIN responses r ON j.id = r.job_id
-        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name -- Added to ensure compatibility with stricter MySQL GROUP BY settings
+        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name 
     `;
 
     db.query(`${SQL_FETCH_POSTS};${SQL_FETCH_JOBS}`, (err, results) => {
@@ -366,10 +387,8 @@ app.post('/api/bookmarks', (req, res) => {
         }
 
         if (results.length > 0) {
-
             const bookmarkId = results[0].id;
             const SQL_DELETE = 'DELETE FROM bookmarks WHERE id = ?';
-
             db.query(SQL_DELETE, [bookmarkId], (deleteErr) => {
                 if (deleteErr) {
                     console.error("Database error deleting bookmark:", deleteErr);
@@ -378,13 +397,11 @@ app.post('/api/bookmarks', (req, res) => {
                 res.status(200).json({ message: 'Thread unsaved successfully.', bookmarked: false });
             });
         } else {
-
             const SQL_INSERT = `INSERT INTO bookmarks (user_id, ${threadKey}) VALUES (?, ?)`;
             db.query(SQL_INSERT, [userId, threadId], (insertErr) => {
                 if (insertErr) {
-
                     console.error("Database error inserting bookmark:", insertErr);
-                    let userMessage = 'Failed to save thread.';
+                    let userMessage = `Failed to save thread.`;
                     if (insertErr.code === 'ER_NO_REFERENCED_ROW_2') {
                         userMessage = `Error: The associated ${threadType} or User ID is invalid.`;
                     }
@@ -494,6 +511,124 @@ app.get('/api/search', (req, res) => {
         res.status(200).json(allResults);
     });
 });
+
+// POST /api/profile/upload-picture/:userId - Uploads and saves picture URL
+app.post('/api/profile/upload-picture/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
+    
+    profilePicUploader(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error("Multer Error:", err.message);
+            return res.status(400).json({ message: `File upload failed: ${err.message}` });
+        } else if (err) {
+            console.error("Unknown Upload Error:", err);
+            return res.status(500).json({ message: err.message || 'An unknown error occurred during file upload.' });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file selected for upload.' });
+        }
+
+        const profilePictureUrl = `http://localhost:${PORT}/media/${req.file.filename}`;
+        
+        // Use UPSERT to insert or update the profile picture URL
+        const SQL_UPSERT_PROFILE_PIC = `
+            INSERT INTO user_profiles (user_id, profile_picture_url)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE profile_picture_url = ?;
+        `;
+        
+        db.query(SQL_UPSERT_PROFILE_PIC, [userId, profilePictureUrl, profilePictureUrl], (dbErr) => {
+            if (dbErr) {
+                console.error("Database error updating profile picture:", dbErr);
+                // Try to clean up the uploaded file if DB update fails
+                fs.unlink(req.file.path, (e) => e && console.error("Failed to delete file:", e));
+                return res.status(500).json({ message: 'Failed to update profile picture in database.' });
+            }
+
+            res.status(200).json({ 
+                message: 'Profile picture uploaded successfully.', 
+                profilePictureUrl: profilePictureUrl,
+            });
+        });
+    });
+});
+
+// GET /api/profile/:userId - Fetch user profile data
+app.get('/api/profile/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
+
+    const SQL_FETCH_PROFILE = `
+        SELECT 
+            u.name, 
+            u.email, 
+            up.contact, 
+            up.address,
+            up.profile_picture_url
+        FROM users u
+        LEFT JOIN user_profiles up ON u.id = up.user_id
+        WHERE u.id = ?;
+    `;
+
+    db.query(SQL_FETCH_PROFILE, [userId], (err, results) => {
+        if (err) {
+            console.error("Database error fetching profile:", err);
+            return res.status(500).json({ message: 'Failed to fetch user profile.' });
+        }
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const userData = results[0];
+        res.status(200).json({
+            name: userData.name,
+            email: userData.email, 
+            contact: userData.contact || '',
+            address: userData.address || '',
+            profilePictureUrl: userData.profile_picture_url || '',
+        });
+    });
+});
+
+// POST /api/profile/:userId - Update user profile data
+app.post('/api/profile/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    const { name, contact, address } = req.body;
+
+    if (isNaN(userId) || !name) {
+        return res.status(400).json({ message: 'Invalid User ID or missing Name.' });
+    }
+
+    // 1. Update name in the 'users' table 
+    const SQL_UPDATE_USER_NAME = `UPDATE users SET name = ? WHERE id = ?`;
+
+    db.query(SQL_UPDATE_USER_NAME, [name, userId], (err) => {
+        if (err) {
+            console.error("Database error updating user name:", err);
+            return res.status(500).json({ message: 'Failed to update user name.' });
+        }
+        
+        // 2. Insert or Update (upsert) contact/address in 'user_profiles' table
+        const SQL_UPSERT_PROFILE = `
+            INSERT INTO user_profiles (user_id, contact, address)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE contact = ?, address = ?;
+        `;
+        
+        db.query(SQL_UPSERT_PROFILE, [userId, contact, address, contact, address], (err) => {
+            if (err) {
+                console.error("Database error upserting profile data:", err);
+                return res.status(500).json({ message: 'Failed to update profile details.' });
+            }
+
+            res.status(200).json({ message: 'Profile updated successfully.' });
+        });
+    });
+});
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
