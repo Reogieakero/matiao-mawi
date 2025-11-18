@@ -25,7 +25,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Generic storage configuration (used by /api/upload-media)
+// Generic storage configuration (used by /api/upload-media for posts/jobs)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -64,6 +64,32 @@ const profilePicUploader = multer({
         }
     }
 }).single('profile_picture'); 
+
+// ⭐ Dedicated storage for DOCUMENT REQUIREMENTS
+const requirementsStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir); 
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        // Use a distinct prefix for requirements
+        cb(null, `req-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`);
+    }
+});
+
+// ⭐ Multer instance for multiple requirements files (max 5)
+const requirementsUploader = multer({ 
+    storage: requirementsStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed for requirements!'), false);
+        }
+    }
+}).array('requirements', 5); // 'requirements' is the field name, 5 is the max count
+
 
 app.use('/media', express.static(uploadDir));
 
@@ -149,6 +175,34 @@ app.post('/api/upload-media', (req, res) => {
         
         res.status(200).json({ 
             message: 'File uploaded successfully.', 
+            mediaUrls: mediaUrls,
+        });
+    });
+});
+
+// ⭐ NEW ENDPOINT: POST /api/upload-requirements
+app.post('/api/upload-requirements', (req, res) => {
+    requirementsUploader(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error("Multer Requirements Error:", err.message);
+            return res.status(400).json({ message: `Requirements upload failed: ${err.message}` });
+        } else if (err) {
+            console.error("Unknown Requirements Upload Error:", err);
+            return res.status(500).json({ message: err.message || 'An unknown error occurred during requirements upload.' });
+        }
+
+        if (!req.files || req.files.length === 0) {
+            // Should be handled on the frontend if files are required, but a check here is safer.
+            return res.status(200).json({ message: 'No files uploaded.', mediaUrls: [] });
+        }
+        
+        // Map uploaded files to their accessible URLs
+        const mediaUrls = req.files.map(file => 
+            `http://localhost:${PORT}/media/${file.filename}`
+        );
+        
+        res.status(200).json({ 
+            message: `${req.files.length} requirements uploaded successfully.`, 
             mediaUrls: mediaUrls,
         });
     });
@@ -670,27 +724,33 @@ app.post('/api/profile/:userId', (req, res) => {
     });
 });
 
-// POST /api/document-application - Save application transaction
+// ⭐ FIXED: POST /api/document-application - Save application transaction (Added requirements_media_url to SQL)
 app.post('/api/document-application', (req, res) => {
-    const { userId, documentName, purpose, fee } = req.body;
-    const status = 'Pending'; // Initial status
+    // requirementsMediaUrl is included in the body and will be passed to the database
+    const { userId, documentName, purpose, fee, requirementsMediaUrl } = req.body; 
+    const status = 'Pending'; 
 
     if (!userId || !documentName || !purpose || fee === undefined || fee === null) {
         return res.status(400).json({ message: 'Missing required fields for document application.' });
     }
 
-    // NOTE: This assumes a table called 'document_transactions' exists.
+    // ⭐ CRITICAL FIX: requirements_media_url is added to the INSERT list
     const SQL_INSERT_APPLICATION = `
-        INSERT INTO document_transactions (user_id, document_name, purpose, fee, status)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO document_transactions (user_id, document_name, purpose, fee, status, requirements_media_url)
+        VALUES (?, ?, ?, ?, ?, ?)
     `;
 
-    db.query(SQL_INSERT_APPLICATION, [userId, documentName, purpose, fee, status], (err, result) => {
+    // ⭐ CRITICAL FIX: requirementsMediaUrl is passed as the 6th parameter (after status)
+    db.query(SQL_INSERT_APPLICATION, [userId, documentName, purpose, fee, status, requirementsMediaUrl], (err, result) => {
         if (err) {
             console.error("Database error inserting document application:", err);
             let userMessage = 'Failed to submit document application and record transaction.';
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                 userMessage = 'Error: The user ID is invalid or does not exist.';
+            } else if (err.code === 'ER_DATA_TOO_LONG') { 
+                userMessage = 'Error: Submitted requirements data is too large. Please limit the number of files, or contact support.';
+            } else if (err.code === 'ER_BAD_FIELD_ERROR') {
+                userMessage = 'Error: Database schema mismatch. Please run the ALTER TABLE command in your MySQL client.';
             }
             return res.status(500).json({ message: userMessage });
         }
@@ -703,7 +763,8 @@ app.post('/api/document-application', (req, res) => {
     });
 });
 
-// ⭐ NEW API ENDPOINT: GET /api/document-applications/:userId - Fetch user's transaction history
+// ⭐ FIXED: GET /api/document-applications/:userId - Fetch user's transaction history.
+// requirements_media_url is not selected to avoid the column length issue during fetch, focusing on core transaction data.
 app.get('/api/document-applications/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
 
@@ -719,6 +780,7 @@ app.get('/api/document-applications/:userId', (req, res) => {
             fee, 
             status, 
             created_at
+            -- requirements_media_url <-- Removed from SELECT list
         FROM document_transactions
         WHERE user_id = ?
         ORDER BY created_at DESC

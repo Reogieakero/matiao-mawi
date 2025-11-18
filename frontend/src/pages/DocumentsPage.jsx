@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'; // MODIFIED: Added useEffect
-import { FiFileText, FiDownload, FiInfo, FiSend } from 'react-icons/fi';
-// NOTE: Sidebar is correctly omitted here as it is rendered globally in App.jsx
+import React, { useState, useEffect } from 'react'; 
+import { FiFileText, FiDownload, FiInfo, FiSend, FiUploadCloud } from 'react-icons/fi'; 
 import RightPanel from '../components/RightPanel'; 
 
 // Define the available documents
@@ -53,7 +52,7 @@ const TransactionHistory = ({ currentUserId }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const idToFetch = currentUserId || 1; // Use 1 as a fallback for the placeholder
+        const idToFetch = currentUserId || 1; 
 
         if (!idToFetch) {
             setError("User ID is required to fetch transactions.");
@@ -102,7 +101,6 @@ const TransactionHistory = ({ currentUserId }) => {
     };
 
     if (isLoading) {
-        // Apply transactionSection styles here for padding/background
         return (
             <section style={documentStyles.transactionSection}>
                 <p style={{ textAlign: 'center', color: '#4b5563' }}>Loading application status...</p>
@@ -141,6 +139,13 @@ const TransactionHistory = ({ currentUserId }) => {
                                 </span>
                             </div>
                             <p style={documentStyles.transactionPurpose}>Purpose: {transaction.purpose}</p>
+                            {/* NOTE: requirements_media_url is not selected in server.js due to the fix, 
+                                but this code remains to display it once the DB column is added and selected. */}
+                            {transaction.requirements_media_url && (
+                                <p style={documentStyles.transactionRequirements}>
+                                    Requirements: <a href={transaction.requirements_media_url} target="_blank" rel="noopener noreferrer">View Submitted Files</a>
+                                </p>
+                            )}
                             <div style={documentStyles.transactionFooter}>
                                 <span style={documentStyles.transactionInfo}>
                                     Date: {formatDate(transaction.created_at)}
@@ -182,31 +187,98 @@ const DocumentCard = ({ doc, onApplyClick }) => {
 
 
 // Application Modal Component
-// MODIFIED: Added currentUserId prop
 const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId }) => {
     const [purpose, setPurpose] = useState('');
+    const [selectedFiles, setSelectedFiles] = useState([]); // NEW: State for selected files
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [submitMessage, setSubmitMessage] = useState('');
+    
+    // NEW: Handler for file input change
+    const handleFileChange = (e) => {
+        // Limit to 5 files
+        const files = Array.from(e.target.files).slice(0, 5); 
+        setSelectedFiles(files);
+        setSubmitMessage(''); // Clear message on file change
+    };
+
+    // NEW: File upload function
+    const uploadRequirements = async () => {
+        if (selectedFiles.length === 0) {
+            return null; // Return null if no files
+        }
+
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+            // Note: 'requirements' must match the field name in server.js multer config
+            formData.append('requirements', file); 
+        });
+
+        try {
+            // Use a dedicated upload endpoint for multiple files
+            const response = await fetch('http://localhost:5000/api/upload-requirements', {
+                method: 'POST',
+                // Content-Type is set automatically by fetch when using FormData
+                body: formData, 
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Return the array of URLs
+                return data.mediaUrls; 
+            } else {
+                // Throw an error with the server's message for better debugging
+                throw new Error(data.message || 'Requirements upload failed.');
+            }
+        } catch (error) {
+            console.error('Requirements upload error:', error);
+            // Re-throw for outer try/catch to catch
+            throw new Error(`Upload failed: ${error.message}`); 
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // --- 1. Frontend Validation ---
         if (!purpose.trim() || !currentUserId) {
             setSubmitMessage("Error: Missing purpose or User ID.");
             return;
         }
 
+        // Check if files are required but none are selected
+        const requirementsExist = document.requirements && document.requirements.length > 0;
+        if (requirementsExist && selectedFiles.length === 0) {
+            setSubmitMessage("Error: Please attach the required documents (images) before submitting.");
+            return;
+        }
+        
+        // Disable button and start submission process
         setIsLoading(true);
-        setSubmitMessage('');
-
-        const applicationData = {
-            userId: currentUserId,
-            documentName: document.name,
-            purpose: purpose,
-            fee: document.fee
-        };
+        setSubmitMessage('Uploading requirements...');
+        let uploadedUrls = null; // Changed to null initially
 
         try {
+            // 2. Upload Requirements
+            if (selectedFiles.length > 0) {
+                // This returns an array of URLs or throws an error
+                uploadedUrls = await uploadRequirements(); 
+            }
+            
+            setSubmitMessage('Submitting application...');
+
+            // 3. Submit Application Data with uploaded URLs
+            const applicationData = {
+                userId: currentUserId,
+                documentName: document.name,
+                purpose: purpose,
+                fee: document.fee,
+                // Pass the array of URLs as a JSON string to the backend, or null if empty
+                // The backend will receive this as a string if uploaded, or null if no files were required/uploaded.
+                requirementsMediaUrl: uploadedUrls && uploadedUrls.length > 0 ? JSON.stringify(uploadedUrls) : null,
+            };
+
             const response = await fetch('http://localhost:5000/api/document-application', {
                 method: 'POST',
                 headers: {
@@ -221,12 +293,13 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                 setSubmitMessage(`Application submitted successfully! Transaction ID: ${data.transactionId}. Status: ${data.status}`);
                 setIsSubmitted(true);
             } else {
-                setSubmitMessage(`Submission failed: ${data.message || 'Server error.'}`);
+                throw new Error(data.message || 'Server error during application submission.');
             }
 
         } catch (error) {
+            // Catch errors from uploadRequirements or the final application submission
             console.error('Application submission error:', error);
-            setSubmitMessage('Network error. Failed to connect to the server.');
+            setSubmitMessage(`Submission failed: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -237,7 +310,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             <div style={documentStyles.modalBackdrop}>
                 <div style={documentStyles.modalContent}>
                     <h2 style={documentStyles.modalHeader}>✅ Application Sent!</h2>
-                    <p>Your application for {document.name} has been successfully submitted.</p>
+                    <p>Your application for **{document.name}** has been successfully submitted.</p>
                     <p style={{ color: '#059669', fontWeight: 'bold' }}>
                         {submitMessage}
                     </p>
@@ -252,14 +325,16 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
         );
     }
 
+    const requirementsExist = document.requirements && document.requirements.length > 0;
+
     return (
         <div style={documentStyles.modalBackdrop}>
             <div style={documentStyles.modalContent}>
                 <h2 style={documentStyles.modalHeader}>Apply for: {document.name}</h2>
                 <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
 
-                {/* NEW: Document Requirements Section */}
-                {document.requirements && (
+                {/* Document Requirements Section */}
+                {requirementsExist && (
                     <div style={documentStyles.requirementsSection}>
                         <h3 style={documentStyles.requirementsTitle}>Required Documents / Information:</h3>
                         <ul style={documentStyles.requirementsList}>
@@ -278,6 +353,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                 </p>
 
                 <form onSubmit={handleSubmit}>
+                    {/* Applicant Info (Read-only) */}
                     <div style={documentStyles.formGroup}>
                         <label style={documentStyles.label}>Applicant Name:</label>
                         <input type="text" value={userName} readOnly style={documentStyles.inputReadOnly} />
@@ -291,6 +367,8 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                         <label style={documentStyles.label}>Applicant ID (for transaction):</label>
                         <input type="text" value={currentUserId} readOnly style={documentStyles.inputReadOnly} />
                     </div>
+                    
+                    {/* Purpose Field */}
                     <div style={documentStyles.formGroup}>
                         <label htmlFor="purpose" style={documentStyles.label}>
                             Purpose of Document <span style={{ color: 'red' }}>*</span>
@@ -299,22 +377,58 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                             id="purpose"
                             rows="4"
                             value={purpose}
-                            onChange={(e) => setPurpose(e.target.value)}
+                            onChange={(e) => {
+                                setPurpose(e.target.value);
+                                setSubmitMessage(''); // Clear message when user starts typing
+                            }}
                             required
                             style={documentStyles.textarea}
                             placeholder="e.g., Job application, Scholarship, Business permit renewal, etc."
                         />
                     </div>
+                    
+                    {/* Requirements Upload Field - REMOVED HTML 'required' ATTRIBUTE */}
+                    <div style={documentStyles.formGroup}>
+                        <label htmlFor="requirements-upload" style={documentStyles.label}>
+                            Attach Requirements (Images Only, Max 5 Files) 
+                            {requirementsExist && <span style={{ color: 'red' }}> *</span>}
+                        </label>
+                        <input
+                            type="file"
+                            id="requirements-upload"
+                            accept="image/*"
+                            multiple
+                            onChange={handleFileChange}
+                            // REMOVED required={requirementsExist} to let JS handle custom error message
+                            style={documentStyles.fileInput} 
+                        />
+                        {selectedFiles.length > 0 && (
+                            <p style={documentStyles.fileCountText}>
+                                {selectedFiles.length} file(s) selected: {selectedFiles.map(f => f.name).join(', ').substring(0, 100) + '...'}
+                            </p>
+                        )}
+                        <p style={documentStyles.modalSmallPrint}>
+                             Please ensure you have digitally scanned or taken clear photos of all documents listed above.
+                        </p>
+                    </div>
+
                     <button
                         type="submit"
                         style={documentStyles.submitButton(isLoading)}
-                        disabled={isLoading || !purpose.trim()}
+                        disabled={isLoading}
                     >
-                        {isLoading ? 'Processing...' : <><FiSend size={16} /> Submit Application</>}
+                        {/* Display submit message when loading, otherwise display default text */}
+                        {isLoading ? submitMessage : <><FiSend size={16} /> Submit Application</>}
                     </button>
                 </form>
-                {submitMessage && !isSubmitted && (
-                    <p style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>
+                {/* Display validation/submission errors/messages clearly outside the button */}
+                {submitMessage && !isSubmitted && !isLoading && (
+                    <p style={{ 
+                        color: submitMessage.startsWith('Error') ? 'red' : '#b45309', 
+                        marginTop: '10px', 
+                        textAlign: 'center',
+                        fontWeight: '600'
+                    }}>
                         {submitMessage}
                     </p>
                 )}
@@ -325,7 +439,6 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
 
 
 // Main Documents Page Component
-// MODIFIED: Added currentUserId prop
 export default function DocumentsPage({ userName, userEmail, profilePictureUrl, currentUserId }) {
     const [selectedDocument, setSelectedDocument] = useState(null);
     
@@ -360,7 +473,7 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                 <section style={documentStyles.downloadSection}>
                     <h2 style={documentStyles.sectionTitle}>
                         <FiDownload size={24} style={{ marginRight: '8px' }} />
-                        Available Documents
+                        Downloadable Forms
                     </h2>
                     <div style={documentStyles.downloadList}>
                         {/* Dynamically generate links with download icon and no extra text */}
@@ -369,7 +482,6 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                                 key={item.id} 
                                 href={`/forms/${item.file}`} 
                                 download 
-                                // Left border is removed via updated documentStyles.downloadLink
                                 style={documentStyles.downloadLink} 
                             >
                                 <span>{item.name}</span>
@@ -517,6 +629,8 @@ const documentStyles = {
         maxWidth: '450px',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
         position: 'relative',
+        maxHeight: '90vh',
+        overflowY: 'auto',
     },
     modalHeader: {
         color: '#1e40af',
@@ -598,6 +712,30 @@ const documentStyles = {
         resize: 'vertical',
         fontSize: '16px',
     },
+    // NEW Styles for file input
+    fileInput: {
+        display: 'block',
+        width: '100%',
+        padding: '10px',
+        border: '2px dashed #93c5fd',
+        borderRadius: '8px',
+        backgroundColor: '#f0f9ff',
+        cursor: 'pointer',
+    },
+    fileCountText: {
+        fontSize: '12px',
+        color: '#059669',
+        marginTop: '5px',
+        padding: '5px 10px',
+        backgroundColor: '#ecfdf5',
+        borderRadius: '4px',
+        border: '1px solid #a7f3d0'
+    },
+    modalSmallPrint: {
+        fontSize: '11px',
+        color: '#6b7280',
+        marginTop: '5px',
+    },
     submitButton: (isLoading) => ({
         width: '100%',
         padding: '12px',
@@ -659,7 +797,6 @@ const documentStyles = {
         borderRadius: '8px',
         textDecoration: 'none',
         fontWeight: '500',
-        // borderLeft: '3px solid #60a5fa', <-- REMOVED
         transition: 'background-color 0.2s',
     },
 
@@ -699,6 +836,13 @@ const documentStyles = {
         fontSize: '14px',
         color: '#4b5563',
         margin: '0 0 10px 0',
+    },
+    // NEW: Style for requirements link
+    transactionRequirements: {
+        fontSize: '12px',
+        color: '#059669',
+        margin: '0 0 10px 0',
+        fontWeight: '600',
     },
     transactionFooter: {
         display: 'flex',
