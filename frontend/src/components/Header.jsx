@@ -207,7 +207,6 @@ const styles = {
         objectFit: 'cover',
         border: '2px solid #2563eb',
     },
-    // ⭐ NEW STYLE: Initials fallback for Header (30px)
     avatarCircleHeader: {
         width: '30px',
         height: '30px',

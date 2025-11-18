@@ -670,6 +670,70 @@ app.post('/api/profile/:userId', (req, res) => {
     });
 });
 
+// POST /api/document-application - Save application transaction
+app.post('/api/document-application', (req, res) => {
+    const { userId, documentName, purpose, fee } = req.body;
+    const status = 'Pending'; // Initial status
+
+    if (!userId || !documentName || !purpose || fee === undefined || fee === null) {
+        return res.status(400).json({ message: 'Missing required fields for document application.' });
+    }
+
+    // NOTE: This assumes a table called 'document_transactions' exists.
+    const SQL_INSERT_APPLICATION = `
+        INSERT INTO document_transactions (user_id, document_name, purpose, fee, status)
+        VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.query(SQL_INSERT_APPLICATION, [userId, documentName, purpose, fee, status], (err, result) => {
+        if (err) {
+            console.error("Database error inserting document application:", err);
+            let userMessage = 'Failed to submit document application and record transaction.';
+            if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                userMessage = 'Error: The user ID is invalid or does not exist.';
+            }
+            return res.status(500).json({ message: userMessage });
+        }
+        
+        res.status(201).json({ 
+            message: 'Document application submitted and transaction recorded successfully!', 
+            transactionId: result.insertId,
+            status: status
+        });
+    });
+});
+
+// ⭐ NEW API ENDPOINT: GET /api/document-applications/:userId - Fetch user's transaction history
+app.get('/api/document-applications/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
+    }
+
+    const SQL_FETCH_TRANSACTIONS = `
+        SELECT 
+            id, 
+            document_name, 
+            purpose, 
+            fee, 
+            status, 
+            created_at
+        FROM document_transactions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    `;
+
+    db.query(SQL_FETCH_TRANSACTIONS, [userId], (err, results) => {
+        if (err) {
+            console.error("Database error fetching document transactions:", err);
+            return res.status(500).json({ message: 'Failed to fetch document transaction history.' });
+        }
+        
+        res.status(200).json(results);
+    });
+});
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
