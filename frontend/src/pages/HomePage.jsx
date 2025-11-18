@@ -480,26 +480,31 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
 
         // Common style for images in the gallery
         const imageStyle = {
-            width: '100%', 
-            height: '100%', 
+            width: '100%',
+            height: '100%',
             objectFit: 'cover',
             display: 'block',
         };
 
         const imageElement = (url) => (
-            <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-                <img 
-                    src={url} 
-                    alt="Post media" 
-                    style={imageStyle} 
-                />
+            <div 
+                key={url}
+                style={{ 
+                    position: 'relative', 
+                    width: '100%', 
+                    height: '100%', 
+                    overflow: 'hidden',
+                    borderRadius: '10px'
+                }}
+            >
+                <img src={url} alt="Post media" style={imageStyle} />
             </div>
         );
 
         // Only handles 1 photo now
-        if (mediaUrls.length >= 1) { 
+        if (mediaUrls.length >= 1) {
             return (
-                <div style={{ height: '350px' }}>
+                <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
                     {imageElement(mediaUrls[0])}
                 </div>
             );
@@ -507,8 +512,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
 
         return null;
     };
-
-
+    
     return (
         <div style={styles.page}>
             <div style={styles.container}>
@@ -517,64 +521,50 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
                     {/* MODIFIED: Facebook-like Create Post Bar to use renderAvatar */}
-                    <div style={styles.createPostBarContainer}>
-                        {renderAvatar(profilePictureUrl, firstName, 'small')}
-                        <div 
-                            style={styles.createPostBarInput} 
-                            onClick={() => setIsModalOpen(true)}
-                            role="button"
-                            tabIndex="0"
-                        >
-                            What's on your mind, {firstName}?
-                        </div>
-                        <button style={styles.createPostBarButton} onClick={() => setIsModalOpen(true)}>
-                            <FiPlus size={20} color="#fff" />
-                        </button>
+                    <div style={styles.createPostBar} onClick={() => setIsModalOpen(true)}>
+                        {renderAvatar(profilePictureUrl, firstName, 'large')}
+                        <input 
+                            type="text" 
+                            placeholder={`What's on your mind, ${firstName}?`}
+                            style={styles.postInput}
+                            readOnly
+                        />
+                        <FiPaperclip size={20} color="#3b82f6" style={{ cursor: 'pointer' }} />
                     </div>
-                    
+
+                    {/* Thread List */}
                     {isLoading ? (
-                        <p style={styles.loadingText}>Loading threads...</p>
+                        <p style={styles.loadingText}>Loading community threads...</p>
                     ) : (threads.length === 0) ? (
-                        <p style={styles.loadingText}>No threads found.</p>
+                        <p style={styles.loadingText}>No threads found. Be the first to post!</p>
                     ) : (
                         threads.map(thread => (
-                            <div 
-                                key={thread.id} 
-                                style={{ 
-                                    ...styles.threadPost, 
-                                    opacity: thread.isSubmitting ? 0.7 : 1, 
-                                }}
-                            >
+                            <div key={thread.id} style={styles.threadPost}>
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
-                                        {/* MODIFIED: Thread Author Avatar */}
+                                        {/* MODIFIED: Use renderAvatar for author */}
                                         {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                         <span style={styles.threadAuthorName}>{thread.author}</span>
                                         <span style={styles.threadTime}>
-                                            {thread.isSubmitting ? "Posting..." : getTimeSince(thread.time)}
+                                            {getTimeSince(thread.time)}
                                         </span>
                                     </div>
                                     <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
-                                <h3 style={styles.threadTitle}>{thread.title}</h3>
                                 
+                                <h3 style={styles.threadTitle}>{thread.title}</h3>
                                 <p style={styles.threadBodyModified}>
                                     {thread.body}
                                 </p>
                                 
-                                {/* MODIFIED: Media Display for photo gallery */}
-                                {thread.mediaUrls && thread.mediaUrls.length > 0 && (
-                                    <div style={styles.threadMediaContainer}>
-                                        {renderMediaGallery(thread.mediaUrls)}
-                                    </div>
-                                )}
-                                {/* END MODIFIED: Media Display */}
-                                
+                                {/* MODIFIED: Media Display */}
+                                {renderMediaGallery(thread.mediaUrls)}
+
                                 <div style={styles.threadFooter}>
                                     <div style={styles.threadActions}>
                                         <div 
-                                            style={{
-                                                ...styles.threadActionButton,
+                                            style={{ 
+                                                ...styles.threadActionButton, 
                                                 color: thread.isBookmarked ? '#3b82f6' : '#555',
                                                 fontWeight: thread.isBookmarked ? '600' : '500',
                                             }}
@@ -582,7 +572,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                                         >
                                             <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
                                         </div>
-
                                         <div 
                                             style={styles.threadActionButton}
                                             onClick={() => handleReplyClick(thread.id, thread.type)}
@@ -590,7 +579,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                                             <FiMessageSquare size={18} /> Add Response
                                         </div>
                                     </div>
-                                    
                                     <div 
                                         style={styles.responseToggleButton}
                                         onClick={() => toggleResponses(thread.id, thread.type)}
@@ -623,7 +611,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                     userName={userName} 
                     userEmail={userEmail} 
                     profilePictureUrl={profilePictureUrl} // ⭐ ADDED PROP
-                    jobPostTrigger={jobPostTrigger}
+                    jobPostTrigger={jobPostTrigger} 
                 />
             </div>
 
@@ -635,41 +623,36 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                             <h3 style={{ color: '#1e40af' }}>Create New {postType === 'job' ? 'Job Post' : 'Community Post'}</h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsModalOpen(false)} />
                         </div>
-
+                        
                         <div style={styles.toggleContainer}>
                             <button 
-                                style={{
-                                    ...styles.toggleButton, 
-                                    ...(postType === 'post' ? styles.toggleButtonActive : {})
-                                }}
+                                style={{ ...styles.toggleButton, ...(postType === 'post' ? styles.toggleButtonActive : {}) }}
                                 onClick={() => handlePostTypeChange('post')}
                             >
                                 Community Post
                             </button>
                             <button 
-                                style={{
-                                    ...styles.toggleButton, 
-                                    ...(postType === 'job' ? styles.toggleButtonActive : {})
-                                }}
+                                style={{ ...styles.toggleButton, ...(postType === 'job' ? styles.toggleButtonActive : {}) }}
                                 onClick={() => handlePostTypeChange('job')}
                             >
                                 Job Post
                             </button>
                         </div>
-                        
-                        {/* MODIFIED: Modal User Section to use renderAvatar */}
+
+                        {/* User Section (Modal) */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
                         
+                        {/* Category Selector */}
                         <div style={styles.categoryContainer}>
                             {currentCategories.map(cat => (
-                                <button
+                                <button 
                                     key={cat}
-                                    style={{
-                                        ...styles.categoryButton,
-                                        ...(postCategory === cat ? styles.categoryButtonActive : {})
+                                    style={{ 
+                                        ...styles.categoryButton, 
+                                        ...(postCategory === cat ? styles.categoryButtonActive : {}) 
                                     }}
                                     onClick={() => setPostCategory(cat)}
                                 >
@@ -678,45 +661,36 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                             ))}
                         </div>
 
-                        <textarea
-                            placeholder={`What's on your mind, ${firstName}? (Title will be the first 50 characters of the post content)`}
+                        <textarea 
+                            placeholder={`Write your ${postType === 'job' ? 'job post title and details' : 'community post content'} here...`} 
                             value={postContent}
                             onChange={e => setPostContent(e.target.value)}
                             onKeyDown={handlePostKeyDown}
                             style={styles.modalTextarea}
                         />
 
-                        {/* File Input Section - MODIFIED for single photo */}
-                        <label htmlFor="media-upload" style={styles.fileUploadLabel}>
-                            <FiPaperclip size={18} /> Attach 1 Image (Max 5MB)
-                            <input
-                                id="media-upload"
-                                type="file"
-                                accept="image/*" 
-                                // REMOVED: multiple
-                                onChange={e => {
-                                    setSelectedFile(e.target.files[0] || null); // Select only the first file
-                                }}
-                                onClick={(e) => { e.target.value = null }} // Allows selecting the same file again
-                                style={styles.fileInputHidden}
+                        {/* MODIFIED: File Input Section */}
+                        <div style={styles.fileInputSection}>
+                            <label htmlFor="media-upload" style={styles.fileInputLabel}>
+                                <FiPaperclip size={20} /> Attach Media ({postType === 'job' ? 'PDF/Image (optional)' : 'Image (optional)'})
+                            </label>
+                            <input 
+                                type="file" 
+                                id="media-upload" 
+                                style={{ display: 'none' }}
+                                accept={postType === 'job' ? ".pdf,image/*" : "image/*"}
+                                onChange={(e) => setSelectedFile(e.target.files[0])}
                             />
-                        </label>
+                        </div>
 
                         {selectedFile && (
-                            <div style={styles.filePreviewContainer}>
-                                <div style={styles.filePreview}>
-                                    <span style={styles.fileName}>{selectedFile.name}</span>
-                                    <FiX 
-                                        size={20} 
-                                        style={{ cursor: 'pointer', color: '#dc2626' }} 
-                                        onClick={() => setSelectedFile(null)} 
-                                    />
-                                </div>
+                            <div style={styles.selectedFileBox}>
+                                <span>File Selected: {selectedFile.name}</span>
+                                <FiX size={20} style={{ cursor: 'pointer', color: '#dc2626' }} onClick={() => setSelectedFile(null)} />
                             </div>
                         )}
                         {/* END MODIFIED: File Input Section */}
-
-
+                        
                         <button 
                             onClick={handlePostSubmit} 
                             style={styles.modalPostButton}
@@ -733,12 +707,12 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}>
-                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'}
+                            <h3 style={{ color: '#1e40af' }}> 
+                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'} 
                             </h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsResponseModalOpen(false)} />
                         </div>
-                        
+
                         <div style={styles.replyContextBox}>
                             {parentResponseId ? (
                                 <>
@@ -766,15 +740,15 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
-
-                        <textarea
+                        
+                        <textarea 
                             placeholder={parentResponseId ? `Replying to @${parentResponseAuthor}...` : `Reply to the ${threadTypeToReply} here...`}
                             value={responseContent}
                             onChange={e => setResponseContent(e.target.value)}
                             onKeyDown={handleResponseKeyDown}
-                            style={styles.modalTextarea}
+                            style={styles.modalTextarea} 
                         />
-
+                        
                         <button onClick={handleResponseSubmit} style={styles.modalPostButton}>
                             <FiMessageSquare color="#fff" /> Submit Response
                         </button>
@@ -785,25 +759,25 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
     );
 }
 
-// --- Styles ---
+// --- Styles (for HomePage and shared components) ---
 const styles = {
-    page: { 
-        minHeight: '100vh', 
-        padding: '10px' 
+    page: {
+        minHeight: '100vh',
+        padding: '10px'
     },
-    container: { 
-        display: 'flex', 
-        gap: '30px', 
-        alignItems: 'flex-start', 
-        width: '100%', 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        paddingRight: '340px', 
+    container: {
+        display: 'flex',
+        gap: '30px',
+        alignItems: 'flex-start',
+        width: '100%',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        paddingRight: '340px', // Space for the fixed RightPanel
         boxSizing: 'border-box'
     },
-    mainContent: { 
-        flex: 1, 
-        minWidth: '600px' 
+    mainContent: {
+        flex: 1,
+        minWidth: '600px'
     },
     sectionTitle: {
         fontSize: '24px',
@@ -811,51 +785,38 @@ const styles = {
         color: '#1e40af',
         marginBottom: '15px',
     },
-    
-    // NEW STYLES FOR CREATE POST BAR
-    createPostBarContainer: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        padding: '15px 20px',
-        marginBottom: '20px',
-        backgroundColor: '#fff',
-        borderRadius: '16px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-        border: '1px solid #e5e7eb',
-    },
-    createPostBarInput: {
-        flexGrow: 1,
-        padding: '10px 15px',
-        backgroundColor: '#f3f4f6',
-        borderRadius: '25px',
-        color: '#6b7280',
-        cursor: 'pointer',
-        fontSize: '16px',
-        outline: 'none',
-        transition: 'background-color 0.2s',
-    },
-    createPostBarButton: {
-        backgroundColor: '#3b82f6',
-        border: 'none',
-        borderRadius: '50%',
-        width: '40px',
-        height: '40px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-        transition: 'background-color 0.2s',
-    },
-    // END NEW STYLES
-    
     loadingText: {
         textAlign: 'center',
         padding: '50px',
         fontSize: '18px',
         color: '#9ca3af',
     },
+    // --- Create Post Bar Styles ---
+    createPostBar: {
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        padding: '12px 20px',
+        borderRadius: '30px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+        marginBottom: '25px',
+        border: '1px solid #e5e7eb',
+    },
+    postInput: {
+        flex: 1,
+        border: 'none',
+        outline: 'none',
+        padding: '10px 15px',
+        margin: '0 10px',
+        borderRadius: '20px',
+        backgroundColor: '#f3f4f6',
+        fontSize: '15px',
+        color: '#4b5563',
+        cursor: 'pointer',
+    },
+    // --- End: Create Post Bar Styles ---
+
+    // --- Thread/Post Styles ---
     threadPost: {
         backgroundColor: '#fff',
         padding: '20px',
@@ -913,8 +874,22 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '600',
         fontSize: '14px',
-        flexShrink: 0, 
+        flexShrink: 0,
         overflow: 'hidden', // Added for image
+    },
+    avatarCircleTiny: { // Added for responses
+        width: '24px', 
+        height: '24px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '600', 
+        fontSize: '12px', 
+        flexShrink: 0, 
+        overflow: 'hidden', 
     },
     threadAuthorName: {
         fontWeight: '600',
@@ -980,49 +955,94 @@ const styles = {
         borderRadius: '6px',
         backgroundColor: '#eff6ff',
     },
-    toggleContainer: {
+    // --- End: Thread/Post Styles ---
+
+    // --- Response Styles ---
+    responsesContainer: {
+        marginTop: '15px',
+        padding: '10px 0',
+        borderTop: '1px solid #e5e7eb',
+    },
+    responseItem: {
+        padding: '10px 0',
+        borderBottom: '1px dashed #e5e7eb',
+    },
+    responseMeta: {
         display: 'flex',
-        width: '100%',
-        backgroundColor: '#f0f9ff',
-        borderRadius: '10px',
-        overflow: 'hidden',
+        alignItems: 'center',
+        gap: '6px',
+        marginBottom: '4px',
     },
-    toggleButton: {
-        flex: 1,
-        padding: '10px',
-        border: '1px solid #93c5fd',
-        backgroundColor: '#e0f2fe',
+    responseAuthorName: {
+        fontWeight: '600',
+        fontSize: '13px',
+        color: '#374151',
+    },
+    responseContent: {
+        fontSize: '14px',
+        color: '#4b5563',
+        margin: '0 0 5px 30px',
+        lineHeight: '1.4',
+    },
+    responseActionLine: {
+        display: 'flex',
+        gap: '15px',
+        alignItems: 'center',
+        marginLeft: '30px',
+        marginBottom: '5px',
+    },
+    responseReplyButton: {
+        fontSize: '13px',
+        fontWeight: '600',
+        color: '#60a5fa',
         cursor: 'pointer',
-        fontWeight: 500,
-        transition: 'all 0.2s'
+        padding: '2px 0',
+        width: 'fit-content'
     },
-    toggleButtonActive: {
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        border: '1px solid #2563eb'
+    responseTimeSmall: {
+        fontSize: '12px',
+        color: '#9ca3af',
+        lineHeight: 1,
     },
+    replyToText: {
+        fontWeight: '700',
+        color: '#1d4ed8',
+        marginRight: '4px',
+    },
+    loadingResponsesText: { 
+        textAlign: 'center', 
+        padding: '10px', 
+        fontSize: '14px', 
+        color: '#9ca3af' 
+    },
+    noResponsesText: { 
+        textAlign: 'center', 
+        padding: '10px', 
+        fontSize: '14px', 
+        color: '#9ca3af' 
+    },
+    // --- End: Response Styles ---
+
+    // --- Modal Styles (Post & Response) ---
     modalOverlay: {
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.55)',
+        backgroundColor: 'rgba(0,0,0,0.4)',
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'center',
         zIndex: 1000
     },
     modalContent: {
-        backgroundColor: '#ffffff',
+        backgroundColor: '#fff',
         padding: '25px',
         borderRadius: '16px',
-        width: '520px',
-        maxWidth: '95%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '18px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.25)'
+        width: '90%',
+        maxWidth: '500px',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
     },
     modalHeader: {
         display: 'flex',
@@ -1031,10 +1051,34 @@ const styles = {
         borderBottom: '1px solid #c7d2fe',
         paddingBottom: '12px'
     },
+    toggleContainer: {
+        display: 'flex',
+        gap: '10px',
+        margin: '15px 0',
+        border: '1px solid #bfdbfe',
+        borderRadius: '8px',
+        overflow: 'hidden',
+    },
+    toggleButton: {
+        flex: 1,
+        padding: '8px 10px',
+        border: 'none',
+        backgroundColor: '#f9fafb',
+        color: '#4b5563',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        fontSize: '14px'
+    },
+    toggleButtonActive: {
+        backgroundColor: '#1e40af',
+        color: '#fff',
+    },
     modalUserSection: {
         display: 'flex',
         alignItems: 'center',
-        gap: '12px'
+        gap: '12px',
+        marginBottom: '15px'
     },
     avatarCircle: {
         width: '40px',
@@ -1074,150 +1118,66 @@ const styles = {
     categoryButtonActive: {
         backgroundColor: '#3b82f6',
         color: '#fff',
-        borderColor: '#2563eb'
+        borderColor: '#3b82f6',
     },
     modalTextarea: {
-        width: '94%',
-        minHeight: '160px',
-        padding: '15px',
-        borderRadius: '14px',
-        border: '1px solid #93c5fd',
+        width: '100%',
+        minHeight: '150px',
+        padding: '12px',
+        marginBottom: '15px',
+        borderRadius: '10px',
+        border: '1px solid #d1d5db',
         resize: 'vertical',
-        outline: 'none',
-        fontSize: '16px',
-        backgroundColor: '#f0f9ff'
+        fontSize: '15px',
+        boxSizing: 'border-box'
     },
     modalPostButton: {
-        padding: '12px 18px',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '10px',
-        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '8px',
-        fontWeight: '600',
+        width: '100%',
+        padding: '12px',
+        borderRadius: '10px',
+        backgroundColor: '#1e40af',
+        color: '#fff',
+        fontWeight: '700',
         fontSize: '16px',
-        transition: 'all 0.2s'
+        border: 'none',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s'
     },
-    // File upload related styles
-    fileInputHidden: {
-        display: 'none',
+    fileInputSection: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: '15px',
     },
-    fileUploadLabel: {
+    fileInputLabel: {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        padding: '10px 15px',
-        backgroundColor: '#eff6ff',
+        padding: '8px 15px',
+        borderRadius: '20px',
+        border: '1px solid #93c5fd',
+        backgroundColor: '#f0f9ff',
         color: '#1e40af',
-        borderRadius: '8px',
         cursor: 'pointer',
-        border: '1px dashed #93c5fd',
+        fontSize: '14px',
         fontWeight: '500',
-        fontSize: '15px',
+        transition: 'all 0.2s',
     },
-    // NEW style for multiple file previews
-    filePreviewContainer: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '5px',
-    },
-    filePreview: {
+    selectedFileBox: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '8px 15px',
-        backgroundColor: '#f0fdf4',
+        backgroundColor: '#ecfdf5',
+        border: '1px solid #a7f3d0',
+        padding: '10px',
         borderRadius: '8px',
-        border: '1px solid #6ee7b7',
-    },
-    fileName: {
+        marginBottom: '15px',
         fontSize: '14px',
-        color: '#065f46',
-        fontWeight: '600',
-    },
-    // End: File upload related styles
-    responsesContainer: {
-        marginTop: '15px',
-        paddingTop: '15px',
-        borderTop: '1px solid #e5e7eb',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        maxHeight: '350px',
-        overflowY: 'auto',
-    },
-    responseItem: {
-        padding: '5px 0',
-        position: 'relative',
-    },
-    responseMeta: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    avatarCircleTiny: {
-        width: '20px',
-        height: '20px',
-        borderRadius: '50%',
-        backgroundColor: '#60a5fa',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '10px',
-        overflow: 'hidden', // Added for image
-    },
-    responseAuthorName: {
-        fontWeight: '700',
-        fontSize: '14px',
-        color: '#1e40af',
-    },
-    responseContent: {
-        fontSize: '15px',
-        color: '#4b5563',
-        margin: '5px 0 5px 28px',
-        lineHeight: '1.4',
-    },
-    responseActionLine: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        marginLeft: '28px',
-    },
-    responseReplyButton: {
-        fontSize: '13px',
-        fontWeight: '600',
-        color: '#60a5fa',
-        cursor: 'pointer',
-        padding: '2px 0',
-        width: 'fit-content'
-    },
-    responseTimeSmall: {
-        fontSize: '12px',
-        color: '#9ca3af',
-        lineHeight: 1,
-    },
-    replyToText: {
-        fontWeight: '700',
-        color: '#1d4ed8',
-        marginRight: '4px',
-    },
-    loadingResponsesText: { 
-        textAlign: 'center', 
-        padding: '10px', 
-        fontSize: '14px', 
-        color: '#9ca3af' 
-    },
-    noResponsesText: { 
-        textAlign: 'center', 
-        padding: '10px', 
-        fontSize: '14px', 
-        color: '#9ca3af' 
+        color: '#059669',
     },
     replyContextBox: {
         border: '1px solid #c7d2fe',
@@ -1248,5 +1208,6 @@ const styles = {
         maxHeight: '40px',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-    }
+    },
+    // --- End: Modal Styles ---
 };

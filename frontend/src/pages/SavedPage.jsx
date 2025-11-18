@@ -18,7 +18,88 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-export default function SavedPage({ userName, userEmail }) {
+// --- START: Helper functions copied from HomePage.jsx for consistent design ---
+
+// NEW HELPER: Function to render avatar based on URL presence
+const renderAvatar = (url, initial, size = 'small') => {
+    let style;
+    switch (size) {
+        case 'large':
+            style = styles.avatarCircle;
+            break;
+        case 'tiny':
+            style = styles.avatarCircleTiny;
+            break;
+        case 'small':
+        default:
+            style = styles.avatarCircleSmall;
+            break;
+    }
+
+    if (url) {
+        return (
+            <div style={style}>
+                <img 
+                    src={url} 
+                    alt={`${initial}'s profile`} 
+                    style={styles.avatarImage} 
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div style={style}>{initial ? initial[0] : 'U'}</div> 
+    );
+};
+
+// NEW HELPER: Function to render the media gallery (Copied from HomePage.jsx)
+const renderMediaGallery = (mediaUrls) => {
+    if (!mediaUrls || mediaUrls.length === 0) return null;
+
+    // Common style for images in the gallery
+    const imageStyle = {
+        width: '100%', 
+        height: '100%', 
+        objectFit: 'cover',
+        display: 'block',
+    };
+
+    const imageElement = (url) => (
+        <div 
+            key={url}
+            style={{ 
+                position: 'relative', 
+                width: '100%', 
+                height: '100%', 
+                overflow: 'hidden',
+                borderRadius: '10px'
+            }}
+        >
+            <img 
+                src={url} 
+                alt="Post media" 
+                style={imageStyle} 
+            />
+        </div>
+    );
+
+    // Only handles 1 photo now (matching the minimal implementation found in HomePage.jsx)
+    if (mediaUrls.length >= 1) { 
+        return (
+            <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
+                {imageElement(mediaUrls[0])}
+            </div>
+        );
+    }
+
+    return null;
+};
+// --- END: Helper functions copied from HomePage.jsx ---
+
+
+// MODIFIED: Added profilePictureUrl prop
+export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -230,7 +311,8 @@ export default function SavedPage({ userName, userEmail }) {
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
-                    <div style={styles.avatarCircleTiny}>{response.author[0]}</div>
+                    {/* MODIFIED: Use new renderAvatar signature */}
+                    {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
                 
@@ -253,11 +335,11 @@ export default function SavedPage({ userName, userEmail }) {
                     </span>
                 </div>
 
+                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
     };
-
 
     return (
         <div style={styles.page}>
@@ -265,94 +347,114 @@ export default function SavedPage({ userName, userEmail }) {
                 {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Saved Threads</h2>
-                    
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading saved threads...</p>
                     ) : (threads.length === 0) ? (
                         <p style={styles.loadingText}>You have no saved threads yet.</p>
                     ) : (
-                        threads.map(thread => (
-                            <div key={thread.id} style={styles.threadPost}>
-                                <div style={styles.threadMetaTop}>
-                                    <div style={styles.threadAuthorInfo}>
-                                        <div style={styles.avatarCircleSmall}>{thread.author[0]}</div>
-                                        <span style={styles.threadAuthorName}>{thread.author}</span>
-                                        <span style={styles.threadTime}>
-                                            {getTimeSince(thread.time)}
-                                        </span>
-                                    </div>
-                                    <span style={styles.threadTagModified}>{thread.tag}</span>
-                                </div>
-                                <h3 style={styles.threadTitle}>{thread.title}</h3>
-                                
-                                <p style={styles.threadBodyModified}>
-                                    {thread.body}
-                                </p>
-                                
-                                <div style={styles.threadFooter}>
-                                    <div style={styles.threadActions}>
-                                        {/* Unsave Button */}
-                                        <div 
-                                            style={{
-                                                ...styles.threadActionButton,
-                                                color: '#ef4444', // Red for unsave
-                                                fontWeight: '600',
-                                            }}
-                                            onClick={() => handleUnsave(thread.id, thread.type)}
-                                        >
-                                            <FiX size={18} /> Unsave
-                                        </div>
+                        threads.map(thread => {
+                            // DESTRUCTURE NEW FIELDS HERE
+                            const { 
+                                id, 
+                                type, 
+                                author, 
+                                title, 
+                                body, 
+                                tag, 
+                                time, 
+                                responseCount, 
+                                author_picture_url, 
+                                mediaUrls,
+                            } = thread;
 
-                                        <div 
-                                            style={styles.threadActionButton}
-                                            onClick={() => handleReplyClick(thread.id, thread.type)}
-                                        >
-                                            <FiMessageSquare size={18} /> Add Response
+                            return (
+                                <div key={id} style={styles.threadPost}>
+                                    <div style={styles.threadMetaTop}>
+                                        <div style={styles.threadAuthorInfo}>
+                                            {/* MODIFIED: Use new renderAvatar signature */}
+                                            {renderAvatar(author_picture_url, author, 'small')}
+                                            <span style={styles.threadAuthorName}>{author}</span>
+                                            <span style={styles.threadTime}>
+                                                {getTimeSince(time)}
+                                            </span>
                                         </div>
+                                        <span style={styles.threadTagModified}>{tag}</span>
                                     </div>
+                                    <h3 style={styles.threadTitle}>{title}</h3>
+                                    <p style={styles.threadBodyModified}>
+                                        {body}
+                                    </p>
                                     
-                                    <div 
-                                        style={styles.responseToggleButton}
-                                        onClick={() => toggleResponses(thread.id, thread.type)}
-                                    >
-                                        {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'}
-                                        {expandedThreadId === thread.id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
-                                    </div>
-                                </div>
+                                    {/* MODIFIED: Use renderMediaGallery for consistent image display */}
+                                    {renderMediaGallery(mediaUrls)}
 
-                                {expandedThreadId === thread.id && (
-                                    <div style={styles.responsesContainer}>
-                                        {isFetchingResponses && expandedThreadId === thread.id ? (
-                                            <p style={styles.loadingResponsesText}>Loading responses...</p>
-                                        ) : (
-                                            (responses[thread.id] && responses[thread.id].length > 0) ? (
-                                                renderResponses(responses[thread.id], thread.id, thread.type, null)
-                                            ) : (
-                                                <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
-                                            )
-                                        )}
+                                    <div style={styles.threadFooter}>
+                                        <div style={styles.threadActions}>
+                                            {/* Unsave Button */}
+                                            <div 
+                                                style={{ 
+                                                    ...styles.threadActionButton, 
+                                                    color: '#ef4444', // Red for unsave
+                                                    fontWeight: '600',
+                                                }}
+                                                onClick={() => handleUnsave(id, type)}
+                                            >
+                                                <FiX size={18} /> Unsave
+                                            </div>
+                                            <div 
+                                                style={styles.threadActionButton}
+                                                onClick={() => handleReplyClick(id, type)}
+                                            >
+                                                <FiMessageSquare size={18} /> Add Response
+                                            </div>
+                                        </div>
+                                        <div 
+                                            style={styles.responseToggleButton}
+                                            onClick={() => toggleResponses(id, type)}
+                                        >
+                                            {responseCount ?? 0} {responseCount === 1 ? 'Response' : 'Responses'}
+                                            {expandedThreadId === id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        ))
+
+                                    {expandedThreadId === id && (
+                                        <div style={styles.responsesContainer}>
+                                            {isFetchingResponses && expandedThreadId === id ? (
+                                                <p style={styles.loadingResponsesText}>Loading responses...</p>
+                                            ) : (
+                                                (responses[thread.id] && responses[thread.id].length > 0) ? (
+                                                    renderResponses(responses[thread.id], thread.id, thread.type, null)
+                                                ) : (
+                                                    <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
+                                                )
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })
                     )}
                 </div>
 
-                {/* Right Panel (No jobPostTrigger needed) */}
-                <RightPanel userName={userName} userEmail={userEmail} />
+                {/* Right Panel */}
+                <RightPanel 
+                    userName={userName} 
+                    userEmail={userEmail} 
+                    profilePictureUrl={profilePictureUrl} // <-- ADDED PROP
+                />
             </div>
-
-            {/* RESPONSE MODAL (Copied from HomePage) */}
+            
+            {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}>
-                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'}
+                            <h3 style={{ color: '#1e40af' }}> 
+                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'} 
                             </h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsResponseModalOpen(false)} />
                         </div>
-                        
+
                         <div style={styles.replyContextBox}>
                             {parentResponseId ? (
                                 <>
@@ -375,19 +477,21 @@ export default function SavedPage({ userName, userEmail }) {
                             )}
                         </div>
 
+                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
                         <div style={styles.modalUserSection}>
-                            <div style={styles.avatarCircle}>{firstName[0]}</div>
+                            {/* Pass profilePictureUrl from props */}
+                            {renderAvatar(profilePictureUrl, firstName, 'large')} 
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
-
-                        <textarea
+                        
+                        <textarea 
                             placeholder={parentResponseId ? `Replying to @${parentResponseAuthor}...` : `Reply to the ${threadTypeToReply} here...`}
                             value={responseContent}
                             onChange={e => setResponseContent(e.target.value)}
                             onKeyDown={handleResponseKeyDown}
-                            style={styles.modalTextarea}
+                            style={styles.modalTextarea} 
                         />
-
+                        
                         <button onClick={handleResponseSubmit} style={styles.modalPostButton}>
                             <FiMessageSquare color="#fff" /> Submit Response
                         </button>
@@ -398,12 +502,12 @@ export default function SavedPage({ userName, userEmail }) {
     );
 }
 
-// --- Styles (Copied from HomePage for consistency) ---
-const styles = {
+// --- Styles (Copied and merged from HomePage.jsx for consistency) --- 
+const styles = { 
     page: { 
         minHeight: '100vh', 
         padding: '10px' 
-    },
+    }, 
     container: { 
         display: 'flex', 
         gap: '30px', 
@@ -411,275 +515,283 @@ const styles = {
         width: '100%', 
         maxWidth: '1200px', 
         margin: '0 auto', 
-        paddingRight: '340px', // Space for the fixed RightPanel
-        boxSizing: 'border-box'
-    },
+        paddingRight: '340px', // Space for the fixed RightPanel 
+        boxSizing: 'border-box' 
+    }, 
     mainContent: { 
         flex: 1, 
         minWidth: '600px' 
-    },
-    sectionTitle: {
-        fontSize: '24px',
-        fontWeight: '700',
-        color: '#1e40af',
-        marginBottom: '15px',
-    },
-    loadingText: {
-        textAlign: 'center',
-        padding: '50px',
-        fontSize: '18px',
-        color: '#9ca3af',
-    },
-    threadPost: {
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '16px',
-        marginBottom: '20px',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        border: '1px solid #e5e7eb',
-    },
-    threadMetaTop: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '10px',
-    },
-    threadAuthorInfo: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    avatarCircleSmall: {
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '14px',
-    },
-    threadAuthorName: {
-        fontWeight: '600',
-        fontSize: '15px',
-        color: '#1e40af',
-    },
-    threadTime: {
-        fontSize: '13px',
-        color: '#9ca3af',
-        marginLeft: '10px',
-    },
-    threadTagModified: {
-        padding: '4px 10px',
-        backgroundColor: '#e0f2fe',
-        color: '#1e40af',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: '600',
-    },
-    threadTitle: {
-        fontSize: '18px',
-        fontWeight: '700',
-        color: '#1f2937',
-        margin: '0 0 8px 0',
-    },
-    threadBodyModified: {
-        fontSize: '16px',
-        color: '#4b5563',
-        margin: '0 0 15px 0',
-        lineHeight: '1.5',
-    },
-    threadFooter: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: '15px',
-        borderTop: '1px solid #f3f4f6',
-    },
-    threadActions: {
-        display: 'flex',
-        gap: '15px',
-    },
-    threadActionButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        fontSize: '14px',
-        color: '#555',
-        cursor: 'pointer',
-        padding: '5px 8px',
-        borderRadius: '6px',
-        transition: 'background-color 0.2s',
-    },
-    responseToggleButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontSize: '14px',
-        color: '#1e40af',
-        fontWeight: '600',
-        cursor: 'pointer',
-        padding: '5px 8px',
-        borderRadius: '6px',
-        backgroundColor: '#eff6ff',
-    },
-    modalOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-    },
-    modalContent: {
-        backgroundColor: '#ffffff',
-        padding: '25px',
-        borderRadius: '16px',
-        width: '520px',
-        maxWidth: '95%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '18px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.25)'
-    },
-    modalHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid #c7d2fe',
-        paddingBottom: '12px'
-    },
-    modalUserSection: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-    },
-    avatarCircle: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '18px',
-    },
-    modalUserName: {
-        fontWeight: 600,
-        fontSize: '16px',
-        color: '#1e3a8a'
-    },
-    modalTextarea: {
-        width: '94%',
-        minHeight: '160px',
-        padding: '15px',
-        borderRadius: '14px',
-        border: '1px solid #93c5fd',
-        resize: 'vertical',
-        outline: 'none',
-        fontSize: '16px',
-        backgroundColor: '#f0f9ff'
-    },
-    modalPostButton: {
-        padding: '12px 18px',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '10px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        fontWeight: '600',
-        fontSize: '16px',
-        transition: 'all 0.2s'
-    },
-    responsesContainer: {
-        marginTop: '15px',
-        paddingTop: '15px',
-        borderTop: '1px solid #e5e7eb',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        maxHeight: '350px',
-        overflowY: 'auto',
-    },
-    responseItem: {
-        padding: '5px 0',
-        position: 'relative',
-    },
-    responseMeta: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
+    }, 
+    sectionTitle: { 
+        fontSize: '24px', 
+        fontWeight: '700', 
+        color: '#1e40af', 
+        marginBottom: '15px', 
+    }, 
+    loadingText: { 
+        textAlign: 'center', 
+        padding: '50px', 
+        fontSize: '18px', 
+        color: '#9ca3af', 
+    }, 
+    threadPost: { 
+        backgroundColor: '#fff', 
+        padding: '20px', 
+        borderRadius: '16px', 
+        marginBottom: '20px', 
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', 
+        border: '1px solid #e5e7eb', 
+    }, 
+    threadMetaTop: { 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '10px', 
+    }, 
+    threadAuthorInfo: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px', 
+    }, 
+    avatarImage: { 
+        width: '100%', 
+        height: '100%', 
+        borderRadius: '50%', 
+        objectFit: 'cover', 
+    }, 
+    avatarCircleSmall: { 
+        width: '28px', 
+        height: '28px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '600', 
+        fontSize: '14px', 
+        flexShrink: 0, 
+        overflow: 'hidden', 
+    }, 
     avatarCircleTiny: {
-        width: '20px',
-        height: '20px',
-        borderRadius: '50%',
-        backgroundColor: '#60a5fa',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '10px',
+        width: '24px', 
+        height: '24px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '600', 
+        fontSize: '12px', 
+        flexShrink: 0, 
+        overflow: 'hidden', 
     },
-    responseAuthorName: {
-        fontWeight: '700',
-        fontSize: '14px',
-        color: '#1e40af',
-    },
-    responseContent: {
-        fontSize: '15px',
-        color: '#4b5563',
-        margin: '5px 0 5px 28px',
-        lineHeight: '1.4',
-    },
-    responseActionLine: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        marginLeft: '28px',
-    },
-    responseReplyButton: {
-        fontSize: '13px',
-        fontWeight: '600',
-        color: '#60a5fa',
-        cursor: 'pointer',
-        padding: '2px 0',
-        width: 'fit-content'
-    },
-    responseTimeSmall: {
-        fontSize: '12px',
-        color: '#9ca3af',
-        lineHeight: 1,
-    },
-    replyToText: {
-        fontWeight: '700',
-        color: '#1d4ed8',
-        marginRight: '4px',
-    },
+    threadAuthorName: { 
+        fontWeight: '600', 
+        fontSize: '15px', 
+        color: '#1e40af', 
+    }, 
+    threadTime: { 
+        fontSize: '13px', 
+        color: '#9ca3af', 
+        marginLeft: '10px', 
+    }, 
+    threadTagModified: { 
+        padding: '4px 10px', 
+        backgroundColor: '#e0f2fe', 
+        color: '#1e40af', 
+        borderRadius: '12px', 
+        fontSize: '12px', 
+        fontWeight: '600', 
+    }, 
+    threadTitle: { 
+        fontSize: '18px', 
+        fontWeight: '700', 
+        color: '#1f2937', 
+        margin: '0 0 8px 0', 
+    }, 
+    threadBodyModified: { 
+        fontSize: '16px', 
+        color: '#4b5563', 
+        margin: '0 0 15px 0', 
+        lineHeight: '1.5', 
+    }, 
+    threadFooter: { 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingTop: '15px', 
+        borderTop: '1px solid #f3f4f6', 
+    }, 
+    threadActions: { 
+        display: 'flex', 
+        gap: '15px', 
+    }, 
+    threadActionButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '6px', 
+        fontSize: '14px', 
+        color: '#555', 
+        cursor: 'pointer', 
+        padding: '5px 8px', 
+        borderRadius: '6px', 
+        transition: 'background-color 0.2s', 
+    }, 
+    responseToggleButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '4px', 
+        fontSize: '14px', 
+        color: '#1e40af', 
+        fontWeight: '600', 
+        cursor: 'pointer', 
+        padding: '5px 8px', 
+        borderRadius: '6px', 
+        backgroundColor: '#eff6ff', 
+    }, 
+    responsesContainer: { 
+        marginTop: '15px', 
+        padding: '10px 0', 
+        borderTop: '1px solid #e5e7eb', 
+    }, 
+    responseItem: { 
+        padding: '10px 0', 
+        borderBottom: '1px dashed #e5e7eb', 
+    }, 
+    responseMeta: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '6px', 
+        marginBottom: '4px', 
+    }, 
+    responseAuthorName: { 
+        fontWeight: '600', 
+        fontSize: '13px', 
+        color: '#374151', 
+    }, 
+    responseContent: { 
+        fontSize: '14px', 
+        color: '#4b5563', 
+        margin: '0 0 5px 30px', 
+        lineHeight: '1.4', 
+    }, 
+    responseActionLine: { 
+        display: 'flex', 
+        gap: '15px', 
+        alignItems: 'center', 
+        marginLeft: '30px', 
+        marginBottom: '5px', 
+    }, 
+    responseReplyButton: { 
+        fontSize: '13px', 
+        fontWeight: '600', 
+        color: '#60a5fa', 
+        cursor: 'pointer', 
+        padding: '2px 0', 
+        width: 'fit-content' 
+    }, 
+    responseTimeSmall: { 
+        fontSize: '12px', 
+        color: '#9ca3af', 
+        lineHeight: 1, 
+    }, 
+    replyToText: { 
+        fontWeight: '700', 
+        color: '#1d4ed8', 
+        marginRight: '4px', 
+    }, 
     loadingResponsesText: { 
         textAlign: 'center', 
         padding: '10px', 
         fontSize: '14px', 
         color: '#9ca3af' 
-    },
+    }, 
     noResponsesText: { 
         textAlign: 'center', 
         padding: '10px', 
         fontSize: '14px', 
         color: '#9ca3af' 
+    }, 
+    modalOverlay: { 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        zIndex: 1000 
+    }, 
+    modalContent: { 
+        backgroundColor: '#fff', 
+        padding: '25px', 
+        borderRadius: '16px', 
+        width: '90%', 
+        maxWidth: '500px', 
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
+    }, 
+    modalHeader: { 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        borderBottom: '1px solid #c7d2fe', 
+        paddingBottom: '12px' 
+    }, 
+    modalUserSection: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '12px', 
+        marginTop: '15px'
+    }, 
+    avatarCircle: { 
+        width: '40px', 
+        height: '40px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '700', 
+        fontSize: '18px', 
+        overflow: 'hidden', 
+    }, 
+    modalUserName: { 
+        fontWeight: 600, 
+        fontSize: '16px', 
+        color: '#1e3a8a' 
+    }, 
+    modalTextarea: { 
+        width: '100%', 
+        minHeight: '100px', 
+        padding: '12px', 
+        marginTop: '15px', 
+        marginBottom: '15px', 
+        borderRadius: '10px', 
+        border: '1px solid #d1d5db', 
+        resize: 'vertical', 
+        fontSize: '15px', 
+        boxSizing: 'border-box' 
+    }, 
+    modalPostButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '8px', 
+        width: '100%', 
+        padding: '12px', 
+        borderRadius: '10px', 
+        backgroundColor: '#1e40af', 
+        color: '#fff', 
+        fontWeight: '700', 
+        fontSize: '16px', 
+        border: 'none', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s' 
     },
     replyContextBox: {
         border: '1px solid #c7d2fe',
@@ -710,5 +822,5 @@ const styles = {
         maxHeight: '40px',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-    }
+    },
 };

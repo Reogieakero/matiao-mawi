@@ -80,7 +80,16 @@ const App = () => {
                             profilePictureUrl={profilePictureUrl} // Pass prop to HomePage
                         />} 
                     />
-                    <Route path="/saved" element={<SavedPage />} />
+                    {/* 👇 MODIFIED: Pass user props to SavedPage */}
+                    <Route 
+                        path="/saved" 
+                        element={<SavedPage 
+                            userName={userName} 
+                            userEmail={userEmail} 
+                            profilePictureUrl={profilePictureUrl} 
+                        />} 
+                    />
+                    {/* 👆 END MODIFIED */}
                     <Route path="/search" element={<SearchResultsPage userName={userName} userEmail={userEmail} />} />
 
                     <Route 
