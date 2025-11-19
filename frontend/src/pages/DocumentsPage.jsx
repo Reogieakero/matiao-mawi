@@ -739,6 +739,7 @@ const documentStyles = {
         paddingRight: '350px',
         paddingBottom: '50px',
         boxSizing: 'border-box',
+        
     },
 
     mainTitle: {
@@ -762,12 +763,13 @@ const documentStyles = {
     card: {
         backgroundColor: '#fff',
         borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
         transition: 'box-shadow 0.3s',
         minHeight: '180px',
+        border: '1px solid #e5e7eb',
     },
     cardHeader: {
         display: 'flex',
@@ -797,6 +799,7 @@ const documentStyles = {
         marginTop: '10px',
         paddingTop: '10px',
         borderTop: '1px solid #f3f4f6',
+        
     },
     docFee: (fee) => ({
         fontSize: '16px',
@@ -929,7 +932,7 @@ const documentStyles = {
     },
     fileInput: {
         display: 'block',
-        width: '100%',
+        width: '95%',
         padding: '10px',
         border: '2px dashed #93c5fd',
         borderRadius: '8px',
@@ -983,7 +986,8 @@ const documentStyles = {
         padding: '20px',
         backgroundColor: '#fff',
         borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
         marginBottom: '20px',
     },
     sectionTitle: {
@@ -1017,8 +1021,9 @@ const documentStyles = {
         padding: '20px',
         backgroundColor: '#fff',
         borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
         marginTop: '20px',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
     },
     transactionList: {
         display: 'flex',
@@ -1029,7 +1034,7 @@ const documentStyles = {
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         padding: '15px',
-        backgroundColor: '#f9fafb',
+        backgroundColor: '#ffffffff',
     },
     transactionHeader: {
         display: 'flex',
