@@ -435,6 +435,46 @@ app.post('/api/threads', (req, res) => {
     });
 });
 
+// ⭐ NEW ENDPOINT: DELETE /api/threads/:threadType/:threadId - Deletes a post or job
+app.delete('/api/threads/:threadType/:threadId', (req, res) => {
+    const threadId = parseInt(req.params.threadId, 10);
+    const threadType = req.params.threadType;
+    // User ID sent in the body is required for verification/security
+    const userId = parseInt(req.body.userId, 10); 
+
+    if (isNaN(threadId) || !['post', 'job'].includes(threadType) || isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid Thread ID, Thread Type, or User ID.' });
+    }
+
+    const table = threadType === 'post' ? 'posts' : 'jobs';
+
+    // SQL to delete the thread ONLY IF the user_id matches the author
+    const SQL_DELETE_THREAD = `
+        DELETE FROM ${table} 
+        WHERE id = ? AND user_id = ?
+    `;
+
+    db.query(SQL_DELETE_THREAD, [threadId, userId], (err, result) => {
+        if (err) {
+            console.error(`Database error deleting ${threadType} thread:`, err);
+            return res.status(500).json({ message: 'Failed to delete thread due to a database error.' });
+        }
+
+        if (result.affectedRows === 0) {
+            // This handles two cases: threadId/userId mismatch OR the thread doesn't exist
+            return res.status(403).json({ 
+                message: 'Thread could not be deleted. It may not exist, or you are not the author.' 
+            });
+        }
+        
+        res.status(200).json({ 
+            message: `${threadType} deleted successfully.`, 
+            deletedId: threadId 
+        });
+    });
+});
+
+
 app.post('/api/responses', (req, res) => {
     const threadId = parseInt(req.body.threadId, 10);
     const userId = parseInt(req.body.userId, 10);

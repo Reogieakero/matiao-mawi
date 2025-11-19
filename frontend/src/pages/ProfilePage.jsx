@@ -3,8 +3,9 @@ import {
     FiUser, FiMail, FiEdit, FiSave, FiX, FiRefreshCcw, 
     FiCheckCircle, FiAlertTriangle, FiCamera, 
     FiPhone, FiMapPin, 
-    FiMessageSquare, // Used for response icon
-    FiSend, // NEW: Used for response submission button
+    FiMessageSquare, 
+    FiSend, 
+    FiTrash2, // NEW: Used for Delete icon
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
 
@@ -205,8 +206,8 @@ const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
 };
 // ----------------------------------------------------
 
-// --- UserThread Component (Updated to handle response toggle) ---
-const UserThread = ({ thread, currentUserId, setPopup }) => {
+// --- UserThread Component (Updated to handle response toggle and deletion) ---
+const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread }) => {
     const [showResponses, setShowResponses] = useState(false);
 
     const renderMediaGallery = (mediaUrls) => {
@@ -275,7 +276,7 @@ const UserThread = ({ thread, currentUserId, setPopup }) => {
 
             {renderMediaGallery(thread.mediaUrls)}
 
-            {/* ACTION BAR: Simplified to only include response count, made clickable */}
+            {/* ACTION BAR: Now includes the Delete Button */}
             <div style={styles.threadActions}>
                 <div 
                     style={{...styles.threadStats, cursor: 'pointer', color: showResponses ? '#1d4ed8' : '#6b7280'}}
@@ -283,6 +284,16 @@ const UserThread = ({ thread, currentUserId, setPopup }) => {
                 >
                     <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses 
                 </div>
+                
+                {/* NEW: Delete Button */}
+                <button 
+                    style={styles.deleteThreadButton} 
+                    onClick={() => handleDeleteThread(thread.id)} 
+                    title="Delete this post"
+                >
+                    <FiTrash2 size={16} /> Delete
+                </button>
+                
             </div>
 
             {/* Conditional rendering of ThreadResponses */}
@@ -510,6 +521,34 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
             setLoading(false);
         }
     };
+    
+    // --- Delete Handler ---
+    const handleDeleteThread = async (threadId) => {
+        if (!window.confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
+            return;
+        }
+
+        setLoading(true); 
+        try {
+            const res = await fetch(`http://localhost:5000/api/threads/${threadId}`, {
+                method: 'DELETE',
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to delete thread.');
+            }
+
+            // Update state: remove the deleted thread
+            setUserThreads(prevThreads => prevThreads.filter(thread => thread.id !== threadId));
+            setPopup({ message: 'Post deleted successfully!', type: 'success' });
+        } catch (err) {
+            console.error("Delete Thread error:", err);
+            setPopup({ message: `Deletion failed: ${err.message}.`, type: 'error' });
+        } finally {
+            setLoading(false); 
+        }
+    };
 
 
     // --- Cancel/Reset Handler ---
@@ -672,13 +711,14 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                         {isThreadsLoading ? (
                             <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
                         ) : userThreads.length > 0 ? (
-                            // Pass currentUserId and setPopup to UserThread
+                            // Pass currentUserId, setPopup, AND handleDeleteThread to UserThread
                             userThreads.map(thread => (
                                 <UserThread 
                                     key={thread.id} 
                                     thread={thread} 
                                     currentUserId={currentUserId}
                                     setPopup={setPopup} 
+                                    handleDeleteThread={handleDeleteThread} // <-- NEW PROP
                                 />
                             ))
                         ) : (
@@ -942,7 +982,7 @@ const styles = {
     },
     threadActions: {
         display: 'flex',
-        justifyContent: 'flex-start',
+        justifyContent: 'space-between', // Changed to space-between to push delete button right
         alignItems: 'center',
         marginTop: '15px',
         borderTop: '1px solid #f3f4f6',
@@ -955,7 +995,23 @@ const styles = {
         color: '#6b7280',
         fontSize: '14px',
         fontWeight: '500',
-        transition: 'color 0.2s', // Added transition for click effect
+        transition: 'color 0.2s', 
+    },
+    // NEW: Style for the Delete Thread Button
+    deleteThreadButton: {
+        backgroundColor: '#ef4444', 
+        color: '#fff', 
+        border: 'none', 
+        borderRadius: '6px', 
+        padding: '6px 12px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '600',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        transition: 'background-color 0.2s',
+        opacity: 0.9,
     },
     // Media Gallery Styles (Used in UserThread component)
     gridContainerStyle: {
