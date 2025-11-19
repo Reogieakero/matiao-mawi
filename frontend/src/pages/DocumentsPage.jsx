@@ -1,106 +1,263 @@
-import React, { useState, useEffect } from 'react'; 
-import { FiFileText, FiDownload, FiInfo, FiSend, FiUploadCloud } from 'react-icons/fi'; 
-import RightPanel from '../components/RightPanel'; 
+import React, { useState, useEffect, useCallback } from 'react';
+// ⭐ MODIFIED: Added FiTrash2 for the delete icon
+import { FiFileText, FiDownload, FiInfo, FiSend, FiUploadCloud, FiTrash2 } from 'react-icons/fi'; 
+import RightPanel from '../components/RightPanel';
 
 // Define the available documents
 const documentTypes = [
-    { 
-        id: 1, 
-        name: "Barangay Clearance", 
-        description: "Required for employment, school, or business permit applications.", 
+    {
+        id: 1,
+        name: "Barangay Clearance",
+        description: "Required for employment, school, or business permit applications.",
         fee: 50.00,
-        // MODIFIED: Added requirements field
-        requirements: ["Valid ID (e.g., Driver's License, Passport, or Voter's ID)", "Proof of Residency (e.g., latest utility bill)", "Community Tax Certificate (Cedula)"], 
+        requirements: ["Valid ID (e.g., Driver's License, Passport, or Voter's ID)", "Proof of Residency (e.g., latest utility bill)", "Community Tax Certificate (Cedula)"],
     },
-    { 
-        id: 2, 
-        name: "Certificate of Indigency", 
-        description: "For free legal aid, medical assistance, or scholarship applications.", 
+    {
+        id: 2,
+        name: "Certificate of Indigency",
+        description: "For free legal aid, medical assistance, or scholarship applications.",
         fee: 0.00,
-        // MODIFIED: Added requirements field
-        requirements: ["Valid ID (with barangay address)", "Proof of Income Status (e.g., No Income Certification from the Barangay Captain)"], 
+        requirements: ["Valid ID (with barangay address)", "Proof of Income Status (e.g., No Income Certification from the Barangay Captain)"],
     },
-    { 
-        id: 3, 
-        name: "Certificate of Residency", 
-        description: "Proof that you are a bonafide resident of the barangay.", 
+    {
+        id: 3,
+        name: "Certificate of Residency",
+        description: "Proof that you are a bonafide resident of the barangay.",
         fee: 20.00,
-        // MODIFIED: Added requirements field
-        requirements: ["Valid ID", "Proof of Residency for at least 6 months (e.g., utility bill or land title)"], 
+        requirements: ["Valid ID", "Proof of Residency for at least 6 months (e.g., utility bill or land title)"],
     },
-    { 
-        id: 4, 
-        name: "Business Permit Recommendation", 
-        description: "Endorsement for starting or renewing a small business.", 
+    {
+        id: 4,
+        name: "Business Permit Recommendation",
+        description: "Endorsement for starting or renewing a small business.",
         fee: 100.00,
-        // MODIFIED: Added requirements field
-        requirements: ["DTI or SEC Registration (for new business)", "Previous Business Permit (for renewal)", "Sketch of Business Location"], 
+        requirements: ["DTI or SEC Registration (for new business)", "Previous Business Permit (for renewal)", "Sketch of Business Location"],
     },
 ];
 
-// NEW: Define the available downloadable documents (based on user1.pdf and user2.pdf in public/forms)
+// Define the available downloadable documents
 const availableDownloads = [
     { id: 'u1', name: "Barangay Clearance", file: "user1.pdf" },
     { id: 'u2', name: "Certificate of Residency", file: "user2.pdf" },
 ];
 
+// ⭐ NEW: Cancellation Confirmation Modal Component (Existing, unchanged)
+const CancellationConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
+    return (
+        <div style={documentStyles.modalBackdrop}>
+            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
+                <h2 style={{ ...documentStyles.modalHeader, color: '#ef4444' }}>
+                    <FiInfo size={24} style={{ marginRight: '8px' }} />
+                    Confirm Cancellation
+                </h2>
+                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
 
-// NEW: Transaction History Component
+                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
+                    Are you sure you want to cancel the application for {documentName} (ID: {transactionId})?
+                </p>
+                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
+                    This action cannot be undone.
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+                    <button
+                        onClick={onClose}
+                        style={documentStyles.cancelButtonSecondary}
+                    >
+                        No, Keep Application
+                    </button>
+                    <button
+                        onClick={() => onConfirm(transactionId)}
+                        style={documentStyles.cancelButtonPrimary}
+                    >
+                        Yes, Cancel Application
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ⭐ NEW: Deletion Confirmation Modal Component
+const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
+    return (
+        <div style={documentStyles.modalBackdrop}>
+            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
+                <h2 style={{ ...documentStyles.modalHeader, color: '#b91c1c' }}> {/* Changed icon color to a darker red */}
+                    <FiTrash2 size={24} style={{ marginRight: '8px' }} />
+                    Confirm Deletion
+                </h2>
+                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
+
+                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
+                    Are you sure you want to permanently delete the record for {documentName} (ID: {transactionId})?
+                </p>
+                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
+                    This will remove the transaction from your history. This action cannot be undone.
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+                    <button
+                        onClick={onClose}
+                        style={documentStyles.cancelButtonSecondary}
+                    >
+                        No, Keep Record
+                    </button>
+                    <button
+                        onClick={() => onConfirm(transactionId)}
+                        style={documentStyles.deleteButtonPrimary} // ⭐ NEW Style for the primary delete action
+                    >
+                        Yes, Delete Permanently
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// -------------------------------------------------------------------
+
+// Transaction History Component
 const TransactionHistory = ({ currentUserId }) => {
     const [transactions, setTransactions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
+    const [cancellationTarget, setCancellationTarget] = useState(null); 
+    // ⭐ NEW: State for deletion target
+    const [deletionTarget, setDeletionTarget] = useState(null); // { id: 1, name: 'Barangay Clearance' }
 
-    useEffect(() => {
-        const idToFetch = currentUserId || 1; 
-
+    const fetchTransactions = useCallback(async (idToFetch) => {
         if (!idToFetch) {
             setError("User ID is required to fetch transactions.");
             setIsLoading(false);
             return;
         }
+        setIsLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+        try {
+            const response = await fetch(`http://localhost:5000/api/document-applications/${idToFetch}`);
+            const data = await response.json();
 
-        const fetchTransactions = async () => {
-            try {
-                // This URL assumes the server is running on localhost:5000 as defined in server.js
-                const response = await fetch(`http://localhost:5000/api/document-applications/${idToFetch}`);
-                const data = await response.json();
+            if (response.ok) {
+                setTransactions(data);
+            } else {
+                setError(data.message || 'Failed to fetch transaction history.');
+            }
+        } catch (err) {
+            console.error("Fetch transaction error:", err);
+            setError('Network error. Could not connect to the server.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
-                if (response.ok) {
-                    setTransactions(data);
-                } else {
-                    setError(data.message || 'Failed to fetch transaction history.');
-                }
-            } catch (err) {
-                console.error("Fetch transaction error:", err);
-                setError('Network error. Could not connect to the server.');
-            } finally {
+    useEffect(() => {
+        const idToFetch = currentUserId || 1;
+        fetchTransactions(idToFetch);
+    }, [currentUserId, fetchTransactions]);
+
+    // Function to open the custom cancellation modal (Existing, unchanged)
+    const openCancelModal = (id, name) => {
+        setCancellationTarget({ id, name });
+    };
+
+    // ⭐ NEW: Function to open the custom deletion modal
+    const openDeleteModal = (id, name) => {
+        setDeletionTarget({ id, name });
+    };
+
+    // Cancellation handler that executes the API call (Existing, unchanged logic)
+    const handleCancelExecute = async (transactionId) => {
+        // Close the modal immediately after confirmation
+        setCancellationTarget(null);
+
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            // Keep isLoading for visual feedback during the API call
+            setIsLoading(true);
+
+            const response = await fetch(`http://localhost:5000/api/document-applications/cancel/${transactionId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUserId }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setSuccessMessage(data.message || `Application ${transactionId} has been successfully cancelled.`);
+                // Refresh the transaction list after successful cancellation
+                const idToFetch = currentUserId || 1;
+                fetchTransactions(idToFetch);
+            } else {
+                setError(`Cancellation failed: ${data.message}`);
                 setIsLoading(false);
             }
-        };
+        } catch (err) {
+            console.error("Cancel transaction error:", err);
+            setError('Network error. Could not connect to the server or cancel the application.');
+            setIsLoading(false);
+        }
+    };
+    
+    // ⭐ NEW: Deletion handler that executes the API call
+    const handleDeleteExecute = async (transactionId) => {
+        // Close the modal immediately after confirmation
+        setDeletionTarget(null);
 
-        fetchTransactions();
-    }, [currentUserId]);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            setIsLoading(true);
+
+            const response = await fetch(`http://localhost:5000/api/document-applications/${transactionId}`, {
+                method: 'DELETE', // ⭐ Use DELETE method
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUserId }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setSuccessMessage(data.message || `Record ${transactionId} has been successfully deleted.`);
+                // Refresh the transaction list after successful deletion
+                const idToFetch = currentUserId || 1;
+                fetchTransactions(idToFetch);
+            } else {
+                setError(`Deletion failed: ${data.message}`);
+                setIsLoading(false);
+            }
+        } catch (err) {
+            console.error("Delete transaction error:", err);
+            setError('Network error. Could not connect to the server or delete the record.');
+            setIsLoading(false);
+        }
+    };
 
     const getStatusStyle = (status) => {
         switch (status) {
             case 'Pending': return { backgroundColor: '#fff7ed', color: '#b45309', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
             case 'Approved': return { backgroundColor: '#ecfdf5', color: '#059669', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
             case 'Rejected': return { backgroundColor: '#fee2e2', color: '#ef4444', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
+            case 'Cancelled': return { backgroundColor: '#f3f4f6', color: '#6b7280', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
             default: return { backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
         }
     };
-    
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
         });
     };
 
-    if (isLoading) {
+    if (isLoading && transactions.length === 0) {
         return (
             <section style={documentStyles.transactionSection}>
                 <p style={{ textAlign: 'center', color: '#4b5563' }}>Loading application status...</p>
@@ -108,63 +265,153 @@ const TransactionHistory = ({ currentUserId }) => {
         );
     }
 
-    if (error) {
-        return (
-            <section style={documentStyles.transactionSection}>
-                <p style={{ textAlign: 'center', color: '#ef4444', padding: '10px 0' }}>Error: {error}</p>
-            </section>
-        );
-    }
-    
     return (
         <section style={documentStyles.transactionSection}>
             <h2 style={documentStyles.sectionTitle}>
                 <FiInfo size={24} style={{ marginRight: '8px', color: '#3b82f6' }} />
                 Your Application Status
             </h2>
+
+            {/* Display Success Message */}
+            {successMessage && (
+                <div style={{
+                    textAlign: 'center',
+                    color: '#059669',
+                    backgroundColor: '#ecfdf5',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    marginBottom: '15px',
+                    fontWeight: 'bold'
+                }}>
+                    {successMessage}
+                </div>
+            )}
+
+            {/* Display Error Message */}
+            {error && (
+                <p style={{ textAlign: 'center', color: '#ef4444', padding: '10px 0', backgroundColor: '#fee2e2', borderRadius: '8px', marginBottom: '15px' }}>
+                    Error: {error}
+                </p>
+            )}
+
             {transactions.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280', padding: '10px 0' }}>
                     You have no document application transactions yet.
                 </p>
             ) : (
                 <div style={documentStyles.transactionList}>
-                    {transactions.map((transaction) => (
-                        <div key={transaction.id} style={documentStyles.transactionItem}>
-                            <div style={documentStyles.transactionHeader}>
-                                <span style={documentStyles.transactionDocName}>
-                                    {transaction.document_name}
-                                </span>
-                                <span style={getStatusStyle(transaction.status)}>
-                                    {transaction.status}
-                                </span>
+                    {transactions.map((transaction) => {
+                        let mediaUrls = [];
+                        if (transaction.requirements_media_url) {
+                            try {
+                                mediaUrls = JSON.parse(transaction.requirements_media_url);
+                            } catch (e) {
+                                console.error("Error parsing media URL JSON:", e);
+                                if (typeof transaction.requirements_media_url === 'string') {
+                                    mediaUrls = [transaction.requirements_media_url];
+                                }
+                            }
+                        }
+
+                        return (
+                            <div key={transaction.id} style={documentStyles.transactionItem}>
+                                <div style={documentStyles.transactionHeader}>
+                                    <span style={documentStyles.transactionDocName}>
+                                        {transaction.document_name}
+                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span style={getStatusStyle(transaction.status)}>
+                                            {transaction.status}
+                                        </span>
+
+                                        {/* Cancellation Button (Only for Pending) */}
+                                        {transaction.status === 'Pending' && (
+                                            <button
+                                                onClick={() => openCancelModal(transaction.id, transaction.document_name)}
+                                                style={documentStyles.cancelButton}
+                                                title="Cancel Application"
+                                                disabled={isLoading}
+                                            >
+                                                &#x2715;
+                                            </button>
+                                        )}
+                                        
+                                        {/* ⭐ NEW: Deletion Button - Only for Cancelled Status */}
+                                        {transaction.status === 'Cancelled' && (
+                                            <button
+                                                onClick={() => openDeleteModal(transaction.id, transaction.document_name)}
+                                                style={documentStyles.deleteButton} // ⭐ Use new style
+                                                title="Delete Record Permanently"
+                                                disabled={isLoading}
+                                            >
+                                                <FiTrash2 size={12} /> {/* ⭐ Use trash icon */}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <p style={documentStyles.transactionPurpose}>Purpose: {transaction.purpose}</p>
+
+                                {mediaUrls.length > 0 && (
+                                    <div style={documentStyles.transactionRequirements}>
+                                        <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#10b981' }}>
+                                            Submitted Requirements:
+                                        </p>
+                                        {mediaUrls.map((url, index) => (
+                                            <a
+                                                key={index}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={documentStyles.requirementLink}
+                                            >
+                                                <FiUploadCloud size={14} style={{ marginRight: '5px' }} />
+                                                File {index + 1}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div style={documentStyles.transactionFooter}>
+                                    <span style={documentStyles.transactionInfo}>
+                                        Date: {formatDate(transaction.created_at)}
+                                    </span>
+                                    <span style={documentStyles.transactionInfo}>
+                                        Fee: ₱{parseFloat(transaction.fee).toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
-                            <p style={documentStyles.transactionPurpose}>Purpose: {transaction.purpose}</p>
-                            {/* NOTE: requirements_media_url is not selected in server.js due to the fix, 
-                                but this code remains to display it once the DB column is added and selected. */}
-                            {transaction.requirements_media_url && (
-                                <p style={documentStyles.transactionRequirements}>
-                                    Requirements: <a href={transaction.requirements_media_url} target="_blank" rel="noopener noreferrer">View Submitted Files</a>
-                                </p>
-                            )}
-                            <div style={documentStyles.transactionFooter}>
-                                <span style={documentStyles.transactionInfo}>
-                                    Date: {formatDate(transaction.created_at)}
-                                </span>
-                                <span style={documentStyles.transactionInfo}>
-                                    Fee: ₱{parseFloat(transaction.fee).toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
+            )}
+            
+            {/* Custom Confirmation Modal for Cancellation */}
+            {cancellationTarget && (
+                <CancellationConfirmationModal
+                    transactionId={cancellationTarget.id}
+                    documentName={cancellationTarget.name}
+                    onConfirm={handleCancelExecute}
+                    onClose={() => setCancellationTarget(null)}
+                />
+            )}
+            
+            {/* ⭐ NEW: Custom Confirmation Modal for Deletion */}
+            {deletionTarget && (
+                <DeletionConfirmationModal
+                    transactionId={deletionTarget.id}
+                    documentName={deletionTarget.name}
+                    onConfirm={handleDeleteExecute}
+                    onClose={() => setDeletionTarget(null)}
+                />
             )}
         </section>
     );
 };
 
 
-// Document Card Component
+// Document Card Component (Unchanged)
 const DocumentCard = ({ doc, onApplyClick }) => {
+// ... (DocumentCard component code)
     return (
         <div style={documentStyles.card}>
             <div style={documentStyles.cardHeader}>
@@ -186,96 +433,80 @@ const DocumentCard = ({ doc, onApplyClick }) => {
 };
 
 
-// Application Modal Component
+// Application Modal Component (Unchanged)
 const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId }) => {
+// ... (ApplicationModal component code)
     const [purpose, setPurpose] = useState('');
-    const [selectedFiles, setSelectedFiles] = useState([]); // NEW: State for selected files
+    const [selectedFiles, setSelectedFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [submitMessage, setSubmitMessage] = useState('');
-    
-    // NEW: Handler for file input change
+
     const handleFileChange = (e) => {
-        // Limit to 5 files
-        const files = Array.from(e.target.files).slice(0, 5); 
+        const files = Array.from(e.target.files).slice(0, 5);
         setSelectedFiles(files);
-        setSubmitMessage(''); // Clear message on file change
+        setSubmitMessage('');
     };
 
-    // NEW: File upload function
     const uploadRequirements = async () => {
         if (selectedFiles.length === 0) {
-            return null; // Return null if no files
+            return null;
         }
 
         const formData = new FormData();
         selectedFiles.forEach(file => {
-            // Note: 'requirements' must match the field name in server.js multer config
-            formData.append('requirements', file); 
+            formData.append('requirements', file);
         });
 
         try {
-            // Use a dedicated upload endpoint for multiple files
             const response = await fetch('http://localhost:5000/api/upload-requirements', {
                 method: 'POST',
-                // Content-Type is set automatically by fetch when using FormData
-                body: formData, 
+                body: formData,
             });
 
             const data = await response.json();
-            
+
             if (response.ok) {
-                // Return the array of URLs
-                return data.mediaUrls; 
+                return data.mediaUrls;
             } else {
-                // Throw an error with the server's message for better debugging
                 throw new Error(data.message || 'Requirements upload failed.');
             }
         } catch (error) {
             console.error('Requirements upload error:', error);
-            // Re-throw for outer try/catch to catch
-            throw new Error(`Upload failed: ${error.message}`); 
+            throw new Error(`Upload failed: ${error.message}`);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // --- 1. Frontend Validation ---
+
         if (!purpose.trim() || !currentUserId) {
             setSubmitMessage("Error: Missing purpose or User ID.");
             return;
         }
 
-        // Check if files are required but none are selected
         const requirementsExist = document.requirements && document.requirements.length > 0;
         if (requirementsExist && selectedFiles.length === 0) {
             setSubmitMessage("Error: Please attach the required documents (images) before submitting.");
             return;
         }
-        
-        // Disable button and start submission process
+
         setIsLoading(true);
         setSubmitMessage('Uploading requirements...');
-        let uploadedUrls = null; // Changed to null initially
+        let uploadedUrls = null;
 
         try {
-            // 2. Upload Requirements
             if (selectedFiles.length > 0) {
-                // This returns an array of URLs or throws an error
-                uploadedUrls = await uploadRequirements(); 
+                uploadedUrls = await uploadRequirements();
             }
-            
+
             setSubmitMessage('Submitting application...');
 
-            // 3. Submit Application Data with uploaded URLs
             const applicationData = {
                 userId: currentUserId,
                 documentName: document.name,
                 purpose: purpose,
                 fee: document.fee,
-                // Pass the array of URLs as a JSON string to the backend, or null if empty
-                // The backend will receive this as a string if uploaded, or null if no files were required/uploaded.
                 requirementsMediaUrl: uploadedUrls && uploadedUrls.length > 0 ? JSON.stringify(uploadedUrls) : null,
             };
 
@@ -297,7 +528,6 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             }
 
         } catch (error) {
-            // Catch errors from uploadRequirements or the final application submission
             console.error('Application submission error:', error);
             setSubmitMessage(`Submission failed: ${error.message}`);
         } finally {
@@ -310,7 +540,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             <div style={documentStyles.modalBackdrop}>
                 <div style={documentStyles.modalContent}>
                     <h2 style={documentStyles.modalHeader}>✅ Application Sent!</h2>
-                    <p>Your application for **{document.name}** has been successfully submitted.</p>
+                    <p>Your application for {document.name} has been successfully submitted.</p>
                     <p style={{ color: '#059669', fontWeight: 'bold' }}>
                         {submitMessage}
                     </p>
@@ -333,7 +563,6 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                 <h2 style={documentStyles.modalHeader}>Apply for: {document.name}</h2>
                 <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
 
-                {/* Document Requirements Section */}
                 {requirementsExist && (
                     <div style={documentStyles.requirementsSection}>
                         <h3 style={documentStyles.requirementsTitle}>Required Documents / Information:</h3>
@@ -346,14 +575,13 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                         </ul>
                     </div>
                 )}
-                
+
                 <p style={documentStyles.modalInfo}>
                     <FiInfo size={14} style={{ marginRight: '5px' }} />
                     Fee: {document.fee === 0.00 ? 'FREE' : `₱${document.fee.toFixed(2)}`}
                 </p>
 
                 <form onSubmit={handleSubmit}>
-                    {/* Applicant Info (Read-only) */}
                     <div style={documentStyles.formGroup}>
                         <label style={documentStyles.label}>Applicant Name:</label>
                         <input type="text" value={userName} readOnly style={documentStyles.inputReadOnly} />
@@ -362,13 +590,11 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                         <label style={documentStyles.label}>Email Address:</label>
                         <input type="email" value={userEmail} readOnly style={documentStyles.inputReadOnly} />
                     </div>
-                    {/* User ID for backend transaction tracking (Hidden/Read-only for display) */}
                     <div style={documentStyles.formGroup}>
                         <label style={documentStyles.label}>Applicant ID (for transaction):</label>
                         <input type="text" value={currentUserId} readOnly style={documentStyles.inputReadOnly} />
                     </div>
-                    
-                    {/* Purpose Field */}
+
                     <div style={documentStyles.formGroup}>
                         <label htmlFor="purpose" style={documentStyles.label}>
                             Purpose of Document <span style={{ color: 'red' }}>*</span>
@@ -379,18 +605,17 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                             value={purpose}
                             onChange={(e) => {
                                 setPurpose(e.target.value);
-                                setSubmitMessage(''); // Clear message when user starts typing
+                                setSubmitMessage('');
                             }}
                             required
                             style={documentStyles.textarea}
                             placeholder="e.g., Job application, Scholarship, Business permit renewal, etc."
                         />
                     </div>
-                    
-                    {/* Requirements Upload Field - REMOVED HTML 'required' ATTRIBUTE */}
+
                     <div style={documentStyles.formGroup}>
                         <label htmlFor="requirements-upload" style={documentStyles.label}>
-                            Attach Requirements (Images Only, Max 5 Files) 
+                            Attach Requirements (Images Only, Max 5 Files)
                             {requirementsExist && <span style={{ color: 'red' }}> *</span>}
                         </label>
                         <input
@@ -399,8 +624,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                             accept="image/*"
                             multiple
                             onChange={handleFileChange}
-                            // REMOVED required={requirementsExist} to let JS handle custom error message
-                            style={documentStyles.fileInput} 
+                            style={documentStyles.fileInput}
                         />
                         {selectedFiles.length > 0 && (
                             <p style={documentStyles.fileCountText}>
@@ -417,15 +641,13 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                         style={documentStyles.submitButton(isLoading)}
                         disabled={isLoading}
                     >
-                        {/* Display submit message when loading, otherwise display default text */}
                         {isLoading ? submitMessage : <><FiSend size={16} /> Submit Application</>}
                     </button>
                 </form>
-                {/* Display validation/submission errors/messages clearly outside the button */}
                 {submitMessage && !isSubmitted && !isLoading && (
-                    <p style={{ 
-                        color: submitMessage.startsWith('Error') ? 'red' : '#b45309', 
-                        marginTop: '10px', 
+                    <p style={{
+                        color: submitMessage.startsWith('Error') ? 'red' : '#b45309',
+                        marginTop: '10px',
                         textAlign: 'center',
                         fontWeight: '600'
                     }}>
@@ -441,9 +663,8 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
 // Main Documents Page Component
 export default function DocumentsPage({ userName, userEmail, profilePictureUrl, currentUserId }) {
     const [selectedDocument, setSelectedDocument] = useState(null);
-    
-    // Placeholder ID if currentUserId is not provided (for demonstration)
-    const PLACEHOLDER_USER_ID = currentUserId || 1; 
+
+    const PLACEHOLDER_USER_ID = currentUserId || 1;
 
     const handleApplyClick = (doc) => {
         setSelectedDocument(doc);
@@ -455,9 +676,8 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
 
     return (
         <div style={documentStyles.pageContainer}>
-            {/* The main content area */}
             <main style={documentStyles.contentArea}>
-                <h1 style={documentStyles.mainTitle}> 
+                <h1 style={documentStyles.mainTitle}>
                     Barangay Documents Application
                 </h1>
                 <p style={documentStyles.subtitle}>
@@ -476,13 +696,12 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                         Downloadable Forms
                     </h2>
                     <div style={documentStyles.downloadList}>
-                        {/* Dynamically generate links with download icon and no extra text */}
                         {availableDownloads.map(item => (
-                            <a 
-                                key={item.id} 
-                                href={`/forms/${item.file}`} 
-                                download 
-                                style={documentStyles.downloadLink} 
+                            <a
+                                key={item.id}
+                                href={`/forms/${item.file}`}
+                                download
+                                style={documentStyles.downloadLink}
                             >
                                 <span>{item.name}</span>
                                 <FiDownload size={18} />
@@ -491,19 +710,17 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                     </div>
                 </section>
 
-                {/* NEW: Transaction History Section */}
-                <TransactionHistory currentUserId={PLACEHOLDER_USER_ID} /> 
-                
+                <TransactionHistory currentUserId={PLACEHOLDER_USER_ID} />
+
             </main>
-            {/* RightPanel is rendered here to maintain the fixed layout */}
             <RightPanel userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />
             {selectedDocument && (
-                <ApplicationModal 
-                    document={selectedDocument} 
-                    onClose={handleModalClose} 
-                    userName={userName} 
-                    userEmail={userEmail} 
-                    currentUserId={PLACEHOLDER_USER_ID} // Passed for transaction logging
+                <ApplicationModal
+                    document={selectedDocument}
+                    onClose={handleModalClose}
+                    userName={userName}
+                    userEmail={userEmail}
+                    currentUserId={PLACEHOLDER_USER_ID}
                 />
             )}
         </div>
@@ -511,33 +728,30 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
 }
 
 const documentStyles = {
-    // MODIFIED: Removed display: 'flex' as RightPanel is a fixed element
-    pageContainer: { 
-        minHeight: '100vh', 
+    pageContainer: {
+        minHeight: '100vh',
         width: '100%',
     },
-    // MODIFIED: Added sufficient paddingRight and paddingTop to prevent overlap with fixed RightPanel and Header
     contentArea: {
         width: '100%',
-        paddingTop: '30px', // Aligns with HomePage.jsx top padding for Header clearance
-        paddingLeft: '15px', 
-        // Right padding to clear the 320px wide RightPanel + 20px right offset + ~20px gap = 360px clearance
-        paddingRight: '350px', 
+        paddingTop: '30px',
+        paddingLeft: '15px',
+        paddingRight: '350px',
         paddingBottom: '50px',
         boxSizing: 'border-box',
     },
-    
-    mainTitle: { 
-        fontSize: '24px', // Matches HomePage.jsx styles.sectionTitle
-        fontWeight: '700', // Matches HomePage.jsx styles.sectionTitle
-        color: '#1e40af', // Matches HomePage.jsx styles.sectionTitle
-        margin: '0', 
-        marginBottom: '5px', // Tighter spacing to subtitle
+
+    mainTitle: {
+        fontSize: '24px',
+        fontWeight: '700',
+        color: '#1e40af',
+        margin: '0',
+        marginBottom: '5px',
     },
     subtitle: {
         fontSize: '16px',
         color: '#6b7280',
-        margin: '0 0 30px 0', // Added bottom margin for spacing before the grid, similar to spacing in HomePage.jsx
+        margin: '0 0 30px 0',
     },
     gridContainer: {
         display: 'grid',
@@ -552,7 +766,6 @@ const documentStyles = {
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        // Left border removed as requested
         transition: 'box-shadow 0.3s',
         minHeight: '180px',
     },
@@ -608,7 +821,7 @@ const documentStyles = {
         transition: 'background-color 0.2s',
     },
 
-    // --- Modal Styles (Updated for Requirements) ---
+    // --- Modal Styles ---
     modalBackdrop: {
         position: 'fixed',
         top: 0,
@@ -638,6 +851,9 @@ const documentStyles = {
         paddingBottom: '10px',
         marginBottom: '20px',
         fontSize: '22px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     modalClose: {
         position: 'absolute',
@@ -653,13 +869,12 @@ const documentStyles = {
         backgroundColor: '#f0f9ff',
         borderLeft: '4px solid #3b82f6',
         padding: '10px',
-        marginBottom: '20px', 
+        marginBottom: '20px',
         fontSize: '14px',
         color: '#1e40af',
         display: 'flex',
         alignItems: 'center',
     },
-    // NEW Styles for Requirements Section
     requirementsSection: {
         backgroundColor: '#f9f9f9',
         border: '1px solid #e5e7eb',
@@ -712,7 +927,6 @@ const documentStyles = {
         resize: 'vertical',
         fontSize: '16px',
     },
-    // NEW Styles for file input
     fileInput: {
         display: 'block',
         width: '100%',
@@ -764,14 +978,13 @@ const documentStyles = {
         fontWeight: '600',
         transition: 'background-color 0.2s',
     },
-    
-    // MODIFIED: Removed borderTop
+
     downloadSection: {
         padding: '20px',
         backgroundColor: '#fff',
         borderRadius: '12px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        marginBottom: '20px', // Added bottom margin to separate from the new section
+        marginBottom: '20px',
     },
     sectionTitle: {
         fontSize: '20px',
@@ -786,8 +999,7 @@ const documentStyles = {
         flexDirection: 'column',
         gap: '10px',
     },
-    // MODIFIED: borderLeft is removed here as requested.
-    downloadLink: { 
+    downloadLink: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -800,13 +1012,13 @@ const documentStyles = {
         transition: 'background-color 0.2s',
     },
 
-    // NEW Styles for Transaction Section
+    // --- Transaction Styles ---
     transactionSection: {
         padding: '20px',
         backgroundColor: '#fff',
         borderRadius: '12px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        marginTop: '20px', // Spacing after download section
+        marginTop: '20px',
     },
     transactionList: {
         display: 'flex',
@@ -837,12 +1049,18 @@ const documentStyles = {
         color: '#4b5563',
         margin: '0 0 10px 0',
     },
-    // NEW: Style for requirements link
-    transactionRequirements: {
+    requirementLink: {
         fontSize: '12px',
-        color: '#059669',
+        color: '#10b981',
+        fontWeight: '500',
+        textDecoration: 'underline',
+        display: 'inline-flex',
+        alignItems: 'center',
+        marginRight: '10px',
+        marginTop: '5px',
+    },
+    transactionRequirements: {
         margin: '0 0 10px 0',
-        fontWeight: '600',
     },
     transactionFooter: {
         display: 'flex',
@@ -851,7 +1069,72 @@ const documentStyles = {
         fontSize: '12px',
         color: '#6b7280',
     },
-    transactionInfo: {
-        // Style for date/fee info in the footer
+    cancelButton: {
+        backgroundColor: '#fecaca',
+        color: '#b91c1c',
+        border: 'none',
+        borderRadius: '50%',
+        width: '24px',
+        height: '24px',
+        lineHeight: '1',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        transition: 'background-color 0.2s',
+    },
+    // ⭐ NEW: Style for the Delete Icon button in the transaction list
+    deleteButton: {
+        backgroundColor: '#f3f4f6', // Light gray background
+        color: '#6b7280', // Darker gray icon/text
+        border: '1px solid #d1d5db',
+        borderRadius: '50%',
+        width: '24px',
+        height: '24px',
+        lineHeight: '1',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        transition: 'background-color 0.2s',
+    },
+    // Styles for the Confirmation Modal Buttons
+    cancelButtonPrimary: {
+        backgroundColor: '#ef4444', // Red for cancellation (destructive action)
+        color: '#fff',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '10px 15px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
+    },
+    // ⭐ NEW: Style for the Primary Delete button (more permanent-looking red)
+    deleteButtonPrimary: {
+        backgroundColor: '#b91c1c', 
+        color: '#fff',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '10px 15px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
+    },
+    cancelButtonSecondary: {
+        backgroundColor: '#e5e7eb',
+        color: '#4b5563',
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        padding: '10px 15px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
     },
 };

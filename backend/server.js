@@ -14,7 +14,7 @@ const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 app.use(cors({
     origin: 'http://localhost:3000', 
-    methods: 'GET,POST',
+    methods: 'GET,POST,DELETE', // ⭐ MODIFIED: Added DELETE method
     credentials: true,
 }));
 app.use(bodyParser.json());
@@ -763,8 +763,82 @@ app.post('/api/document-application', (req, res) => {
     });
 });
 
-// ⭐ FIXED: GET /api/document-applications/:userId - Fetch user's transaction history.
-// requirements_media_url is not selected to avoid the column length issue during fetch, focusing on core transaction data.
+// ⭐ NEW ENDPOINT: DELETE /api/document-applications/:transactionId - Permanently deletes a cancelled transaction
+app.delete('/api/document-applications/:transactionId', (req, res) => {
+    const transactionId = parseInt(req.params.transactionId, 10);
+    // User ID is sent in the body for verification/security
+    const userId = parseInt(req.body.userId, 10); 
+
+    if (isNaN(transactionId) || isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
+    }
+
+    // Only allow deletion if the current status is 'Cancelled' AND the user_id matches
+    const SQL_DELETE_APPLICATION = `
+        DELETE FROM document_transactions 
+        WHERE id = ? AND user_id = ? AND status = 'Cancelled'
+    `;
+
+    db.query(SQL_DELETE_APPLICATION, [transactionId, userId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting application:", err);
+            return res.status(500).json({ message: 'Failed to delete document application due to a database error.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            // This handles three cases: transactionId/userId mismatch OR status is not 'Cancelled'
+            return res.status(400).json({ 
+                message: 'Application could not be deleted. It may not be in a "Cancelled" status, or the transaction ID/User ID is incorrect.' 
+            });
+        }
+        
+        res.status(200).json({ 
+            message: 'Document application permanently deleted successfully!', 
+            deletedId: transactionId 
+        });
+    });
+});
+
+
+// ⭐ NEW ENDPOINT: POST /api/document-applications/cancel/:transactionId
+app.post('/api/document-applications/cancel/:transactionId', (req, res) => {
+    const transactionId = parseInt(req.params.transactionId, 10);
+    // User ID is sent in the body for verification/security
+    const userId = parseInt(req.body.userId, 10); 
+
+    if (isNaN(transactionId) || isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
+    }
+
+    // Only allow cancellation if the current status is 'Pending' AND the user_id matches
+    const SQL_CANCEL_APPLICATION = `
+        UPDATE document_transactions 
+        SET status = 'Cancelled' 
+        WHERE id = ? AND user_id = ? AND status = 'Pending'
+    `;
+
+    db.query(SQL_CANCEL_APPLICATION, [transactionId, userId], (err, result) => {
+        if (err) {
+            console.error("Database error canceling application:", err);
+            return res.status(500).json({ message: 'Failed to cancel document application due to a database error.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            // This handles two cases: transactionId/userId mismatch OR status is not 'Pending'
+            return res.status(400).json({ 
+                message: 'Application could not be cancelled. It may have already been processed or cancelled, or the transaction ID/User ID is incorrect.' 
+            });
+        }
+        
+        res.status(200).json({ 
+            message: 'Document application cancelled successfully!', 
+            status: 'Cancelled' 
+        });
+    });
+});
+
+// ⭐ MODIFIED: GET /api/document-applications/:userId - Fetch user's transaction history.
+// requirements_media_url is now selected to display the files on the frontend.
 app.get('/api/document-applications/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
 
@@ -779,8 +853,8 @@ app.get('/api/document-applications/:userId', (req, res) => {
             purpose, 
             fee, 
             status, 
-            created_at
-            -- requirements_media_url <-- Removed from SELECT list
+            created_at,
+            requirements_media_url -- ⭐ ADDED BACK: Must be included to display submitted files.
         FROM document_transactions
         WHERE user_id = ?
         ORDER BY created_at DESC
