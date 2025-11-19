@@ -21,6 +21,7 @@ const getTimeSince = (date) => {
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
+
 // MODIFIED: Accept profilePictureUrl prop
 export default function HomePage({ userName, userEmail, profilePictureUrl }) {
     const [threads, setThreads] = useState([]);
@@ -551,7 +552,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                                     </div>
                                     <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
-                                
+
                                 <h3 style={styles.threadTitle}>{thread.title}</h3>
                                 <p style={styles.threadBodyModified}>
                                     {thread.body}

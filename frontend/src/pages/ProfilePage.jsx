@@ -3,7 +3,8 @@ import {
     FiUser, FiMail, FiEdit, FiSave, FiX, FiRefreshCcw, 
     FiCheckCircle, FiAlertTriangle, FiCamera, 
     FiPhone, FiMapPin, 
-    FiMessageSquare, FiPaperclip 
+    FiMessageSquare, // Used for response icon
+    FiSend, // NEW: Used for response submission button
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
 
@@ -101,9 +102,113 @@ const popupStyles = {
     },
 };
 
-// --- UserThread Component ---
-const UserThread = ({ thread }) => {
+// --- Component: ThreadResponses (Restored for functionality) ---
+const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
+    const [responses, setResponses] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [newResponse, setNewResponse] = useState('');
+
+    const fetchResponses = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`http://localhost:5000/api/responses/${threadType}/${threadId}`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch responses.");
+            }
+            const data = await res.json();
+            setResponses(data);
+        } catch (err) {
+            console.error("Fetch responses error:", err);
+            setPopup({ message: `Failed to load responses: ${err.message}`, type: 'error' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [threadId, threadType, setPopup]);
+
+    useEffect(() => {
+        fetchResponses();
+    }, [fetchResponses]);
     
+    // Handler for submitting a new response
+    const handleSubmitResponse = async (e) => {
+        e.preventDefault();
+        if (!newResponse.trim()) return;
+        
+        const payload = {
+            userId: currentUserId,
+            threadId: threadId,
+            threadType: threadType,
+            content: newResponse.trim(),
+            parentResponseId: null, 
+        };
+
+        try {
+            const res = await fetch('http://localhost:5000/api/responses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to submit response.');
+            }
+            
+            setNewResponse('');
+            setPopup({ message: 'Response submitted successfully!', type: 'success' });
+            fetchResponses(); 
+        } catch (err) {
+            console.error("Response submission error:", err);
+            setPopup({ message: `Response submission failed: ${err.message}`, type: 'error' });
+        }
+    };
+
+    const renderResponse = (response) => (
+        <div key={response.id} style={styles.responseItem}>
+            <div style={styles.responseMeta}>
+                {renderAvatar(response.author_picture_url, response.author, 'tiny')}
+                <div style={styles.responseAuthorText}>
+                    <span style={styles.responseAuthorName}>{response.author}</span>
+                    <span style={styles.responseTime}>{getTimeSince(response.time)}</span>
+                </div>
+            </div>
+            <p style={styles.responseContent}>{response.content}</p> 
+        </div>
+    );
+
+    return (
+        <div style={styles.responsesContainer}>
+            {/* Response Input Form */}
+            <form onSubmit={handleSubmitResponse} style={styles.responseForm}>
+                <input
+                    type="text"
+                    placeholder="Write a response..."
+                    value={newResponse}
+                    onChange={(e) => setNewResponse(e.target.value)}
+                    style={styles.responseInput}
+                    required
+                />
+                <button type="submit" style={styles.responseSendButton} disabled={!newResponse.trim() || isLoading}>
+                    <FiSend size={18} />
+                </button>
+            </form>
+            
+            {isLoading && <p style={styles.loadingResponsesText}>Loading responses...</p>}
+            
+            {!isLoading && responses.length > 0 ? (
+                responses.map(renderResponse)
+            ) : !isLoading && (
+                <p style={styles.noResponsesText}>No responses yet. Be the first to start the discussion!</p>
+            )}
+        </div>
+    );
+};
+// ----------------------------------------------------
+
+// --- UserThread Component (Updated to handle response toggle) ---
+const UserThread = ({ thread, currentUserId, setPopup }) => {
+    const [showResponses, setShowResponses] = useState(false);
+
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
         const count = mediaUrls.length;
@@ -157,13 +262,12 @@ const UserThread = ({ thread }) => {
                     </div>
                 </div>
                 <div style={styles.threadTag}>
-                    {thread.type === 'job' ? <FiPaperclip size={14} style={{marginRight: '5px'}}/> : ''}
                     {thread.tag}
                 </div>
             </div>
 
             <h3 style={styles.threadTitle}>
-                [{thread.type === 'job' ? 'JOB' : 'POST'}] {thread.title}
+                {thread.title}
             </h3>
             <p style={styles.threadBody}>
                 {thread.body}
@@ -171,11 +275,25 @@ const UserThread = ({ thread }) => {
 
             {renderMediaGallery(thread.mediaUrls)}
 
+            {/* ACTION BAR: Simplified to only include response count, made clickable */}
             <div style={styles.threadActions}>
-                <div style={styles.threadStats}>
+                <div 
+                    style={{...styles.threadStats, cursor: 'pointer', color: showResponses ? '#1d4ed8' : '#6b7280'}}
+                    onClick={() => setShowResponses(!showResponses)}
+                >
                     <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses 
                 </div>
             </div>
+
+            {/* Conditional rendering of ThreadResponses */}
+            {showResponses && (
+                <ThreadResponses 
+                    threadId={thread.id} 
+                    threadType={thread.type}
+                    currentUserId={currentUserId}
+                    setPopup={setPopup}
+                />
+            )}
         </div>
     );
 };
@@ -373,18 +491,15 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
             setPopup({ message: 'Profile updated successfully!', type: 'success' });
             
-            // Update local state and global state for name
             setUserData(prev => ({ ...prev, ...updatedFields, profilePictureUrl: newPictureUrl }));
             
             if (onUpdateUser && updatedFields.name !== userName) {
                 onUpdateUser({ name: updatedFields.name });
             }
             
-            // Clear temporary states
             setSelectedFile(null);
             setPreviewUrl('');
             
-            // Re-fetch threads to update author name/picture
             fetchUserThreads(); 
 
         } catch (err) {
@@ -481,7 +596,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                     {/* Profile Card Content (Account Editing) */}
                     <div style={styles.profileCard}>
                         
-                        {/* ⭐ BUTTONS MOVED INSIDE PROFILE CARD ⭐ */}
+                        {/* BUTTONS MOVED INSIDE PROFILE CARD */}
                         <div style={styles.cardActions}>
                             {loading ? (
                                 <FiRefreshCcw size={20} style={styles.loadingIcon} />
@@ -500,7 +615,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                                 </button>
                             )}
                         </div>
-                        {/* ⭐ END BUTTONS ⭐ */}
+                        {/* END BUTTONS */}
 
                         <div style={styles.profileHeader}>
                             <div 
@@ -557,7 +672,15 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                         {isThreadsLoading ? (
                             <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
                         ) : userThreads.length > 0 ? (
-                            userThreads.map(thread => <UserThread key={thread.id} thread={thread} />)
+                            // Pass currentUserId and setPopup to UserThread
+                            userThreads.map(thread => (
+                                <UserThread 
+                                    key={thread.id} 
+                                    thread={thread} 
+                                    currentUserId={currentUserId}
+                                    setPopup={setPopup} 
+                                />
+                            ))
                         ) : (
                             <p style={styles.noResponsesText}>You haven't posted any community threads or jobs yet.</p>
                         )}
@@ -595,7 +718,7 @@ const styles = {
     },
     mainContentLayout: {
         display: 'flex',
-        gap: '20px', // ⭐ GAP IS ALREADY SET TO 20px for internal consistency
+        gap: '20px', 
         maxWidth: '1200px', 
         margin: '0 auto', 
     },
@@ -798,8 +921,8 @@ const styles = {
     threadTag: {
         fontSize: '12px',
         fontWeight: '600',
-        color: '#3b82f6',
-        backgroundColor: '#eff6ff',
+        color: '#1e40af',
+        backgroundColor: '#e0f2fe',
         padding: '5px 10px',
         borderRadius: '15px',
         display: 'flex',
@@ -832,6 +955,7 @@ const styles = {
         color: '#6b7280',
         fontSize: '14px',
         fontWeight: '500',
+        transition: 'color 0.2s', // Added transition for click effect
     },
     // Media Gallery Styles (Used in UserThread component)
     gridContainerStyle: {
@@ -871,4 +995,46 @@ const styles = {
     },
     loadingResponsesText: { textAlign: 'center', padding: '10px', fontSize: '14px', color: '#9ca3af' },
     noResponsesText: { textAlign: 'center', padding: '10px', fontSize: '14px', color: '#9ca3af' },
+
+    // Styles for ThreadResponses (Restored)
+    responsesContainer: {
+        marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #e5e7eb',
+    },
+    responseItem: {
+        backgroundColor: '#fff', 
+        padding: '10px 15px',
+        borderRadius: '8px',
+        marginBottom: '8px',
+        border: '1px solid #e5e7eb',
+    },
+    responseMeta: {
+        display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '4px',
+    },
+    responseAuthorText: {
+        display: 'flex', alignItems: 'center', gap: '8px',
+    },
+    responseAuthorName: {
+        fontWeight: '700', color: '#1f2937', fontSize: '13px',
+    },
+    responseTime: {
+        fontSize: '11px', color: '#9ca3af',
+    },
+    responseContent: {
+        margin: '0',
+        fontSize: '14px',
+        color: '#374151',
+        paddingLeft: '36px', // Adjusted to align under name/details
+    },
+    responseForm: {
+        display: 'flex', gap: '8px', marginBottom: '15px',
+    },
+    responseInput: {
+        flexGrow: 1, padding: '10px 12px', borderRadius: '20px', 
+        border: '1px solid #d1d5db', fontSize: '14px',
+    },
+    responseSendButton: {
+        backgroundColor: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '50%', 
+        width: '40px', height: '40px', cursor: 'pointer', display: 'flex', 
+        alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s',
+    }
 };
