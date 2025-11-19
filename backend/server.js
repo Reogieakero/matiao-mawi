@@ -311,6 +311,69 @@ app.get('/api/threads', (req, res) => {
     });
 });
 
+// ⭐ NEW ENDPOINT: GET /api/user-threads/:userId - Fetch all posts and jobs created by a specific user
+app.get('/api/user-threads/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
+    }
+
+    // Combine posts and jobs using UNION, filtered by the user_id
+    const SQL_FETCH_USER_THREADS = `
+        (
+            SELECT 
+                p.id, 
+                'post' AS type, 
+                p.title, 
+                u.name, 
+                p.user_id, 
+                up.profile_picture_url,
+                p.created_at, 
+                p.tag, 
+                p.body, 
+                p.media_url, 
+                (SELECT COUNT(*) FROM responses WHERE post_id = p.id) AS response_count
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE p.user_id = ?
+        )
+        UNION ALL
+        (
+            SELECT 
+                j.id, 
+                'job' AS type, 
+                j.title, 
+                u.name, 
+                j.user_id, 
+                up.profile_picture_url,
+                j.created_at, 
+                j.tag, 
+                j.body, 
+                j.media_url, 
+                (SELECT COUNT(*) FROM responses WHERE job_id = j.id) AS response_count
+            FROM jobs j
+            JOIN users u ON j.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE j.user_id = ?
+        )
+        ORDER BY created_at DESC;
+    `;
+
+    // Pass userId twice for the two SELECT statements in the UNION
+    db.query(SQL_FETCH_USER_THREADS, [userId, userId], (err, results) => {
+        if (err) {
+            console.error("Database error fetching user threads:", err);
+            return res.status(500).json({ message: 'Failed to fetch user threads.' });
+        }
+        
+        // Use the existing formatThread helper function
+        const userThreads = results.map(row => formatThread(row, row.type));
+        res.status(200).json(userThreads);
+    });
+});
+
+
 // ⭐ MODIFIED: SQL to include profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 

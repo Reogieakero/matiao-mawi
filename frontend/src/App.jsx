@@ -73,8 +73,7 @@ const App = () => {
                 profilePictureUrl={profilePictureUrl} 
                 onLogout={handleLogout} 
             />
-            {/* REMOVED Sidebar and RightPanel from AppLayout, they are now inside DocumentsPage and HomePage */}
-            {/* The Sidebar component below is kept here for other routes that don't embed their own layout components */}
+            {/* The Sidebar is kept here as a global component */}
             <Sidebar refetchTrigger={refetchTrigger} /> 
             
             <div style={appStyles.contentArea}>
@@ -108,6 +107,7 @@ const App = () => {
                             userName={userName} 
                             userEmail={userEmail}
                             onUpdateUser={handleUpdateUser} 
+                            profilePictureUrl={profilePictureUrl} // ⭐ Passed to ProfilePage
                         />} 
                     />
 
@@ -122,7 +122,6 @@ const App = () => {
                     />
                     {/* Placeholder Routes */}
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
-                    {/* <Route path="/documents" element={<Placeholder title="Documents" />} /> <--- REMOVED */}
                     <Route path="/services" element={<Placeholder title="Services" />} />
                     <Route path="/about" element={<Placeholder title="About" />} />
                     <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
