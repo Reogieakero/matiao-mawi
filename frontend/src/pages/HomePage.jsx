@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip } from 'react-icons/fi';
+// MODIFIED: Added FiFlag for the report icon
+import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip, FiFlag } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
 // Utility function to format the time
@@ -33,8 +34,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
-
-    // ⭐ REMOVED: jobPostTrigger state is no longer needed
 
     // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -418,7 +417,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setParentResponseAuthor(null);
         setParentResponseContent(null); 
     };
-
+    
     // handlePostKeyDown
     const handlePostKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -433,6 +432,32 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             e.preventDefault(); 
             handleResponseSubmit();
         }
+    };
+
+    // NEW FUNCTION: Handle reporting a thread
+    const handleReportThread = (threadId, threadType) => {
+        if (!userId) {
+            return alert('You must be logged in to report a thread.');
+        }
+        
+        // --- Placeholder for API call ---
+        // In a real application, you would send a request to the server here:
+        /*
+        fetch('http://localhost:5000/api/report-thread', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, threadId, threadType })
+        }).then(res => {
+            if (res.ok) {
+                alert(`Thread ${threadId} (${threadType}) has been reported. Thank you.`);
+            } else {
+                alert('Failed to report thread.');
+            }
+        }).catch(err => console.error("Report network error:", err));
+        */
+
+        // Placeholder confirmation
+        alert(`Thread ${threadId} (${threadType}) has been reported! Thank you for helping keep the community safe.`);
     };
 
     // MODIFIED: renderResponses to use renderAvatar
@@ -553,7 +578,21 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                             {getTimeSince(thread.time)}
                                         </span>
                                     </div>
-                                    <span style={styles.threadTagModified}>{thread.tag}</span>
+                                    {/* NEW: Right side actions (Tag and Report Icon) */}
+                                    <div style={styles.threadRightActions}>
+                                        <span style={styles.threadTagModified}>{thread.tag}</span>
+                                        {/* CONDITION: Only show report icon if the user is NOT the author */}
+                                        {thread.author_id !== userId && (
+                                            <div 
+                                                style={styles.reportIcon}
+                                                onClick={() => handleReportThread(thread.id, thread.type)}
+                                                title="Report Thread"
+                                            >
+                                                <FiFlag size={18} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* END NEW */}
                                 </div>
 
                                 <h3 style={styles.threadTitle}>{thread.title}</h3>
@@ -615,7 +654,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     userName={userName} 
                     userEmail={userEmail} 
                     profilePictureUrl={profilePictureUrl} 
-                    // ⭐ MODIFIED 3: jobPostTrigger prop removed
                 />
             </div>
 
@@ -860,41 +898,21 @@ const styles = {
         alignItems: 'center',
         gap: '8px',
     },
-    // NEW STYLE: For image inside the avatar circles
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: '50%',
-        objectFit: 'cover',
-    },
-    avatarCircleSmall: {
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
+    // NEW STYLE
+    threadRightActions: {
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '14px',
-        flexShrink: 0,
-        overflow: 'hidden', // Added for image
+        gap: '10px',
     },
-    avatarCircleTiny: { // Added for responses
-        width: '24px', 
-        height: '24px', 
-        borderRadius: '50%', 
-        backgroundColor: '#3b82f6', 
-        color: '#fff', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        fontWeight: '600', 
-        fontSize: '12px', 
-        flexShrink: 0, 
-        overflow: 'hidden', 
+    // NEW STYLE
+    reportIcon: {
+        color: '#9ca3af',
+        cursor: 'pointer',
+        padding: '5px',
+        borderRadius: '50%',
+        transition: 'color 0.2s, background-color 0.2s',
     },
+    // NEW STYLE
     threadAuthorName: {
         fontWeight: '600',
         fontSize: '15px',
@@ -1027,6 +1045,57 @@ const styles = {
     },
     // --- End: Response Styles ---
 
+    // --- Avatar Styles (Shared) ---
+    // NEW STYLE: For image inside the avatar circles
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: '50%',
+        objectFit: 'cover',
+    },
+    avatarCircleSmall: {
+        width: '28px',
+        height: '28px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '600',
+        fontSize: '14px',
+        flexShrink: 0,
+        overflow: 'hidden', // Added for image
+    },
+    avatarCircleTiny: { // Added for responses
+        width: '24px', 
+        height: '24px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '600', 
+        fontSize: '12px', 
+        flexShrink: 0, 
+        overflow: 'hidden', 
+    },
+    avatarCircle: {
+        width: '40px',
+        height: '40px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '700',
+        fontSize: '18px',
+        overflow: 'hidden', // Added for image
+    },
+    // --- End: Avatar Styles ---
+
     // --- Modal Styles (Post & Response) ---
     modalOverlay: {
         position: 'fixed',
@@ -1083,19 +1152,6 @@ const styles = {
         alignItems: 'center',
         gap: '12px',
         marginBottom: '15px'
-    },
-    avatarCircle: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '18px',
-        overflow: 'hidden', // Added for image
     },
     modalUserName: {
         fontWeight: 600,
