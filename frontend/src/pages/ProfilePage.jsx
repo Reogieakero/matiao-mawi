@@ -5,7 +5,8 @@ import {
     FiPhone, FiMapPin, 
     FiMessageSquare, 
     FiSend, 
-    FiTrash2, 
+    FiTrash2,
+    FiAlertOctagon, // New icon for the "Delete All" button
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
 
@@ -104,10 +105,12 @@ const popupStyles = {
 };
 
 // --- Custom Confirmation Modal Component (UPDATED to display media) ---
-const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody, mediaUrls, onConfirm, onCancel }) => {
+const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody, mediaUrls, onConfirm, onCancel, confirmButtonText = 'Delete', confirmIcon = <FiTrash2 size={18} /> }) => {
     if (!isVisible) return null;
 
-    const imageUrl = mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null; 
+    // Only show a preview for single thread deletion (when threadTitle is present)
+    const isSingleThreadDelete = !!threadTitle; 
+    const imageUrl = isSingleThreadDelete && mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null; 
 
     return (
         <div style={modalStyles.overlay}>
@@ -115,25 +118,27 @@ const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody,
                 <h3 style={modalStyles.title}>{title}</h3>
                 <p style={modalStyles.message}>{message}</p>
                 
-                {/* Image Preview */}
+                {/* Image Preview (Only for single thread delete) */}
                 {imageUrl && (
                     <div style={modalStyles.imagePreviewContainer}>
                         <img src={imageUrl} alt="Thread Preview" style={modalStyles.imagePreview} />
                     </div>
                 )}
 
-                {/* Thread Content Display */}
-                <div style={{...modalStyles.threadContentBox, marginTop: imageUrl ? '15px' : '0'}}> 
-                    <h4 style={modalStyles.threadTitle}>{threadTitle}</h4>
-                    <p style={modalStyles.threadBody}>{threadBody}</p>
-                </div>
+                {/* Thread Content Display (Only for single thread delete) */}
+                {isSingleThreadDelete && (
+                    <div style={{...modalStyles.threadContentBox, marginTop: imageUrl ? '15px' : '0'}}> 
+                        <h4 style={modalStyles.threadTitle}>{threadTitle}</h4>
+                        <p style={modalStyles.threadBody}>{threadBody}</p>
+                    </div>
+                )}
 
                 <div style={modalStyles.actions}>
                     <button style={{ ...modalStyles.button, ...modalStyles.cancel }} onClick={onCancel}>
                         <FiX size={18} /> Cancel
                     </button>
                     <button style={{ ...modalStyles.button, ...modalStyles.confirm }} onClick={onConfirm}>
-                        <FiTrash2 size={18} /> Delete
+                        {confirmIcon} {confirmButtonText}
                     </button>
                 </div>
             </div>
@@ -484,7 +489,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
     const [userThreads, setUserThreads] = useState([]); 
     const [isThreadsLoading, setIsThreadsLoading] = useState(true); 
 
-    // Confirmation Modal State
+    // Confirmation Modal State for a single thread
     const [confirmationModal, setConfirmationModal] = useState({ 
         isVisible: false, 
         threadId: null, 
@@ -493,6 +498,9 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
         threadBody: '',
         mediaUrls: []   
     });
+
+    // Confirmation Modal State for deleting all threads (NEW)
+    const [deleteAllModal, setDeleteAllModal] = useState(false);
 
 
     const fileInputRef = useRef(null);
@@ -682,7 +690,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
         }
     };
 
-    // --- Delete Handler (Receives full thread object and passes mediaUrls) ---
+    // --- Delete Single Thread Handler (Receives full thread object and passes mediaUrls) ---
     const handleDeleteThread = (thread) => {
         // Open custom confirmation modal instead of using window.confirm
         setConfirmationModal({
@@ -695,7 +703,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
         });
     };
 
-    // --- Confirmation Handler (Performs actual deletion) ---
+    // --- Confirmation Handler (Performs actual single thread deletion) ---
     const confirmDeleteThread = async (threadId, threadType) => {
         // Reset modal state, including content fields and mediaUrls
         setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] });
@@ -719,6 +727,40 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
         } catch (err) {
             console.error("Delete Thread error:", err);
             setPopup({ message: `Deletion failed: ${err.message}.`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    // --- Delete All Posts Handler (NEW) ---
+    const handleDeleteAllPosts = () => {
+        setDeleteAllModal(true);
+    };
+
+    // --- Confirmation Handler (Performs actual bulk deletion) (NEW) ---
+    const confirmDeleteAllThreads = async () => {
+        setDeleteAllModal(false);
+        setLoading(true);
+        try {
+            // New API endpoint to delete all user threads
+            const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUserId }), // Pass required data
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to delete all threads.');
+            }
+
+            // Update state: clear all threads
+            setUserThreads([]);
+            setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
+
+        } catch (err) {
+            console.error("Delete All Threads error:", err);
+            setPopup({ message: `Bulk deletion failed: ${err.message}.`, type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -820,7 +862,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                 onClose={() => setPopup({ message: '', type: '' })} 
             />
 
-            {/* Confirmation Modal - UPDATED PROPS */}
+            {/* Confirmation Modal for Single Thread Delete */}
             <ConfirmationModal 
                 isVisible={confirmationModal.isVisible}
                 title={`Confirm Deletion of ${confirmationModal.threadType ? confirmationModal.threadType.charAt(0).toUpperCase() + confirmationModal.threadType.slice(1) : 'Item'}`}
@@ -830,6 +872,20 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                 mediaUrls={confirmationModal.mediaUrls} 
                 onConfirm={() => confirmDeleteThread(confirmationModal.threadId, confirmationModal.threadType)}
                 onCancel={() => setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] })} 
+            />
+            
+            {/* Confirmation Modal for Delete All Threads (NEW) */}
+            <ConfirmationModal 
+                isVisible={deleteAllModal}
+                title="PERMANENTLY DELETE ALL POSTS"
+                message={`You are about to permanently delete ALL ${userThreads.length} posts you have ever created. This action is irreversible and cannot be recovered.`}
+                threadTitle={null} // Important: Hide thread preview
+                threadBody={null} 
+                mediaUrls={[]} 
+                onConfirm={confirmDeleteAllThreads}
+                onCancel={() => setDeleteAllModal(false)} 
+                confirmButtonText={`Delete ALL (${userThreads.length})`}
+                confirmIcon={<FiAlertOctagon size={18} />}
             />
 
 
@@ -922,7 +978,19 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
                     {/* User Posts Section */}
                     <div style={styles.postsSectionContainer}>
-                        <h2 style={styles.postsSectionTitle}>Your Community Threads ({userThreads.length})</h2>
+                        <div style={styles.postsSectionHeader}> {/* NEW: Header for title and button */}
+                            <h2 style={styles.postsSectionTitle}>Your Community Threads ({userThreads.length})</h2>
+                            {userThreads.length > 0 && (
+                                <button 
+                                    style={styles.deleteAllButton}
+                                    onClick={handleDeleteAllPosts}
+                                    disabled={isThreadsLoading || loading}
+                                >
+                                    <FiTrash2 size={16} /> Delete All Posts
+                                </button>
+                            )}
+                        </div>
+                        
                         {isThreadsLoading ? (
                             <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
                         ) : userThreads.length > 0 ? (
@@ -1186,12 +1254,35 @@ const styles = {
         marginTop: '20px',
         boxShadow: 'none',
     },
+    postsSectionHeader: { // NEW style for the title and button container
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '15px',
+        paddingLeft: '5px',
+    },
     postsSectionTitle: {
         fontSize: '20px',
         fontWeight: '700',
         color: '#1f2937',
-        marginBottom: '15px',
-        paddingLeft: '5px',
+        margin: 0, // Reset margin
+    },
+    deleteAllButton: { // NEW style for the 'Delete All' button
+        padding: '8px 15px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        transition: 'background-color 0.2s',
+        border: '1px solid #f87171',
+        color: '#dc2626',
+        backgroundColor: '#fef2f2',
+        '&:hover': {
+            backgroundColor: '#fee2e2',
+        }
     },
     
     // Thread Card Styles (Used in UserThread component)
