@@ -9,7 +9,10 @@ import CreateAccountPage from './pages/CreateAccountPage';
 import SavedPage from './pages/SavedPage'; 
 import SearchResultsPage from './pages/SearchResultsPage'; 
 import ProfilePage from './pages/ProfilePage'; 
-import DocumentsPage from './pages/DocumentsPage'; // <--- NEW IMPORT
+import DocumentsPage from './pages/DocumentsPage'; 
+// [!code focus]
+import ServicesPage from './pages/ServicesPage'; // <--- NEW IMPORT
+// [!code focus]
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -122,7 +125,9 @@ const App = () => {
                     />
                     {/* Placeholder Routes */}
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
-                    <Route path="/services" element={<Placeholder title="Services" />} />
+                    {/* [!code focus:1] */}
+                    <Route path="/services" element={<ServicesPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} />
+                    {/* [!code focus:1] */}
                     <Route path="/about" element={<Placeholder title="About" />} />
                     <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
                     <Route path="/contact" element={<Placeholder title="Contact" />} />

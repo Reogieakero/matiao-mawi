@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip, FiFlag } from 'react-icons/fi';
+import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
 // Utility function to format the time
@@ -21,16 +21,8 @@ const getTimeSince = (date) => {
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
-// ⭐ NEW: Categories for reporting issues
-const reportCategories = [
-    "Spam or Misleading", 
-    "Hate Speech or Harassment", 
-    "Inappropriate Content", 
-    "Self-harm or Suicide", 
-    "Intellectual Property",
-    "Other"
-];
 
+// ⭐ MODIFIED 1: Accept setRefetchTrigger prop from App.jsx
 export default function HomePage({ userName, userEmail, profilePictureUrl, setRefetchTrigger }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
@@ -41,6 +33,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
+
+    // ⭐ REMOVED: jobPostTrigger state is no longer needed
 
     // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -56,20 +50,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
-    // ⭐ MODIFIED STATES FOR REPORTING MODAL
-    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-    const [threadToReportId, setThreadToReportId] = useState(null);
-    const [threadToReportType, setThreadToReportType] = useState(null);
-    const [reportReason, setReportReason] = useState('');
-    const [reportCategory, setReportCategory] = useState(reportCategories[0]); // ⭐ NEW STATE for selected category
-    // ---------------------------------
-    
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
     // Use the user ID from localStorage
     const userId = parseInt(localStorage.getItem('userId'), 10); 
 
+    // NEW HELPER: Function to render avatar based on URL presence
     const renderAvatar = (url, initial, size = 'small') => {
         let style;
         switch (size) {
@@ -102,6 +89,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         );
     };
 
+    // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
         let allThreads = [];
         try {
@@ -117,7 +105,10 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         const mapThreadMedia = (thread) => ({
             ...thread,
             isBookmarked: thread.isBookmarked || false,
+            // Use mediaUrls from server and ensure it is an array
             mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
+            // ⭐ FIX: If the thread belongs to the current user (based on userId check), 
+            // and the thread is missing a picture URL (e.g., old data), use the current user's local URL.
             author_picture_url: 
                 (thread.author_id === userId && !thread.author_picture_url && profilePictureUrl)
                     ? profilePictureUrl
@@ -131,6 +122,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 const bookmarks = await bookmarkRes.json();
                 
                 const bookmarkMap = bookmarks.reduce((acc, thread) => {
+                    // Note: thread object from bookmarks only contains id and type in this API structure
                     acc[`${thread.type}-${thread.id}`] = true;
                     return acc;
                 }, {});
@@ -152,13 +144,17 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsLoading(false);
     };
 
+    // Fetch threads on component mount
+    // ⭐ FIX: Added profilePictureUrl to dependencies
     useEffect(() => {
         fetchThreads();
     }, [userId, profilePictureUrl]); 
 
+    // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
         if (!userId) return alert('You must be logged in to save a thread.');
         
+        // Optimistic UI Update
         setThreads(prevThreads => prevThreads.map(t => 
             t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
         ));
@@ -191,6 +187,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
+    // Function to fetch responses for a specific thread
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -204,6 +201,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             if (!res.ok) throw new Error("Failed to fetch responses");
             const data = await res.json();
             
+            // Note: Data is ordered DESC by created_at in server, reversing here for chronological display
             setResponses(prevResponses => ({
                 ...prevResponses,
                 [threadId]: data.reverse()
@@ -215,6 +213,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
+    // Function to toggle response view
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -224,6 +223,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
+    // Handle category change when postType changes
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
@@ -231,6 +231,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     };
 
 
+    // MODIFIED: handlePostSubmit to include single-file upload logic and job count update
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -281,8 +282,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             type: postType,
             title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
             author: userName || 'User',
-            author_id: userId,
-            author_picture_url: profilePictureUrl,
+            author_id: userId, // ⭐ Added for optimistic and fallback logic
+            author_picture_url: profilePictureUrl, // ⭐ Added for optimistic display
             time: new Date(),
             tag: postCategory,
             body: postContent,
@@ -314,13 +315,18 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 const updatedThreads = prevThreads.filter(t => t.id !== tempId);
                 
                 if (res.ok && data.thread) {
-                    if (postType === 'job' && setRefetchTrigger) {
-                        setRefetchTrigger(prev => prev + 1);
+                    if (postType === 'job') {
+                        // ⭐ MODIFIED 2: Use setRefetchTrigger prop to trigger Sidebar update
+                        if (setRefetchTrigger) {
+                            setRefetchTrigger(prev => prev + 1);
+                        }
                     }
                     
                     const newThreadWithUrls = {
                         ...data.thread, 
+                        // Ensure mediaUrls is an array
                         mediaUrls: data.thread.mediaUrls || (data.thread.mediaUrl ? [data.thread.mediaUrl] : []),
+                        // NOTE: author_picture_url is now correctly included by the server fix
                     };
                     return [newThreadWithUrls, ...updatedThreads];
                 } else {
@@ -342,6 +348,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setSelectedFile(null); 
     };
     
+    // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -362,6 +369,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsResponseModalOpen(true);
     };
 
+    // handleResponseSubmit
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -410,7 +418,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setParentResponseAuthor(null);
         setParentResponseContent(null); 
     };
-    
+
+    // handlePostKeyDown
     const handlePostKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -418,6 +427,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
+    // handleResponseKeyDown
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -425,73 +435,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // ⭐ MODIFIED: Opens the report modal and sets the initial category
-    const handleReportThread = (threadId, threadType) => {
-        if (!userId) {
-            return alert('You must be logged in to report a thread.');
-        }
-        setThreadToReportId(threadId);
-        setThreadToReportType(threadType);
-        setReportCategory(reportCategories[0]); // Set default category
-        setReportReason(''); // Clear free-text reason
-        setIsReportModalOpen(true);
-    };
-
-    // ⭐ MODIFIED: Function to handle the actual submission of the report
-    const submitReport = async () => {
-        if (!reportCategory || (reportCategory === 'Other' && !reportReason.trim())) {
-            // Require a category selection, or a reason if 'Other' is selected.
-            return alert('Please select a report category. If selecting "Other", please provide a description.');
-        }
-
-        const threadId = threadToReportId;
-        const threadType = threadToReportType;
-
-        // Construct the full report reason string
-        const finalReason = reportReason.trim() 
-            ? `${reportCategory}: ${reportReason.trim()}`
-            : reportCategory;
-
-        // Optimistically close the modal
-        setIsReportModalOpen(false); 
-        
-        // ⭐ NEW: Show an immediate confirmation message
-        alert(`Report for thread ID ${threadId} has been successfully submitted! Issue: ${reportCategory}`);
-
-
-        try {
-            const res = await fetch('http://localhost:5000/api/report-thread', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userId: userId, 
-                    threadId: threadId, 
-                    threadType: threadType,
-                    // Send the combined/selected reason
-                    reason: finalReason 
-                })
-            });
-            
-            const data = await res.json();
-            
-            if (!res.ok) {
-                // If the report fails (e.g., already reported), notify the user.
-                alert(`Server failure: ${data.message || 'Failed to submit report. It may have been submitted previously.'}`); 
-            }
-            // Note: The success case relies on the optimistic alert above for confirmation.
-
-        } catch (err) {
-            console.error("Report network error:", err);
-            alert("A network error occurred while submitting the report. Check server status.");
-        } finally {
-            // Cleanup state
-            setThreadToReportId(null);
-            setThreadToReportType(null);
-            setReportReason('');
-            setReportCategory(reportCategories[0]);
-        }
-    };
-
+    // MODIFIED: renderResponses to use renderAvatar
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -504,6 +448,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
+                    {/* MODIFIED: Use renderAvatar for response author */}
                     {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
@@ -527,14 +472,17 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     </span>
                 </div>
 
+                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
     };
 
+    // NEW HELPER: Function to render the media gallery with specific 1-on-2 layout
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
 
+        // Common style for images in the gallery
         const imageStyle = {
             width: '100%',
             height: '100%',
@@ -557,6 +505,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             </div>
         );
 
+        // Only handles 1 photo now
         if (mediaUrls.length >= 1) {
             return (
                 <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
@@ -568,10 +517,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         return null;
     };
     
-    // Find the thread details for the report modal
-    const reportedThreadDetails = threads.find(t => t.id === threadToReportId && t.type === threadToReportType);
-
-
     return (
         <div style={styles.page}>
             <div style={styles.container}>
@@ -579,6 +524,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
+                    {/* MODIFIED: Facebook-like Create Post Bar to use renderAvatar */}
                     <div style={styles.createPostBar} onClick={() => setIsModalOpen(true)}>
                         {renderAvatar(profilePictureUrl, firstName, 'large')}
                         <input 
@@ -600,25 +546,14 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             <div key={thread.id} style={styles.threadPost}>
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
+                                        {/* MODIFIED: Use renderAvatar for author */}
                                         {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                         <span style={styles.threadAuthorName}>{thread.author}</span>
                                         <span style={styles.threadTime}>
                                             {getTimeSince(thread.time)}
                                         </span>
                                     </div>
-                                    <div style={styles.threadRightActions}>
-                                        <span style={styles.threadTagModified}>{thread.tag}</span>
-                                        {thread.author_id !== userId && (
-                                            <div 
-                                                style={styles.reportIcon}
-                                                // ⭐ Call the new handler
-                                                onClick={() => handleReportThread(thread.id, thread.type)}
-                                                title="Report Thread"
-                                            >
-                                                <FiFlag size={18} />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
 
                                 <h3 style={styles.threadTitle}>{thread.title}</h3>
@@ -626,6 +561,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                     {thread.body}
                                 </p>
                                 
+                                {/* MODIFIED: Media Display */}
                                 {renderMediaGallery(thread.mediaUrls)}
 
                                 <div style={styles.threadFooter}>
@@ -679,10 +615,11 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     userName={userName} 
                     userEmail={userEmail} 
                     profilePictureUrl={profilePictureUrl} 
+                    // ⭐ MODIFIED 3: jobPostTrigger prop removed
                 />
             </div>
 
-            {/* Post Modal (Unchanged) */}
+            {/* Post Modal */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -706,11 +643,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             </button>
                         </div>
 
+                        {/* User Section (Modal) */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
                         
+                        {/* Category Selector */}
                         <div style={styles.categoryContainer}>
                             {currentCategories.map(cat => (
                                 <button 
@@ -734,6 +673,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             style={styles.modalTextarea}
                         />
 
+                        {/* MODIFIED: File Input Section */}
                         <div style={styles.fileInputSection}>
                             <label htmlFor="media-upload" style={styles.fileInputLabel}>
                                 <FiPaperclip size={20} /> Attach Media ({postType === 'job' ? 'PDF/Image (optional)' : 'Image (optional)'})
@@ -753,6 +693,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                 <FiX size={20} style={{ cursor: 'pointer', color: '#dc2626' }} onClick={() => setSelectedFile(null)} />
                             </div>
                         )}
+                        {/* END MODIFIED: File Input Section */}
                         
                         <button 
                             onClick={handlePostSubmit} 
@@ -765,7 +706,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 </div>
             )}
 
-            {/* Response Modal (Unchanged) */}
+            {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -798,6 +739,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             )}
                         </div>
 
+                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
@@ -813,67 +755,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                         
                         <button onClick={handleResponseSubmit} style={styles.modalPostButton}>
                             <FiMessageSquare color="#fff" /> Submit Response
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* ⭐ MODIFIED: Report Modal */}
-            {isReportModalOpen && reportedThreadDetails && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContent}>
-                        <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#dc2626' }}>Report Content</h3>
-                            <FiX size={28} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => setIsReportModalOpen(false)} />
-                        </div>
-
-                        <div style={styles.replyContextBox}>
-                            <p style={styles.replyingToText}>
-                                Reporting {reportedThreadDetails.type} by {reportedThreadDetails.author}:
-                            </p>
-                            <p style={styles.threadSnippet}>
-                                {reportedThreadDetails.body.substring(0, 150)} {reportedThreadDetails.body.length > 150 ? '...' : ''}
-                            </p>
-                        </div>
-                        
-                        {/* ⭐ NEW: Report Categories Selection */}
-                        <label style={styles.reportLabel}>
-                            Select the primary issue: <span style={{ color: '#dc2626' }}>*</span>
-                        </label>
-                        <div style={styles.categoryContainer}>
-                            {reportCategories.map(cat => (
-                                <button 
-                                    key={cat}
-                                    style={{ 
-                                        ...styles.reportCategoryButton, 
-                                        ...(reportCategory === cat ? styles.reportCategoryButtonActive : {}) 
-                                    }}
-                                    onClick={() => setReportCategory(cat)}
-                                >
-                                    {cat}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        <label htmlFor="report-reason" style={styles.reportLabel}>
-                            Provide specific details (Optional):
-                        </label>
-                        <textarea 
-                            id="report-reason"
-                            placeholder={reportCategory === 'Other' ? "Please explain why you are reporting this content." : "Add more details to help us investigate (optional)."} 
-                            value={reportReason}
-                            onChange={e => setReportReason(e.target.value)}
-                            style={styles.modalTextarea}
-                            rows={4}
-                        />
-                        
-                        <button 
-                            onClick={submitReport} 
-                            style={styles.reportSubmitButton}
-                            // ⭐ MODIFIED: Disable if no category is selected OR if "Other" is selected but no reason is provided
-                            disabled={!reportCategory || (reportCategory === 'Other' && reportReason.trim().length === 0)}
-                        >
-                            <FiFlag color="#fff" /> Submit Report
                         </button>
                     </div>
                 </div>
@@ -895,7 +776,7 @@ const styles = {
         width: '100%',
         maxWidth: '1200px',
         margin: '0 auto',
-        paddingRight: '340px', 
+        paddingRight: '340px', // Space for the fixed RightPanel
         boxSizing: 'border-box'
     },
     mainContent: {
@@ -914,6 +795,7 @@ const styles = {
         fontSize: '18px',
         color: '#9ca3af',
     },
+    // --- Create Post Bar Styles ---
     createPostBar: {
         display: 'flex',
         alignItems: 'center',
@@ -936,6 +818,9 @@ const styles = {
         color: '#4b5563',
         cursor: 'pointer',
     },
+    // --- End: Create Post Bar Styles ---
+
+    // --- Thread/Post Styles ---
     threadPost: {
         backgroundColor: '#fff',
         padding: '20px',
@@ -944,6 +829,26 @@ const styles = {
         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         border: '1px solid #e5e7eb',
     },
+    // Media container styles
+    threadMediaContainer: {
+        marginTop: '15px',
+        marginBottom: '15px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        border: '1px solid #e5e7eb',
+        backgroundColor: '#f9fafb',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    threadImage: {
+        width: '100%',
+        height: 'auto',
+        objectFit: 'cover',
+        display: 'block',
+        maxWidth: '100%',
+    },
+    // End: Media container styles
     threadMetaTop: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -955,21 +860,40 @@ const styles = {
         alignItems: 'center',
         gap: '8px',
     },
-    threadRightActions: {
+    // NEW STYLE: For image inside the avatar circles
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: '50%',
+        objectFit: 'cover',
+    },
+    avatarCircleSmall: {
+        width: '28px',
+        height: '28px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        justifyContent: 'center',
+        fontWeight: '600',
+        fontSize: '14px',
+        flexShrink: 0,
+        overflow: 'hidden', // Added for image
     },
-    reportIcon: {
-        color: '#9ca3af',
-        cursor: 'pointer',
-        padding: '5px',
-        borderRadius: '50%',
-        transition: 'color 0.2s, background-color 0.2s',
-        '&:hover': {
-            backgroundColor: '#fee2e2',
-            color: '#dc2626'
-        }
+    avatarCircleTiny: { // Added for responses
+        width: '24px', 
+        height: '24px', 
+        borderRadius: '50%', 
+        backgroundColor: '#3b82f6', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: '600', 
+        fontSize: '12px', 
+        flexShrink: 0, 
+        overflow: 'hidden', 
     },
     threadAuthorName: {
         fontWeight: '600',
@@ -1035,6 +959,9 @@ const styles = {
         borderRadius: '6px',
         backgroundColor: '#eff6ff',
     },
+    // --- End: Thread/Post Styles ---
+
+    // --- Response Styles ---
     responsesContainer: {
         marginTop: '15px',
         padding: '10px 0',
@@ -1098,53 +1025,9 @@ const styles = {
         fontSize: '14px', 
         color: '#9ca3af' 
     },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: '50%',
-        objectFit: 'cover',
-    },
-    avatarCircleSmall: {
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '14px',
-        flexShrink: 0,
-        overflow: 'hidden', 
-    },
-    avatarCircleTiny: { 
-        width: '24px', 
-        height: '24px', 
-        borderRadius: '50%', 
-        backgroundColor: '#3b82f6', 
-        color: '#fff', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        fontWeight: '600', 
-        fontSize: '12px', 
-        flexShrink: 0, 
-        overflow: 'hidden', 
-    },
-    avatarCircle: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '18px',
-        overflow: 'hidden', 
-    },
+    // --- End: Response Styles ---
+
+    // --- Modal Styles (Post & Response) ---
     modalOverlay: {
         position: 'fixed',
         top: 0,
@@ -1201,6 +1084,19 @@ const styles = {
         gap: '12px',
         marginBottom: '15px'
     },
+    avatarCircle: {
+        width: '40px',
+        height: '40px',
+        borderRadius: '50%',
+        backgroundColor: '#3b82f6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '700',
+        fontSize: '18px',
+        overflow: 'hidden', // Added for image
+    },
     modalUserName: {
         fontWeight: 600,
         fontSize: '16px',
@@ -1228,26 +1124,9 @@ const styles = {
         color: '#fff',
         borderColor: '#3b82f6',
     },
-    reportCategoryButton: { // ⭐ NEW STYLE for report categories
-        padding: '6px 10px',
-        borderRadius: '16px',
-        border: '1px solid #fca5a5',
-        backgroundColor: '#fef2f2',
-        color: '#dc2626',
-        cursor: 'pointer',
-        fontSize: '13px',
-        fontWeight: '500',
-        transition: 'all 0.2s',
-        whiteSpace: 'nowrap',
-    },
-    reportCategoryButtonActive: { // ⭐ NEW STYLE for active report category
-        backgroundColor: '#dc2626',
-        color: '#fff',
-        borderColor: '#dc2626',
-    },
     modalTextarea: {
         width: '100%',
-        minHeight: '100px', // Reduced height for more compact modal
+        minHeight: '150px',
         padding: '12px',
         marginBottom: '15px',
         borderRadius: '10px',
@@ -1326,27 +1205,13 @@ const styles = {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
     },
-    reportLabel: { 
-        display: 'block',
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#374151',
-        marginBottom: '8px',
+    replyContentSnippet: {
+        fontSize: '15px',
+        color: '#4b5563',
+        margin: '5px 0 0 0',
+        maxHeight: '40px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
     },
-    reportSubmitButton: { 
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        width: '100%',
-        padding: '12px',
-        borderRadius: '10px',
-        backgroundColor: '#dc2626',
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: '16px',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s',
-    }
+    // --- End: Modal Styles ---
 };
