@@ -22,8 +22,8 @@ const postCategories = ["General", "Invention", "Achievement", "Competition", "E
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
 
-// MODIFIED: Accept profilePictureUrl prop
-export default function HomePage({ userName, userEmail, profilePictureUrl }) {
+// ⭐ MODIFIED 1: Accept setRefetchTrigger prop from App.jsx
+export default function HomePage({ userName, userEmail, profilePictureUrl, setRefetchTrigger }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
     const [postCategory, setPostCategory] = useState(postCategories[0]); 
@@ -34,7 +34,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
 
-    const [jobPostTrigger, setJobPostTrigger] = useState(0); 
+    // ⭐ REMOVED: jobPostTrigger state is no longer needed
 
     // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -231,7 +231,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
     };
 
 
-    // MODIFIED: handlePostSubmit to include single-file upload logic
+    // MODIFIED: handlePostSubmit to include single-file upload logic and job count update
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -316,7 +316,10 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                 
                 if (res.ok && data.thread) {
                     if (postType === 'job') {
-                        setJobPostTrigger(prev => prev + 1);
+                        // ⭐ MODIFIED 2: Use setRefetchTrigger prop to trigger Sidebar update
+                        if (setRefetchTrigger) {
+                            setRefetchTrigger(prev => prev + 1);
+                        }
                     }
                     
                     const newThreadWithUrls = {
@@ -611,8 +614,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl }) {
                 <RightPanel 
                     userName={userName} 
                     userEmail={userEmail} 
-                    profilePictureUrl={profilePictureUrl} // ⭐ ADDED PROP
-                    jobPostTrigger={jobPostTrigger} 
+                    profilePictureUrl={profilePictureUrl} 
+                    // ⭐ MODIFIED 3: jobPostTrigger prop removed
                 />
             </div>
 

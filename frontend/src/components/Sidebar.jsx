@@ -22,7 +22,8 @@ const Sidebar = ({ refetchTrigger }) => {
     // NEW: Function to fetch job counts
     const fetchJobCounts = async () => {
         try {
-            const res = await fetch("http://localhost:5000/api/job-category-counts");
+            // FIX: Corrected URL to match the endpoint in server.js
+            const res = await fetch("http://localhost:5000/api/job-categories"); 
             if (!res.ok) throw new Error("Failed to fetch job category counts");
             
             const data = await res.json();
@@ -51,8 +52,9 @@ const Sidebar = ({ refetchTrigger }) => {
 
     // MODIFIED: useEffect now depends on refetchTrigger
     useEffect(() => {
+        // This effect re-runs whenever refetchTrigger changes, forcing an update
         fetchJobCounts();
-    }, [refetchTrigger]); // The effect re-runs whenever refetchTrigger changes
+    }, [refetchTrigger]); 
 
 
     const navItems = [
