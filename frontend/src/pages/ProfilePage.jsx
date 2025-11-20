@@ -5,7 +5,7 @@ import {
     FiPhone, FiMapPin, 
     FiMessageSquare, 
     FiSend, 
-    FiTrash2, // NEW: Used for Delete icon
+    FiTrash2, 
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
 
@@ -102,6 +102,156 @@ const popupStyles = {
         marginLeft: '15px',
     },
 };
+
+// --- Custom Confirmation Modal Component (UPDATED to display media) ---
+const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody, mediaUrls, onConfirm, onCancel }) => {
+    if (!isVisible) return null;
+
+    const imageUrl = mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null; 
+
+    return (
+        <div style={modalStyles.overlay}>
+            <div style={modalStyles.box}>
+                <h3 style={modalStyles.title}>{title}</h3>
+                <p style={modalStyles.message}>{message}</p>
+                
+                {/* Image Preview */}
+                {imageUrl && (
+                    <div style={modalStyles.imagePreviewContainer}>
+                        <img src={imageUrl} alt="Thread Preview" style={modalStyles.imagePreview} />
+                    </div>
+                )}
+
+                {/* Thread Content Display */}
+                <div style={{...modalStyles.threadContentBox, marginTop: imageUrl ? '15px' : '0'}}> 
+                    <h4 style={modalStyles.threadTitle}>{threadTitle}</h4>
+                    <p style={modalStyles.threadBody}>{threadBody}</p>
+                </div>
+
+                <div style={modalStyles.actions}>
+                    <button style={{ ...modalStyles.button, ...modalStyles.cancel }} onClick={onCancel}>
+                        <FiX size={18} /> Cancel
+                    </button>
+                    <button style={{ ...modalStyles.button, ...modalStyles.confirm }} onClick={onConfirm}>
+                        <FiTrash2 size={18} /> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const modalStyles = {
+    overlay: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 2000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    box: {
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        padding: '30px',
+        maxWidth: '450px',
+        width: '90%',
+        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)',
+        textAlign: 'center',
+    },
+    title: { 
+        fontSize: '20px', 
+        fontWeight: '700', 
+        color: '#dc2626', // Red for danger
+        margin: '0 0 10px 0' 
+    },
+    message: { 
+        fontSize: '16px', 
+        color: '#4b5563', 
+        margin: '0 0 15px 0' 
+    },
+    // UPDATED Styles for Image Preview
+    imagePreviewContainer: {
+        width: '100%',
+        height: '180px', // Fixed height for consistent look
+        overflow: 'hidden',
+        borderRadius: '10px', // Slightly larger border-radius
+        border: 'none', // Removed explicit border
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)', // Added a polished shadow
+        marginBottom: '20px', // Increased spacing
+        backgroundColor: '#f8fafc', // Light background color for contrast
+        display: 'flex', 
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover', // Ensures the image fills the container beautifully
+        display: 'block',
+        transition: 'transform 0.3s ease', 
+    },
+    // Styles for Content Display
+    threadContentBox: {
+        backgroundColor: '#fef2f2', // Light red background for warning
+        border: '1px solid #fca5a5',
+        borderRadius: '8px',
+        padding: '15px',
+        margin: '15px 0 25px 0', 
+        textAlign: 'left',
+        maxHeight: '150px',
+        overflowY: 'auto',
+    },
+    threadTitle: {
+        fontSize: '16px',
+        fontWeight: '700',
+        color: '#b91c1c', // Darker red
+        margin: '0 0 5px 0',
+    },
+    threadBody: {
+        fontSize: '14px',
+        color: '#ef4444', // Red text
+        margin: 0,
+        lineHeight: 1.4,
+        overflow: 'hidden',
+        display: '-webkit-box',
+        WebkitLineClamp: 3, 
+        WebkitBoxOrient: 'vertical',
+        textOverflow: 'ellipsis',
+    },
+    actions: {
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '15px',
+    },
+    button: {
+        padding: '10px 20px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        transition: 'background-color 0.2s',
+        border: 'none',
+    },
+    confirm: { 
+        backgroundColor: '#dc2626', // Red
+        color: '#fff',
+    },
+    cancel: { 
+        backgroundColor: '#f3f4f6', // Light gray
+        color: '#4b5563',
+        border: '1px solid #d1d5db',
+    }
+};
+// ----------------------------------------------------
+
 
 // --- Component: ThreadResponses (Restored for functionality) ---
 const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
@@ -206,7 +356,7 @@ const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
 };
 // ----------------------------------------------------
 
-// --- UserThread Component (Updated to handle response toggle and deletion) ---
+// --- UserThread Component (Updated to pass full thread object) ---
 const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread }) => {
     const [showResponses, setShowResponses] = useState(false);
 
@@ -285,10 +435,10 @@ const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread }) => 
                     <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses 
                 </div>
                 
-                {/* NEW: Delete Button */}
+                {/* Delete Button - Passes full thread object */}
                 <button 
                     style={styles.deleteThreadButton} 
-                    onClick={() => handleDeleteThread(thread.id)} 
+                    onClick={() => handleDeleteThread(thread)} 
                     title="Delete this post"
                 >
                     <FiTrash2 size={16} /> Delete
@@ -333,6 +483,17 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
     // User Threads State
     const [userThreads, setUserThreads] = useState([]); 
     const [isThreadsLoading, setIsThreadsLoading] = useState(true); 
+
+    // Confirmation Modal State
+    const [confirmationModal, setConfirmationModal] = useState({ 
+        isVisible: false, 
+        threadId: null, 
+        threadType: null,
+        threadTitle: '', 
+        threadBody: '',
+        mediaUrls: []   
+    });
+
 
     const fileInputRef = useRef(null);
     const firstName = userName ? userName.split(' ')[0] : 'User';
@@ -496,12 +657,12 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
             });
 
             const data = await res.json();
+
             if (!res.ok) {
                 throw new Error(data.message || 'Failed to update profile details.');
             }
 
             setPopup({ message: 'Profile updated successfully!', type: 'success' });
-            
             setUserData(prev => ({ ...prev, ...updatedFields, profilePictureUrl: newPictureUrl }));
             
             if (onUpdateUser && updatedFields.name !== userName) {
@@ -510,28 +671,40 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
             
             setSelectedFile(null);
             setPreviewUrl('');
-            
             fetchUserThreads(); 
 
         } catch (err) {
             console.error("Details Save error:", err);
             setPopup({ message: `Details save failed: ${err.message}.`, type: 'error' });
-            setIsEditing(true);
+            setIsEditing(true); 
         } finally {
             setLoading(false);
         }
     };
-    
-    // --- Delete Handler ---
-    const handleDeleteThread = async (threadId) => {
-        if (!window.confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
-            return;
-        }
 
-        setLoading(true); 
+    // --- Delete Handler (Receives full thread object and passes mediaUrls) ---
+    const handleDeleteThread = (thread) => {
+        // Open custom confirmation modal instead of using window.confirm
+        setConfirmationModal({
+            isVisible: true,
+            threadId: thread.id,
+            threadType: thread.type,
+            threadTitle: thread.title, 
+            threadBody: thread.body,
+            mediaUrls: thread.mediaUrls || [] 
+        });
+    };
+
+    // --- Confirmation Handler (Performs actual deletion) ---
+    const confirmDeleteThread = async (threadId, threadType) => {
+        // Reset modal state, including content fields and mediaUrls
+        setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] });
+        setLoading(true);
         try {
             const res = await fetch(`http://localhost:5000/api/threads/${threadId}`, {
                 method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ threadType, userId: currentUserId }), // Pass required data
             });
 
             if (!res.ok) {
@@ -541,12 +714,13 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
             // Update state: remove the deleted thread
             setUserThreads(prevThreads => prevThreads.filter(thread => thread.id !== threadId));
-            setPopup({ message: 'Post deleted successfully!', type: 'success' });
+            setPopup({ message: `${threadType.charAt(0).toUpperCase() + threadType.slice(1)} deleted successfully!`, type: 'success' });
+
         } catch (err) {
             console.error("Delete Thread error:", err);
             setPopup({ message: `Deletion failed: ${err.message}.`, type: 'error' });
         } finally {
-            setLoading(false); 
+            setLoading(false);
         }
     };
 
@@ -554,59 +728,79 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
     // --- Cancel/Reset Handler ---
     const handleCancelEdit = () => {
         setIsEditing(false);
-        setSelectedFile(null); 
-        setPreviewUrl(''); 
+        setSelectedFile(null);
+        setPreviewUrl('');
         fetchUserData(); // Refetch/reset all data
     }
-    
+
+
     // --- File Selection/Drop Handler ---
     const handleFileSelect = (file) => {
         if (!file || !file.type.startsWith('image/')) {
             setSelectedFile(null);
             setPreviewUrl('');
-            setPopup({ message: 'Invalid file type. Only images are allowed.', type: 'error' });
+            setPopup({ message: 'Invalid file type. Please select an image.', type: 'error' });
             return;
         }
-        setSelectedFile(file);
-        
-        if (previewUrl) {
-            URL.revokeObjectURL(previewUrl); 
+
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            setSelectedFile(null);
+            setPreviewUrl('');
+            setPopup({ message: 'Image size exceeds 2MB limit.', type: 'error' });
+            return;
         }
+
+        setSelectedFile(file);
         setPreviewUrl(URL.createObjectURL(file));
+        setIsDragging(false);
     };
 
-    // --- Drag/Drop Handlers ---
-    const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            handleFileSelect(files[0]);
+    const handlePictureClick = () => {
+        if (isEditing) {
+            fileInputRef.current.click();
         }
     };
-    const handlePictureClick = () => { fileInputRef.current.click(); };
-    const handleFileInputChange = (e) => { 
-        if (e.target.files.length) {
+
+    const handleFileInputChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
             handleFileSelect(e.target.files[0]);
         }
     };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        if (isEditing) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        if (isEditing) setIsDragging(false);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        if (isEditing) setIsDragging(true);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        if (isEditing && e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    };
+
 
     // Helper to render an editable field
     const renderField = (label, value, stateSetter, isEditable, icon) => (
         <div style={styles.fieldRow}>
             <div style={styles.fieldLabel}>
-                {icon}
-                <span>{label}</span>
+                {icon} <span>{label}</span>
             </div>
             {isEditing && isEditable ? (
-                <input
+                <input 
                     type={label === 'Contact' ? 'tel' : 'text'}
-                    style={styles.inputField}
-                    value={stateSetter[0]}
+                    style={styles.inputField} 
+                    value={stateSetter[0]} 
                     onChange={(e) => stateSetter[1](e.target.value)}
                     disabled={loading}
                 />
@@ -620,36 +814,61 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
     return (
         <div style={styles.pageContainer}>
-            <AlertPopup message={popup.message} type={popup.type} onClose={() => setPopup({ message: '', type: '' })} />
-            
+            <AlertPopup 
+                message={popup.message} 
+                type={popup.type} 
+                onClose={() => setPopup({ message: '', type: '' })} 
+            />
+
+            {/* Confirmation Modal - UPDATED PROPS */}
+            <ConfirmationModal 
+                isVisible={confirmationModal.isVisible}
+                title={`Confirm Deletion of ${confirmationModal.threadType ? confirmationModal.threadType.charAt(0).toUpperCase() + confirmationModal.threadType.slice(1) : 'Item'}`}
+                message={`Are you absolutely sure you want to delete this ${confirmationModal.threadType}? This action cannot be undone.`}
+                threadTitle={confirmationModal.threadTitle} 
+                threadBody={confirmationModal.threadBody} 
+                mediaUrls={confirmationModal.mediaUrls} 
+                onConfirm={() => confirmDeleteThread(confirmationModal.threadId, confirmationModal.threadType)}
+                onCancel={() => setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] })} 
+            />
+
+
             {/* Page Title - Now part of the main page flow */}
             <h1 style={styles.pageTitle}>Welcome to your Profile, {firstName}!</h1>
-
             {error && <div style={styles.errorBox}>{error}</div>}
 
             <div style={styles.mainContentLayout}>
-                 
                 {/* Left/Center Column for Profile & Posts */}
-                <div style={styles.centerContent}> 
-                    
+                <div style={styles.centerContent}>
                     {/* Profile Card Content (Account Editing) */}
                     <div style={styles.profileCard}>
-                        
                         {/* BUTTONS MOVED INSIDE PROFILE CARD */}
                         <div style={styles.cardActions}>
                             {loading ? (
                                 <FiRefreshCcw size={20} style={styles.loadingIcon} />
                             ) : isEditing ? (
                                 <>
-                                    <button style={{...styles.button, ...styles.cancelButton}} onClick={handleCancelEdit} disabled={loading}>
+                                    <button 
+                                        style={{...styles.button, ...styles.cancelButton}} 
+                                        onClick={handleCancelEdit} 
+                                        disabled={loading}
+                                    >
                                         <FiX size={18} /> Cancel
                                     </button>
-                                    <button style={{...styles.button, ...styles.saveButton}} onClick={handleSave} disabled={loading}>
+                                    <button 
+                                        style={{...styles.button, ...styles.saveButton}} 
+                                        onClick={handleSave} 
+                                        disabled={loading}
+                                    >
                                         <FiSave size={18} /> Save Details
                                     </button>
                                 </>
                             ) : (
-                                <button style={styles.button} onClick={() => setIsEditing(true)} disabled={loading}>
+                                <button 
+                                    style={styles.button} 
+                                    onClick={() => setIsEditing(true)} 
+                                    disabled={loading}
+                                >
                                     <FiEdit size={18} /> Edit Profile
                                 </button>
                             )}
@@ -658,56 +877,52 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
                         <div style={styles.profileHeader}>
                             <div 
-                                style={{...styles.avatarCircleLarge, cursor: isEditing ? 'pointer' : 'default'}}
+                                style={{
+                                    ...styles.avatarCircleLarge, 
+                                    cursor: isEditing ? 'pointer' : 'default',
+                                    border: isDragging ? '4px dashed #2563eb' : 'none',
+                                    boxShadow: isDragging ? '0 0 0 4px rgba(37, 99, 235, 0.5)' : 'none',
+                                }} 
                                 onClick={isEditing ? handlePictureClick : null}
                                 onDragEnter={isEditing ? handleDragEnter : null}
                                 onDragLeave={isEditing ? handleDragLeave : null}
                                 onDragOver={isEditing ? handleDragOver : null}
                                 onDrop={isEditing ? handleDrop : null}
                             >
-                                {currentPictureSource ? (
-                                    <img 
-                                        src={currentPictureSource} 
-                                        alt={firstName} 
-                                        style={styles.avatarImage} 
-                                    />
-                                ) : (
-                                    firstName[0] || 'U'
-                                )}
+                                {/* Hidden file input */}
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileInputChange}
+                                    style={{ display: 'none' }}
+                                    accept="image/*"
+                                />
+
+                                {renderAvatar(currentPictureSource, userData?.name, 'large')}
+                                
                                 {isEditing && (
-                                    <div style={{...styles.editOverlay, border: isDragging ? '2px dashed #fff' : 'none'}}>
-                                        <FiCamera size={24} color="#fff" />
-                                        <p style={{margin: 0, fontSize: '12px'}}>
-                                            {selectedFile ? 'Change Photo' : 'Upload Photo'}
-                                        </p>
+                                    <div style={styles.editOverlay}>
+                                        <FiCamera size={24} />
+                                        <span>{isDragging ? 'Drop Image' : 'Change Photo'}</span>
                                     </div>
                                 )}
                             </div>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                style={{ display: 'none' }} 
-                                onChange={handleFileInputChange}
-                                accept="image/*"
-                            />
-
                             <div style={styles.headerText}>
-                                <h2 style={styles.userName}>{userData?.name || userName}</h2>
-                                <p style={styles.userEmail}>{userEmail}</p>
+                                {renderField('Name', userData?.name, [editedName, setEditedName], true, <FiUser size={18} />)}
+                                <p style={styles.userEmail}><FiMail size={16} style={{marginRight: '8px'}} />{userData?.email || userEmail}</p>
                             </div>
                         </div>
 
                         <div style={styles.fieldGroup}>
-                            {renderField('Name', editedName, [editedName, setEditedName], true, <FiUser size={18} />)}
-                            {renderField('Email', userEmail, [], false, <FiMail size={18} />)}
-                            {renderField('Contact', editedContact, [editedContact, setEditedContact], true, <FiPhone size={18} />)}
-                            {renderField('Address', editedAddress, [editedAddress, setEditedAddress], true, <FiMapPin size={18} />)}
+                            <h2 style={styles.sectionTitle}>Contact Information</h2>
+                            {renderField('Contact', userData?.contact, [editedContact, setEditedContact], true, <FiPhone size={16} />)}
+                            {renderField('Address', userData?.address, [editedAddress, setEditedAddress], true, <FiMapPin size={16} />)}
                         </div>
                     </div>
 
-                    {/* User Posts/Jobs Section */}
+                    {/* User Posts Section */}
                     <div style={styles.postsSectionContainer}>
-                        <h2 style={styles.postsSectionTitle}>Your Activity ({userThreads.length} total)</h2>
+                        <h2 style={styles.postsSectionTitle}>Your Community Threads ({userThreads.length})</h2>
                         {isThreadsLoading ? (
                             <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
                         ) : userThreads.length > 0 ? (
@@ -716,9 +931,9 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                                 <UserThread 
                                     key={thread.id} 
                                     thread={thread} 
-                                    currentUserId={currentUserId}
+                                    currentUserId={currentUserId} 
                                     setPopup={setPopup} 
-                                    handleDeleteThread={handleDeleteThread} // <-- NEW PROP
+                                    handleDeleteThread={handleDeleteThread} // Pass the handler
                                 />
                             ))
                         ) : (
@@ -744,48 +959,56 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 // --- Styles ---
 const styles = {
     // Layout Styles
-    pageContainer: {
-        minHeight: '100vh',
-        paddingLeft:'10px',
+    pageContainer: { 
+        minHeight: '100vh', 
+        paddingLeft:'10px', 
         paddingRight:'50px',
     },
     pageTitle: {
-        fontSize: '28px', 
-        fontWeight: '700', 
-        color: '#1f2937', 
+        fontSize: '28px',
+        fontWeight: '700',
+        color: '#1f2937',
         marginBottom: '20px',
         paddingLeft: '5px', // Alignment
     },
     mainContentLayout: {
         display: 'flex',
-        gap: '20px', 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
+        gap: '20px',
+        maxWidth: '1200px',
+        margin: '0 auto',
     },
     centerContent: {
-        flex: '3', 
-        minWidth: 0, 
+        flex: '3',
+        minWidth: 0,
     },
     rightPanelContainer: {
-        flex: '1', 
-        minWidth: '280px', 
+        flex: '1',
+        minWidth: '280px',
         position: 'sticky',
-        top: '20px', 
-        maxHeight: 'calc(100vh - 40px)', 
+        top: '20px',
+        maxHeight: 'calc(100vh - 40px)',
         overflowY: 'auto',
     },
-    
+
     // Profile Card Styles
-    cardActions: { 
-        position: 'absolute', 
+    profileCard: {
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        padding: '20px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        position: 'relative',
+        marginBottom: '20px',
+    },
+    cardActions: {
+        position: 'absolute',
         top: '15px',
         right: '20px',
-        display: 'flex', 
+        display: 'flex',
         gap: '10px',
         zIndex: 10,
     },
     button: {
-        padding: '6px 12px', 
+        padding: '6px 12px',
         borderRadius: '6px',
         cursor: 'pointer',
         fontWeight: '600',
@@ -802,86 +1025,78 @@ const styles = {
     cancelButton: { backgroundColor: '#ef4444' },
     loadingIcon: { 
         animation: 'spin 1s linear infinite', 
-        color: '#3b82f6', 
-        '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } }
+        color: '#3b82f6',
+        '@keyframes spin': {
+            from: { transform: 'rotate(0deg)' },
+            to: { transform: 'rotate(360deg)' }
+        }
     },
     errorBox: {
-        padding: '15px',
-        backgroundColor: '#fee2e2',
-        color: '#ef4444',
-        border: '1px solid #fca5a5',
+        padding: '10px 15px',
+        backgroundColor: '#fef2f2',
+        color: '#dc2626',
+        border: '1px solid #fecaca',
         borderRadius: '8px',
         marginBottom: '20px',
-    },
-    profileCard: {
-        backgroundColor: '#fff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-        padding: '25px',
-        border: '1px solid #e5e7eb',
-        position: 'relative', 
-        paddingTop: '60px', 
-    },
-    profileHeader: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-        paddingBottom: '20px',
-        borderBottom: '1px solid #f3f4f6',
-        marginBottom: '20px',
-    },
-    avatarCircleLarge: {
-        width: '80px',
-        height: '80px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '36px',
-        flexShrink: 0,
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    avatarCircleSmall: { 
-        width: '28px', // Consistent with HomePage
-        height: '28px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
         fontSize: '14px',
-        flexShrink: 0,
-        overflow: 'hidden',
+        fontWeight: '600',
     },
-    avatarCircleTiny: { 
+    
+    // Avatar Styles
+    avatarCircleLarge: {
+        width: '100px',
+        height: '100px',
+        borderRadius: '50%',
+        backgroundColor: '#e5e7eb',
+        color: '#6b7280',
+        fontSize: '40px',
+        fontWeight: '700',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        position: 'relative',
+        flexShrink: 0,
+    },
+    avatarCircleSmall: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '50%',
+        backgroundColor: '#e5e7eb',
+        color: '#6b7280',
+        fontSize: '14px',
+        fontWeight: '600',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        flexShrink: 0,
+    },
+    avatarCircleTiny: {
         width: '24px',
         height: '24px',
         borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
+        backgroundColor: '#e5e7eb',
+        color: '#6b7280',
+        fontSize: '10px',
+        fontWeight: '600',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '12px',
-        flexShrink: 0,
         overflow: 'hidden',
+        flexShrink: 0,
     },
     avatarImage: {
         width: '100%',
         height: '100%',
-        borderRadius: '50%',
         objectFit: 'cover',
     },
     editOverlay: {
         position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: 'rgba(0,0,0,0.4)',
         display: 'flex',
         flexDirection: 'column',
@@ -892,10 +1107,47 @@ const styles = {
         transition: 'background-color 0.2s',
         gap: '2px',
     },
-    headerText: { display: 'flex', flexDirection: 'column' },
-    userName: { margin: 0, fontSize: '22px', fontWeight: '700', color: '#1f2937' },
-    userEmail: { margin: 0, fontSize: '15px', color: '#6b7280' },
-    fieldGroup: { display: 'flex', flexDirection: 'column', gap: '15px' },
+
+    // Profile Info Styles
+    profileHeader: {
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '20px',
+        marginBottom: '30px',
+        paddingBottom: '20px',
+        borderBottom: '1px solid #f3f4f6',
+    },
+    headerText: {
+        display: 'flex',
+        flexDirection: 'column',
+        flexGrow: 1,
+    },
+    userName: {
+        margin: 0,
+        fontSize: '22px',
+        fontWeight: '700',
+        color: '#1f2937'
+    },
+    userEmail: {
+        margin: 0,
+        fontSize: '15px',
+        color: '#6b7280',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    sectionTitle: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1f2937',
+        marginBottom: '10px',
+        paddingBottom: '5px',
+        borderBottom: '2px solid #e5e7eb',
+    },
+    fieldGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '15px',
+    },
     fieldRow: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -912,7 +1164,11 @@ const styles = {
         color: '#4b5563',
         width: '30%',
     },
-    fieldValue: { fontSize: '16px', color: '#374151', width: '65%' },
+    fieldValue: {
+        fontSize: '16px',
+        color: '#374151',
+        width: '65%',
+    },
     inputField: {
         padding: '8px 12px',
         borderRadius: '6px',
@@ -924,29 +1180,28 @@ const styles = {
 
     // User Threads Section Styles
     postsSectionContainer: {
-        backgroundColor: 'transparent', 
-        borderRadius: '0', 
-        padding: '0', 
+        backgroundColor: 'transparent',
+        borderRadius: '0',
+        padding: '0',
         marginTop: '20px',
-        boxShadow: 'none', 
+        boxShadow: 'none',
     },
     postsSectionTitle: {
         fontSize: '20px',
         fontWeight: '700',
         color: '#1f2937',
-        borderBottom: '2px solid #f3f4f6',
-        paddingBottom: '10px',
         marginBottom: '15px',
+        paddingLeft: '5px',
     },
-    // Thread Card Styles (Unchanged)
+    
+    // Thread Card Styles (Used in UserThread component)
     threadCard: {
-        backgroundColor: '#fff', 
+        backgroundColor: '#fff',
+        borderRadius: '12px',
         padding: '20px',
-        borderRadius: '10px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
         marginBottom: '15px',
-        border: '1px solid #e5e7eb',
-        position: 'relative',
+        border: '1px solid #f3f4f6',
     },
     threadMetaTop: {
         display: 'flex',
@@ -954,72 +1209,85 @@ const styles = {
         alignItems: 'center',
         marginBottom: '10px',
     },
-    threadAuthorInfo: { display: 'flex', alignItems: 'center', gap: '8px' },
-    threadAuthorName: { fontWeight: '600', color: '#1f2937', fontSize: '15px' },
-    threadTime: { fontSize: '12px', color: '#9ca3af', marginTop: '2px' },
-    authorDetails: { display: 'flex', flexDirection: 'column' },
-    threadTag: {
-        fontSize: '12px',
-        fontWeight: '600',
-        color: '#1e40af',
-        backgroundColor: '#e0f2fe',
-        padding: '5px 10px',
-        borderRadius: '15px',
+    threadAuthorInfo: {
         display: 'flex',
         alignItems: 'center',
+        gap: '10px',
+    },
+    authorDetails: {
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    threadAuthorName: {
+        fontWeight: '600',
+        fontSize: '15px',
+        color: '#1f2937',
+    },
+    threadTime: {
+        fontSize: '12px',
+        color: '#9ca3af',
+    },
+    threadTag: {
+        padding: '4px 8px',
+        borderRadius: '4px',
+        backgroundColor: '#eff6ff',
+        color: '#1d4ed8',
+        fontSize: '12px',
+        fontWeight: '600',
     },
     threadTitle: {
         fontSize: '18px',
         fontWeight: '700',
-        color: '#1d4ed8',
-        margin: '10px 0 8px 0',
+        color: '#1f2937',
+        margin: '5px 0 10px 0',
     },
     threadBody: {
         fontSize: '15px',
-        color: '#4b5563',
-        lineHeight: '1.5',
-        margin: '0',
+        color: '#374151',
+        margin: 0,
+        lineHeight: '1.6',
     },
     threadActions: {
         display: 'flex',
-        justifyContent: 'space-between', // Changed to space-between to push delete button right
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginTop: '15px',
-        borderTop: '1px solid #f3f4f6',
         paddingTop: '10px',
+        borderTop: '1px solid #f3f4f6',
     },
     threadStats: {
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
+        fontSize: '14px',
         color: '#6b7280',
-        fontSize: '14px',
         fontWeight: '500',
-        transition: 'color 0.2s', 
     },
-    // NEW: Style for the Delete Thread Button
     deleteThreadButton: {
-        backgroundColor: '#ef4444', 
-        color: '#fff', 
-        border: 'none', 
-        borderRadius: '6px', 
         padding: '6px 12px',
+        borderRadius: '6px',
         cursor: 'pointer',
-        fontSize: '14px',
         fontWeight: '600',
+        fontSize: '14px',
         display: 'flex',
         alignItems: 'center',
-        gap: '4px',
+        gap: '6px',
         transition: 'background-color 0.2s',
-        opacity: 0.9,
+        border: '1px solid #fca5a5',
+        color: '#dc2626',
+        backgroundColor: '#fef2f2',
+        '&:hover': {
+            backgroundColor: '#fee2e2',
+        }
     },
+
     // Media Gallery Styles (Used in UserThread component)
     gridContainerStyle: {
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: '8px',
         marginTop: '15px',
-        maxHeight: '450px', 
+        maxHeight: '450px',
         overflow: 'hidden',
     },
     mediaContainer: {
@@ -1040,8 +1308,11 @@ const styles = {
     },
     moreMediaOverlay: {
         position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         color: '#fff',
         fontSize: '24px',
         fontWeight: '700',
@@ -1049,12 +1320,12 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'center',
     },
-    loadingResponsesText: { textAlign: 'center', padding: '10px', fontSize: '14px', color: '#9ca3af' },
-    noResponsesText: { textAlign: 'center', padding: '10px', fontSize: '14px', color: '#9ca3af' },
 
     // Styles for ThreadResponses (Restored)
     responsesContainer: {
-        marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #e5e7eb',
+        marginTop: '15px', 
+        paddingTop: '15px', 
+        borderTop: '1px dashed #e5e7eb',
     },
     responseItem: {
         backgroundColor: '#fff', 
@@ -1064,16 +1335,24 @@ const styles = {
         border: '1px solid #e5e7eb',
     },
     responseMeta: {
-        display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '4px',
+        display: 'flex', 
+        alignItems: 'flex-start', 
+        gap: '8px', 
+        marginBottom: '4px',
     },
     responseAuthorText: {
-        display: 'flex', alignItems: 'center', gap: '8px',
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px',
     },
     responseAuthorName: {
-        fontWeight: '700', color: '#1f2937', fontSize: '13px',
+        fontWeight: '700', 
+        color: '#1f2937', 
+        fontSize: '13px',
     },
     responseTime: {
-        fontSize: '11px', color: '#9ca3af',
+        fontSize: '11px', 
+        color: '#9ca3af',
     },
     responseContent: {
         margin: '0',
@@ -1082,15 +1361,41 @@ const styles = {
         paddingLeft: '36px', // Adjusted to align under name/details
     },
     responseForm: {
-        display: 'flex', gap: '8px', marginBottom: '15px',
+        display: 'flex', 
+        gap: '8px', 
+        marginBottom: '15px',
     },
     responseInput: {
-        flexGrow: 1, padding: '10px 12px', borderRadius: '20px', 
-        border: '1px solid #d1d5db', fontSize: '14px',
+        flexGrow: 1,
+        padding: '10px 15px',
+        borderRadius: '20px',
+        border: '1px solid #d1d5db',
+        fontSize: '14px',
     },
     responseSendButton: {
-        backgroundColor: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '50%', 
-        width: '40px', height: '40px', cursor: 'pointer', display: 'flex', 
-        alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s',
+        backgroundColor: '#1d4ed8',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '50%',
+        width: '40px',
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'opacity 0.2s',
+        opacity: 0.9,
+    },
+    loadingResponsesText: {
+        fontSize: '14px', 
+        color: '#6b7280', 
+        textAlign: 'center', 
+        padding: '10px 0',
+    },
+    noResponsesText: {
+        fontSize: '14px', 
+        color: '#9ca3af', 
+        textAlign: 'center', 
+        padding: '10px 0',
     }
 };

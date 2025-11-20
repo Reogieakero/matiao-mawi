@@ -435,41 +435,71 @@ app.post('/api/threads', (req, res) => {
     });
 });
 
-// ⭐ NEW ENDPOINT: DELETE /api/threads/:threadType/:threadId - Deletes a post or job
-app.delete('/api/threads/:threadType/:threadId', (req, res) => {
+// ⭐ FIXED ENDPOINT: DELETE /api/threads/:threadId - Delete a post or job (Uses transaction to delete child rows first)
+app.delete('/api/threads/:threadId', (req, res) => {
     const threadId = parseInt(req.params.threadId, 10);
-    const threadType = req.params.threadType;
-    // User ID sent in the body is required for verification/security
-    const userId = parseInt(req.body.userId, 10); 
+    const { threadType, userId } = req.body; 
 
-    if (isNaN(threadId) || !['post', 'job'].includes(threadType) || isNaN(userId)) {
-        return res.status(400).json({ message: 'Invalid Thread ID, Thread Type, or User ID.' });
+    if (isNaN(threadId) || !userId || isNaN(parseInt(userId, 10)) || !['post', 'job'].includes(threadType)) {
+        return res.status(400).json({ message: 'Invalid or missing thread ID, user ID, or thread type.' });
     }
 
     const table = threadType === 'post' ? 'posts' : 'jobs';
+    const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
 
-    // SQL to delete the thread ONLY IF the user_id matches the author
-    const SQL_DELETE_THREAD = `
-        DELETE FROM ${table} 
-        WHERE id = ? AND user_id = ?
-    `;
+    // The deletion must happen in a specific order: 
+    // 1. Responses (child) -> 2. Bookmarks (child) -> 3. Main Thread (parent)
+    const SQL_DELETE_RESPONSES = `DELETE FROM responses WHERE ${threadKey} = ?`;
+    const SQL_DELETE_BOOKMARKS = `DELETE FROM bookmarks WHERE ${threadKey} = ?`;
+    // CRITICAL: Ensure the thread belongs to the user attempting the deletion
+    const SQL_DELETE_THREAD = `DELETE FROM ${table} WHERE id = ? AND user_id = ?`;
 
-    db.query(SQL_DELETE_THREAD, [threadId, userId], (err, result) => {
+    // --- TRANSACTION START ---
+    db.beginTransaction(err => {
         if (err) {
-            console.error(`Database error deleting ${threadType} thread:`, err);
-            return res.status(500).json({ message: 'Failed to delete thread due to a database error.' });
+            console.error("Transaction Error:", err);
+            return res.status(500).json({ message: 'Failed to start database transaction.' });
         }
 
-        if (result.affectedRows === 0) {
-            // This handles two cases: threadId/userId mismatch OR the thread doesn't exist
-            return res.status(403).json({ 
-                message: 'Thread could not be deleted. It may not exist, or you are not the author.' 
+        // 1. Delete Responses
+        db.query(SQL_DELETE_RESPONSES, [threadId], (err, result) => {
+            if (err) return db.rollback(() => {
+                console.error("Database error deleting responses:", err);
+                res.status(500).json({ message: 'Failed to delete thread dependencies (responses).' });
             });
-        }
-        
-        res.status(200).json({ 
-            message: `${threadType} deleted successfully.`, 
-            deletedId: threadId 
+            
+            // 2. Delete Bookmarks
+            db.query(SQL_DELETE_BOOKMARKS, [threadId], (err, result) => {
+                 if (err) return db.rollback(() => {
+                    console.error("Database error deleting bookmarks:", err);
+                    res.status(500).json({ message: 'Failed to delete thread dependencies (bookmarks).' });
+                });
+                
+                // 3. Delete the Main Thread (Parent Row)
+                db.query(SQL_DELETE_THREAD, [threadId, userId], (err, result) => {
+                    if (err) return db.rollback(() => {
+                        console.error("Database error deleting main thread:", err);
+                        res.status(500).json({ message: 'Failed to delete main thread.' });
+                    });
+                    
+                    if (result.affectedRows === 0) {
+                        return db.rollback(() => {
+                             // This handles: threadId/userId mismatch OR the thread doesn't exist
+                            res.status(403).json({ message: 'Thread could not be deleted. It may not exist, or you are not the author.' });
+                        });
+                    }
+
+                    // 4. Commit Transaction
+                    db.commit(commitErr => {
+                        if (commitErr) return db.rollback(() => {
+                            console.error("Transaction Commit Error:", commitErr);
+                            res.status(500).json({ message: 'Failed to complete thread deletion.' });
+                        });
+
+                        res.status(200).json({ message: `${threadType} deleted successfully.`, deletedId: threadId });
+                    });
+                });
+            });
         });
     });
 });
@@ -482,21 +512,20 @@ app.post('/api/responses', (req, res) => {
     const { threadType, content } = req.body;
 
     if (!userId || isNaN(userId) || !threadId || isNaN(threadId) || !threadType || !content) {
-         return res.status(400).json({ message: 'Missing required fields for response creation.' });
+        return res.status(400).json({ message: 'Missing required fields for response creation.' });
     }
 
     const threadKey = threadType === 'post' ? 'post_id' : (threadType === 'job' ? 'job_id' : null);
-
+    
     if (!threadKey) {
         return res.status(400).json({ message: 'Invalid thread type specified.' });
     }
-    
-    const SQL_INSERT = `INSERT INTO responses (user_id, ${threadKey}, content, parent_id) VALUES (?, ?, ?, ?)`;
 
+    const SQL_INSERT = `INSERT INTO responses (user_id, ${threadKey}, content, parent_id) VALUES (?, ?, ?, ?)`;
+    
     db.query(SQL_INSERT, [userId, threadId, content, parentResponseId], (err, result) => {
         if (err) {
             console.error("Database error inserting response:", err);
-            
             let userMessage = 'Failed to submit response.';
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                 userMessage = `Error: The associated ${threadType}, User ID, or parent response ID is invalid.`;
@@ -507,47 +536,61 @@ app.post('/api/responses', (req, res) => {
     });
 });
 
-// ⭐ MODIFIED: SQL to include profile_picture_url for the response author
+// ⭐ MODIFIED: SQL to include profile_picture_url in response fetch
 app.get('/api/responses/:threadType/:threadId', (req, res) => {
-    const { threadType, threadId } = req.params;
-    const threadIdInt = parseInt(threadId, 10);
+    const threadId = parseInt(req.params.threadId, 10);
+    const threadType = req.params.threadType;
+    const threadKey = threadType === 'post' ? 'post_id' : (threadType === 'job' ? 'job_id' : null);
 
-    if (!['post', 'job'].includes(threadType) || isNaN(threadIdInt)) {
-        return res.status(400).json({ message: 'Invalid thread type or ID.' });
+    if (isNaN(threadId) || !threadKey) {
+        return res.status(400).json({ message: 'Invalid thread ID or thread type.' });
     }
 
-    const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
-
+    // Include the profile picture URL for the response author
     const SQL_FETCH_RESPONSES = `
-        SELECT r.*, u.name, up.profile_picture_url, pr_u.name AS parent_author_name -- ⭐ NEW: profile_picture_url
+        SELECT 
+            r.id, 
+            r.content, 
+            r.created_at, 
+            r.parent_id,
+            u.name, 
+            up.profile_picture_url -- ⭐ ADDED: Author's profile picture
         FROM responses r
-        JOIN users u ON r.user_id = u.id 
-        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
-        LEFT JOIN responses pr ON r.parent_id = pr.id
-        LEFT JOIN users pr_u ON pr.user_id = pr_u.id 
+        JOIN users u ON r.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN to get profile picture
         WHERE r.${threadKey} = ?
-        ORDER BY r.created_at DESC
+        ORDER BY r.created_at ASC
     `;
 
-    db.query(SQL_FETCH_RESPONSES, [threadIdInt], (err, results) => {
+    db.query(SQL_FETCH_RESPONSES, [threadId], (err, results) => {
         if (err) {
             console.error("Database error fetching responses:", err);
             return res.status(500).json({ message: 'Failed to fetch responses.' });
         }
-        // formatResponse now includes profile_picture_url
-        const responses = results.map(formatResponse); 
-        res.status(200).json(responses);
+
+        // Format and return responses
+        const formattedResponses = results.map(row => formatResponse(row));
+        res.status(200).json(formattedResponses);
     });
 });
 
-
-app.get('/api/job-category-counts', (req, res) => {
+app.get('/api/post-categories', (req, res) => {
     const SQL_FETCH_COUNTS = `
-        SELECT tag, COUNT(id) AS count
-        FROM jobs
-        GROUP BY tag
+        SELECT tag, COUNT(id) AS count FROM posts GROUP BY tag 
     `;
+    db.query(SQL_FETCH_COUNTS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching post category counts:", err);
+            return res.status(500).json({ message: 'Failed to fetch post category counts.' });
+        }
+        res.status(200).json(results);
+    });
+});
 
+app.get('/api/job-categories', (req, res) => {
+    const SQL_FETCH_COUNTS = `
+        SELECT tag, COUNT(id) AS count FROM jobs GROUP BY tag 
+    `;
     db.query(SQL_FETCH_COUNTS, (err, results) => {
         if (err) {
             console.error("Database error fetching job category counts:", err);
@@ -567,7 +610,7 @@ app.post('/api/bookmarks', (req, res) => {
     }
 
     const threadKey = threadType === 'post' ? 'post_id' : 'job_id';
-    
+
     const SQL_CHECK = `SELECT id FROM bookmarks WHERE user_id = ? AND ${threadKey} = ?`;
     
     db.query(SQL_CHECK, [userId, threadId], (err, results) => {
@@ -579,6 +622,7 @@ app.post('/api/bookmarks', (req, res) => {
         if (results.length > 0) {
             const bookmarkId = results[0].id;
             const SQL_DELETE = 'DELETE FROM bookmarks WHERE id = ?';
+            
             db.query(SQL_DELETE, [bookmarkId], (deleteErr) => {
                 if (deleteErr) {
                     console.error("Database error deleting bookmark:", deleteErr);
@@ -588,66 +632,50 @@ app.post('/api/bookmarks', (req, res) => {
             });
         } else {
             const SQL_INSERT = `INSERT INTO bookmarks (user_id, ${threadKey}) VALUES (?, ?)`;
+            
             db.query(SQL_INSERT, [userId, threadId], (insertErr) => {
                 if (insertErr) {
-                    console.error("Database error inserting bookmark:", insertErr);
-                    let userMessage = `Failed to save thread.`;
-                    if (insertErr.code === 'ER_NO_REFERENCED_ROW_2') {
-                        userMessage = `Error: The associated ${threadType} or User ID is invalid.`;
-                    }
-                    return res.status(500).json({ message: userMessage });
+                     console.error("Database error inserting bookmark:", insertErr);
+                     return res.status(500).json({ message: 'Failed to save thread.' });
                 }
-                res.status(201).json({ message: 'Thread saved successfully.', bookmarked: true });
+                res.status(200).json({ message: 'Thread saved successfully.', bookmarked: true });
             });
         }
     });
 });
 
+// ⭐ MODIFIED: SQL to include profile_picture_url in response fetch
 app.get('/api/bookmarks/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
+    }
 
     const SQL_FETCH_BOOKMARKS = `
         (
             SELECT 
-                p.id, 
-                'post' AS type, 
-                p.title, 
-                u.name, 
-                p.user_id, -- Need user_id for formatThread
-                up.profile_picture_url, -- ⭐ profile_picture_url
-                p.created_at, 
-                p.tag, 
-                p.body, 
-                p.media_url, 
+                p.id, 'post' AS type, p.title, u.name, p.user_id, up.profile_picture_url, 
+                p.created_at, p.tag, p.body, p.media_url, 
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.post_id = p.id) AS response_count
             FROM bookmarks b
             JOIN posts p ON b.post_id = p.id
             JOIN users u ON p.user_id = u.id
             LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
-            WHERE b.user_id = ? AND b.job_id IS NULL
+            WHERE b.user_id = ? AND b.job_id IS NULL 
         )
         UNION ALL
         (
             SELECT 
-                j.id, 
-                'job' AS type, 
-                j.title, 
-                u.name, 
-                j.user_id, -- Need user_id for formatThread
-                up.profile_picture_url, -- ⭐ profile_picture_url
-                j.created_at, 
-                j.tag, 
-                j.body, 
-                j.media_url, 
+                j.id, 'job' AS type, j.title, u.name, j.user_id, up.profile_picture_url, 
+                j.created_at, j.tag, j.body, j.media_url, 
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.job_id = j.id) AS response_count
             FROM bookmarks b
             JOIN jobs j ON b.job_id = j.id
             JOIN users u ON j.user_id = u.id
             LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
-            WHERE b.user_id = ? AND b.post_id IS NULL
+            WHERE b.user_id = ? AND b.post_id IS NULL 
         )
         ORDER BY bookmarked_at DESC
     `;
@@ -657,12 +685,17 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             console.error("Database error fetching bookmarks:", err);
             return res.status(500).json({ message: 'Failed to fetch saved threads.' });
         }
+
+        // Add 'isBookmarked: true' property for client consistency
+        const savedThreads = results.map(row => ({
+            ...formatThread(row, row.type),
+            isBookmarked: true,
+            bookmarked_at: row.bookmarked_at,
+        }));
         
-        const savedThreads = results.map(row => formatThread(row, row.type));
         res.status(200).json(savedThreads);
     });
 });
-
 
 app.get('/api/search', (req, res) => {
     const { q } = req.query;
@@ -671,53 +704,55 @@ app.get('/api/search', (req, res) => {
     const searchPattern = `%${q}%`;
 
     const SQL_SEARCH_POSTS = `
-        SELECT p.id, 'post' AS type, p.title, u.name, p.user_id, up.profile_picture_url, p.created_at, p.tag, p.body, p.media_url, 
-        CAST(COUNT(r.id) AS UNSIGNED) AS response_count
+        SELECT 
+            p.id, 'post' AS type, p.title, u.name, p.user_id, up.profile_picture_url, p.created_at, p.tag, p.body, p.media_url, 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM posts p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id
         LEFT JOIN responses r ON p.id = r.post_id
         WHERE p.title LIKE ? OR p.body LIKE ?
-        GROUP BY p.id
+        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name, up.profile_picture_url
     `;
+
     const SQL_SEARCH_JOBS = `
-        SELECT j.id, 'job' AS type, j.title, u.name, j.user_id, up.profile_picture_url, j.created_at, j.tag, j.body, j.media_url, 
-        CAST(COUNT(r.id) AS UNSIGNED) AS response_count
+        SELECT 
+            j.id, 'job' AS type, j.title, u.name, j.user_id, up.profile_picture_url, j.created_at, j.tag, j.body, j.media_url, 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count
         FROM jobs j
         JOIN users u ON j.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id
         LEFT JOIN responses r ON j.id = r.job_id
         WHERE j.title LIKE ? OR j.body LIKE ?
-        GROUP BY j.id
+        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url
     `;
 
-    db.query(`${SQL_SEARCH_POSTS};${SQL_SEARCH_JOBS}`, 
-        [searchPattern, searchPattern, searchPattern, searchPattern], 
-        (err, results) => {
+    db.query(`${SQL_SEARCH_POSTS};${SQL_SEARCH_JOBS}`, [searchPattern, searchPattern, searchPattern, searchPattern], (err, results) => {
         if (err) {
-            console.error("Database error fetching search results:", err);
-            return res.status(500).json({ message: 'Failed to fetch search results.' });
+            console.error("Database error searching threads:", err);
+            return res.status(500).json({ message: 'Failed to execute search.' });
         }
 
         const posts = results[0].map(row => formatThread(row, 'post'));
         const jobs = results[1].map(row => formatThread(row, 'job'));
 
-        const allResults = [...posts, ...jobs].sort((a, b) => 
-            new Date(b.time) - new Date(a.time) 
-        );
+        const allResults = [...posts, ...jobs].sort((a, b) => new Date(b.time) - new Date(a.time));
 
         res.status(200).json(allResults);
     });
 });
 
-// POST /api/profile/upload-picture/:userId - Uploads and saves picture URL
+// POST /api/profile/upload-picture/:userId
 app.post('/api/profile/upload-picture/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
-    
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID for profile picture upload.' });
+    }
+
+    // Use the dedicated profile picture uploader
     profilePicUploader(req, res, (err) => {
         if (err instanceof multer.MulterError) {
-            console.error("Multer Error:", err.message);
+            console.error("Multer Profile Picture Error:", err.message);
             return res.status(400).json({ message: `File upload failed: ${err.message}` });
         } else if (err) {
             console.error("Unknown Upload Error:", err);
@@ -729,14 +764,14 @@ app.post('/api/profile/upload-picture/:userId', (req, res) => {
         }
 
         const profilePictureUrl = `http://localhost:${PORT}/media/${req.file.filename}`;
-        
+
         // Use UPSERT to insert or update the profile picture URL
         const SQL_UPSERT_PROFILE_PIC = `
             INSERT INTO user_profiles (user_id, profile_picture_url)
             VALUES (?, ?)
             ON DUPLICATE KEY UPDATE profile_picture_url = ?;
         `;
-        
+
         db.query(SQL_UPSERT_PROFILE_PIC, [userId, profilePictureUrl, profilePictureUrl], (dbErr) => {
             if (dbErr) {
                 console.error("Database error updating profile picture:", dbErr);
@@ -759,12 +794,7 @@ app.get('/api/profile/:userId', (req, res) => {
     if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
 
     const SQL_FETCH_PROFILE = `
-        SELECT 
-            u.name, 
-            u.email, 
-            up.contact, 
-            up.address,
-            up.profile_picture_url
+        SELECT u.name, u.email, up.contact, up.address, up.profile_picture_url
         FROM users u
         LEFT JOIN user_profiles up ON u.id = up.user_id
         WHERE u.id = ?;
@@ -773,49 +803,41 @@ app.get('/api/profile/:userId', (req, res) => {
     db.query(SQL_FETCH_PROFILE, [userId], (err, results) => {
         if (err) {
             console.error("Database error fetching profile:", err);
-            return res.status(500).json({ message: 'Failed to fetch user profile.' });
+            return res.status(500).json({ message: 'Failed to fetch profile data.' });
         }
         
         if (results.length === 0) {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        const userData = results[0];
-        res.status(200).json({
-            name: userData.name,
-            email: userData.email, 
-            contact: userData.contact || '',
-            address: userData.address || '',
-            profilePictureUrl: userData.profile_picture_url || '',
-        });
+        res.status(200).json(results[0]);
     });
 });
 
-// POST /api/profile/:userId - Update user profile data
+// POST /api/profile/:userId - Update user profile details
 app.post('/api/profile/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    const { name, contact, address } = req.body;
+    const { name, contact, address } = req.body; 
 
-    if (isNaN(userId) || !name) {
-        return res.status(400).json({ message: 'Invalid User ID or missing Name.' });
-    }
+    if (isNaN(userId)) return res.status(400).json({ message: 'Invalid User ID.' });
+    if (!name) return res.status(400).json({ message: 'Name cannot be empty.' });
 
-    // 1. Update name in the 'users' table 
-    const SQL_UPDATE_USER_NAME = `UPDATE users SET name = ? WHERE id = ?`;
+    // Update name in 'users' table
+    const SQL_UPDATE_USER = 'UPDATE users SET name = ? WHERE id = ?';
 
-    db.query(SQL_UPDATE_USER_NAME, [name, userId], (err) => {
-        if (err) {
-            console.error("Database error updating user name:", err);
+    db.query(SQL_UPDATE_USER, [name, userId], (userErr) => {
+        if (userErr) {
+            console.error("Database error updating user name:", userErr);
             return res.status(500).json({ message: 'Failed to update user name.' });
         }
-        
-        // 2. Insert or Update (upsert) contact/address in 'user_profiles' table
+
+        // Use UPSERT to insert or update profile details in 'user_profiles' table
         const SQL_UPSERT_PROFILE = `
             INSERT INTO user_profiles (user_id, contact, address)
             VALUES (?, ?, ?)
             ON DUPLICATE KEY UPDATE contact = ?, address = ?;
         `;
-        
+
         db.query(SQL_UPSERT_PROFILE, [userId, contact, address, contact, address], (err) => {
             if (err) {
                 console.error("Database error upserting profile data:", err);
@@ -830,7 +852,7 @@ app.post('/api/profile/:userId', (req, res) => {
 // ⭐ FIXED: POST /api/document-application - Save application transaction (Added requirements_media_url to SQL)
 app.post('/api/document-application', (req, res) => {
     // requirementsMediaUrl is included in the body and will be passed to the database
-    const { userId, documentName, purpose, fee, requirementsMediaUrl } = req.body; 
+    const { userId, documentName, purpose, fee, requirementsMediaUrl } = req.body;
     const status = 'Pending'; 
 
     if (!userId || !documentName || !purpose || fee === undefined || fee === null) {
@@ -848,72 +870,35 @@ app.post('/api/document-application', (req, res) => {
         if (err) {
             console.error("Database error inserting document application:", err);
             let userMessage = 'Failed to submit document application and record transaction.';
+            
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                 userMessage = 'Error: The user ID is invalid or does not exist.';
-            } else if (err.code === 'ER_DATA_TOO_LONG') { 
+            } else if (err.code === 'ER_DATA_TOO_LONG') {
                 userMessage = 'Error: Submitted requirements data is too large. Please limit the number of files, or contact support.';
-            } else if (err.code === 'ER_BAD_FIELD_ERROR') {
-                userMessage = 'Error: Database schema mismatch. Please run the ALTER TABLE command in your MySQL client.';
+            } else if (err.code === 'ER_DUP_ENTRY') {
+                userMessage = 'Error: A duplicate transaction may already exist. Please check your history.';
             }
+
             return res.status(500).json({ message: userMessage });
         }
         
         res.status(201).json({ 
-            message: 'Document application submitted and transaction recorded successfully!', 
-            transactionId: result.insertId,
-            status: status
+            message: 'Document application submitted successfully!', 
+            transactionId: result.insertId 
         });
     });
 });
 
-// ⭐ NEW ENDPOINT: DELETE /api/document-applications/:transactionId - Permanently deletes a cancelled transaction
-app.delete('/api/document-applications/:transactionId', (req, res) => {
-    const transactionId = parseInt(req.params.transactionId, 10);
-    // User ID is sent in the body for verification/security
-    const userId = parseInt(req.body.userId, 10); 
-
-    if (isNaN(transactionId) || isNaN(userId)) {
-        return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
-    }
-
-    // Only allow deletion if the current status is 'Cancelled' AND the user_id matches
-    const SQL_DELETE_APPLICATION = `
-        DELETE FROM document_transactions 
-        WHERE id = ? AND user_id = ? AND status = 'Cancelled'
-    `;
-
-    db.query(SQL_DELETE_APPLICATION, [transactionId, userId], (err, result) => {
-        if (err) {
-            console.error("Database error deleting application:", err);
-            return res.status(500).json({ message: 'Failed to delete document application due to a database error.' });
-        }
-        
-        if (result.affectedRows === 0) {
-            // This handles three cases: transactionId/userId mismatch OR status is not 'Cancelled'
-            return res.status(400).json({ 
-                message: 'Application could not be deleted. It may not be in a "Cancelled" status, or the transaction ID/User ID is incorrect.' 
-            });
-        }
-        
-        res.status(200).json({ 
-            message: 'Document application permanently deleted successfully!', 
-            deletedId: transactionId 
-        });
-    });
-});
-
-
-// ⭐ NEW ENDPOINT: POST /api/document-applications/cancel/:transactionId
+// POST /api/document-applications/cancel/:transactionId - Cancel a document application
 app.post('/api/document-applications/cancel/:transactionId', (req, res) => {
     const transactionId = parseInt(req.params.transactionId, 10);
-    // User ID is sent in the body for verification/security
     const userId = parseInt(req.body.userId, 10); 
 
     if (isNaN(transactionId) || isNaN(userId)) {
         return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
     }
 
-    // Only allow cancellation if the current status is 'Pending' AND the user_id matches
+    // Update status to 'Cancelled' only if the current status is 'Pending' AND the user_id matches
     const SQL_CANCEL_APPLICATION = `
         UPDATE document_transactions 
         SET status = 'Cancelled' 
@@ -922,10 +907,10 @@ app.post('/api/document-applications/cancel/:transactionId', (req, res) => {
 
     db.query(SQL_CANCEL_APPLICATION, [transactionId, userId], (err, result) => {
         if (err) {
-            console.error("Database error canceling application:", err);
+            console.error("Database error cancelling application:", err);
             return res.status(500).json({ message: 'Failed to cancel document application due to a database error.' });
         }
-        
+
         if (result.affectedRows === 0) {
             // This handles two cases: transactionId/userId mismatch OR status is not 'Pending'
             return res.status(400).json({ 
@@ -968,8 +953,45 @@ app.get('/api/document-applications/:userId', (req, res) => {
             console.error("Database error fetching document transactions:", err);
             return res.status(500).json({ message: 'Failed to fetch document transaction history.' });
         }
-        
-        res.status(200).json(results);
+
+        // Parse requirements_media_url from JSON string back to array of URLs
+        const transactions = results.map(transaction => ({
+            ...transaction,
+            requirementsMediaUrls: transaction.requirements_media_url ? JSON.parse(transaction.requirements_media_url) : [],
+        }));
+
+        res.status(200).json(transactions);
+    });
+});
+
+
+// ⭐ NEW ENDPOINT: DELETE /api/document-applications/delete-permanent/:transactionId - Permanently delete a cancelled application
+app.delete('/api/document-applications/delete-permanent/:transactionId', (req, res) => {
+    const transactionId = parseInt(req.params.transactionId, 10);
+    const userId = parseInt(req.body.userId, 10); // Expect userId in the body for security
+
+    if (isNaN(transactionId) || isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
+    }
+
+    // Permanently delete the record only if the status is 'Cancelled' AND the user_id matches
+    const SQL_DELETE_APPLICATION = `
+        DELETE FROM document_transactions 
+        WHERE id = ? AND user_id = ? AND status = 'Cancelled'
+    `;
+
+    db.query(SQL_DELETE_APPLICATION, [transactionId, userId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting application:", err);
+            return res.status(500).json({ message: 'Failed to delete document application due to a database error.' });
+        }
+
+        if (result.affectedRows === 0) {
+            // This handles three cases: transactionId/userId mismatch OR status is not 'Cancelled'
+            return res.status(400).json({ message: 'Application could not be deleted. It may not be in a "Cancelled" status, or the transaction ID/User ID is incorrect.' });
+        }
+
+        res.status(200).json({ message: 'Document application permanently deleted successfully!', deletedId: transactionId });
     });
 });
 
