@@ -101,7 +101,6 @@ const db = mysql.createConnection({
     multipleStatements: true 
 });
 
-// ⭐ BEGIN FIX: HARDENING THE DATABASE SCHEMA CHECK
 db.connect(err => {
     if (err) {
         console.error('--- MYSQL CONNECTION FAILED ---');
@@ -110,7 +109,7 @@ db.connect(err => {
     }
     console.log('Connected to MySQL as id ' + db.threadId);
     
-    // 1. CREATE TABLE IF NOT EXISTS with all columns (Ideal state)
+    // ⭐ Step 1: CREATE TABLE IF NOT EXISTS (This ensures the table exists with the column if it's new)
     const SQL_CREATE_REPORTS_TABLE = `
         CREATE TABLE IF NOT EXISTS reports (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -135,42 +134,44 @@ db.connect(err => {
         if (createErr) {
             console.error('--- FAILED TO CREATE REPORTS TABLE ---', createErr);
         } else {
-            console.log('Checked/Created reports table with necessary columns.');
-            
-            // 2. CHECK AND ADD 'target_type' (Fixes the immediate error)
-            db.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'reports' AND COLUMN_NAME = 'target_type' AND TABLE_SCHEMA = DATABASE()`, (checkErr, results) => {
-                if (checkErr) {
-                     console.error('--- FAILED TO CHECK target_type COLUMN EXISTENCE ---', checkErr);
-                     return;
-                }
-                if (results.length === 0) {
-                    console.log("target_type column missing. Adding it now...");
-                    db.query("ALTER TABLE reports ADD COLUMN target_type VARCHAR(50) NOT NULL AFTER user_id", (alterErr) => {
-                        if (alterErr) console.error('--- FAILED TO ADD target_type COLUMN ---', alterErr);
-                        else console.log('Successfully added target_type column.');
-                    });
-                }
-            });
+            console.log('Checked/Created reports table with issue_related column.');
+        }
+    });
 
-            // 3. CHECK AND ADD 'issue_related' (Ensures the prior fix remains)
-            db.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'reports' AND COLUMN_NAME = 'issue_related' AND TABLE_SCHEMA = DATABASE()`, (checkErr, results) => {
-                if (checkErr) {
-                     console.error('--- FAILED TO CHECK issue_related COLUMN EXISTENCE ---', checkErr);
-                     return;
-                }
-                if (results.length === 0) {
-                    console.log("issue_related column missing. Adding it now...");
-                    db.query("ALTER TABLE reports ADD COLUMN issue_related VARCHAR(255) NOT NULL AFTER reason", (alterErr) => {
-                        if (alterErr) console.error('--- FAILED TO ADD issue_related COLUMN ---', alterErr);
-                        else console.log('Successfully added issue_related column.');
-                    });
+    // ⭐ Step 2: ALTER TABLE check (This handles existing tables that are missing the column)
+    const SQL_CHECK_COLUMN = `
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'reports' AND COLUMN_NAME = 'issue_related'
+        AND TABLE_SCHEMA = DATABASE();
+    `;
+    
+    db.query(SQL_CHECK_COLUMN, (checkErr, results) => {
+        if (checkErr) {
+            console.error('--- FAILED TO CHECK COLUMN EXISTENCE ---', checkErr);
+            return;
+        }
+
+        if (results.length === 0) {
+            console.log('issue_related column missing. Adding it now...');
+            const SQL_ALTER_REPORTS_TABLE = `
+                ALTER TABLE reports
+                ADD COLUMN issue_related VARCHAR(255) NOT NULL AFTER reason;
+            `;
+
+            db.query(SQL_ALTER_REPORTS_TABLE, (alterErr) => {
+                if (alterErr) {
+                    console.error('--- FAILED TO ALTER REPORTS TABLE ---', alterErr);
+                } else {
+                    console.log('Successfully added issue_related column to reports table.');
                 }
             });
         }
     });
 });
-// ⭐ END FIX
 
+
+// Modified to include author_id and author_picture_url
 const formatThread = (row, type) => {
     let mediaUrls = [];
     if (row.media_url) {
@@ -432,7 +433,7 @@ app.get('/api/user-threads/:userId', (req, res) => {
     });
 });
 
-// NEW ENDPOINT: DELETE /api/user-threads/:userId - Delete ALL posts and jobs by a user
+// ⭐ NEW ENDPOINT: DELETE /api/user-threads/:userId - Delete ALL posts and jobs by a user
 app.delete('/api/user-threads/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     // Use userId from body for an additional security check, matching the frontend logic
@@ -498,7 +499,7 @@ app.delete('/api/user-threads/:userId', (req, res) => {
         });
     });
 }); 
-// END NEW ENDPOINT
+// ⭐ END NEW ENDPOINT
 
 // Modified SQL: Join user_profiles to get the profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
@@ -1107,7 +1108,7 @@ app.delete('/api/document-application/delete', (req, res) => {
     });
 });
 
-// MODIFIED/FIXED ENDPOINT: POST /api/report - Submit a report for a post, job, or response
+// ⭐ MODIFIED/FIXED ENDPOINT: POST /api/report - Submit a report for a post, job, or response
 app.post('/api/report', (req, res) => {
     const userId = parseInt(req.body.userId, 10);
     const { targetId, targetType, reason, issueRelated } = req.body; // issueRelated comes from the frontend category
@@ -1129,11 +1130,10 @@ app.post('/api/report', (req, res) => {
         return res.status(400).json({ message: 'Invalid target type specified. Must be post, job, or response.' });
     }
     
-    // Log the operation for debugging the column issue
+    // ⭐ NEW: Log the operation for debugging the column issue
     console.log(`Report attempt: User=${userId}, TargetType=${targetType}, TargetKey=${targetKey}, TargetId=${targetId}, Issue=${issueRelated}`); 
 
     // SQL to insert into the 'reports' table, including the required 'issue_related' column
-    // The previous error showed 'target_type' was missing, but the DB check should fix it now.
     const SQL_INSERT_REPORT = `
         INSERT INTO reports (user_id, ${targetKey}, target_type, reason, issue_related)
         VALUES (?, ?, ?, ?, ?)
@@ -1148,8 +1148,8 @@ app.post('/api/report', (req, res) => {
             if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
                 userMessage = 'Error: The User ID or the reported content ID is invalid (content may have been deleted).';
             } else if (err.code === 'ER_BAD_FIELD_ERROR') {
-                 // The database schema fix should prevent this, but we keep the robust error handling
-                 userMessage = 'Database Schema Error: Required column is missing. Please restart the server to ensure database schema migration runs.';
+                 // This catches the original issue if a column was misspelled
+                 userMessage = 'Database Error: The "reports" table may be missing the required columns (e.g., issue_related, target_type).';
             }
             return res.status(500).json({ message: userMessage });
         }
@@ -1160,7 +1160,7 @@ app.post('/api/report', (req, res) => {
         });
     });
 });
-// END MODIFIED ENDPOINT
+// ⭐ END MODIFIED ENDPOINT
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
