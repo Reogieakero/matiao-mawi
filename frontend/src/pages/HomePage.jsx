@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// MODIFIED: Added FiFlag for the report icon
 import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip, FiFlag } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
@@ -22,8 +21,16 @@ const getTimeSince = (date) => {
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
+// ⭐ NEW: Categories for reporting issues
+const reportCategories = [
+    "Spam or Misleading", 
+    "Hate Speech or Harassment", 
+    "Inappropriate Content", 
+    "Self-harm or Suicide", 
+    "Intellectual Property",
+    "Other"
+];
 
-// ⭐ MODIFIED 1: Accept setRefetchTrigger prop from App.jsx
 export default function HomePage({ userName, userEmail, profilePictureUrl, setRefetchTrigger }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
@@ -49,13 +56,22 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
+    // ⭐ MODIFIED STATES FOR REPORTING MODAL
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [threadToReportId, setThreadToReportId] = useState(null);
+    const [threadToReportType, setThreadToReportType] = useState(null);
+    const [reportReason, setReportReason] = useState('');
+    const [reportCategory, setReportCategory] = useState(reportCategories[0]); 
+    // ⭐ NEW STATE FOR CONFIRMATION MESSAGE
+    const [reportMessage, setReportMessage] = useState(null); 
+    // ---------------------------------
+    
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
     // Use the user ID from localStorage
     const userId = parseInt(localStorage.getItem('userId'), 10); 
 
-    // NEW HELPER: Function to render avatar based on URL presence
     const renderAvatar = (url, initial, size = 'small') => {
         let style;
         switch (size) {
@@ -88,7 +104,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         );
     };
 
-    // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
         let allThreads = [];
         try {
@@ -104,10 +119,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         const mapThreadMedia = (thread) => ({
             ...thread,
             isBookmarked: thread.isBookmarked || false,
-            // Use mediaUrls from server and ensure it is an array
             mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
-            // ⭐ FIX: If the thread belongs to the current user (based on userId check), 
-            // and the thread is missing a picture URL (e.g., old data), use the current user's local URL.
             author_picture_url: 
                 (thread.author_id === userId && !thread.author_picture_url && profilePictureUrl)
                     ? profilePictureUrl
@@ -121,7 +133,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 const bookmarks = await bookmarkRes.json();
                 
                 const bookmarkMap = bookmarks.reduce((acc, thread) => {
-                    // Note: thread object from bookmarks only contains id and type in this API structure
                     acc[`${thread.type}-${thread.id}`] = true;
                     return acc;
                 }, {});
@@ -143,17 +154,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsLoading(false);
     };
 
-    // Fetch threads on component mount
-    // ⭐ FIX: Added profilePictureUrl to dependencies
     useEffect(() => {
         fetchThreads();
     }, [userId, profilePictureUrl]); 
 
-    // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
         if (!userId) return alert('You must be logged in to save a thread.');
         
-        // Optimistic UI Update
         setThreads(prevThreads => prevThreads.map(t => 
             t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
         ));
@@ -186,7 +193,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
-    // Function to fetch responses for a specific thread
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -200,7 +206,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             if (!res.ok) throw new Error("Failed to fetch responses");
             const data = await res.json();
             
-            // Note: Data is ordered DESC by created_at in server, reversing here for chronological display
             setResponses(prevResponses => ({
                 ...prevResponses,
                 [threadId]: data.reverse()
@@ -212,7 +217,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
-    // Function to toggle response view
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -222,7 +226,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // Handle category change when postType changes
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
@@ -230,7 +233,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     };
 
 
-    // MODIFIED: handlePostSubmit to include single-file upload logic and job count update
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -281,8 +283,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             type: postType,
             title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
             author: userName || 'User',
-            author_id: userId, // ⭐ Added for optimistic and fallback logic
-            author_picture_url: profilePictureUrl, // ⭐ Added for optimistic display
+            author_id: userId,
+            author_picture_url: profilePictureUrl,
             time: new Date(),
             tag: postCategory,
             body: postContent,
@@ -314,18 +316,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 const updatedThreads = prevThreads.filter(t => t.id !== tempId);
                 
                 if (res.ok && data.thread) {
-                    if (postType === 'job') {
-                        // ⭐ MODIFIED 2: Use setRefetchTrigger prop to trigger Sidebar update
-                        if (setRefetchTrigger) {
-                            setRefetchTrigger(prev => prev + 1);
-                        }
+                    if (postType === 'job' && setRefetchTrigger) {
+                        setRefetchTrigger(prev => prev + 1);
                     }
                     
                     const newThreadWithUrls = {
                         ...data.thread, 
-                        // Ensure mediaUrls is an array
                         mediaUrls: data.thread.mediaUrls || (data.thread.mediaUrl ? [data.thread.mediaUrl] : []),
-                        // NOTE: author_picture_url is now correctly included by the server fix
                     };
                     return [newThreadWithUrls, ...updatedThreads];
                 } else {
@@ -347,7 +344,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setSelectedFile(null); 
     };
     
-    // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -368,7 +364,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -418,7 +413,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setParentResponseContent(null); 
     };
     
-    // handlePostKeyDown
     const handlePostKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -426,7 +420,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // handleResponseKeyDown
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -434,130 +427,151 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // NEW FUNCTION: Handle reporting a thread
+    // ⭐ MODIFIED: Opens the report modal
     const handleReportThread = (threadId, threadType) => {
         if (!userId) {
             return alert('You must be logged in to report a thread.');
         }
-        
-        // --- Placeholder for API call ---
-        // In a real application, you would send a request to the server here:
-        /*
-        fetch('http://localhost:5000/api/report-thread', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, threadId, threadType })
-        }).then(res => {
-            if (res.ok) {
-                alert(`Thread ${threadId} (${threadType}) has been reported. Thank you.`);
-            } else {
-                alert('Failed to report thread.');
-            }
-        }).catch(err => console.error("Report network error:", err));
-        */
-
-        // Placeholder confirmation
-        alert(`Thread ${threadId} (${threadType}) has been reported! Thank you for helping keep the community safe.`);
+        setThreadToReportId(threadId);
+        setThreadToReportType(threadType);
+        setReportCategory(reportCategories[0]); 
+        setReportReason(''); 
+        setIsReportModalOpen(true);
     };
 
-    // MODIFIED: renderResponses to use renderAvatar
-    const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
-        const children = threadResponses.filter(r => 
-            (parentId === null && r.parent_id === null) || 
-            (parentId !== null && r.parent_id === parentId)
-        );
+    // ⭐ REPLACED/FIXED: Function to handle the actual submission of the report (no more alert)
+    const handleReportSubmit = async () => {
+        // Validation check, shows custom error message
+        if (!reportCategory || (reportCategory === 'Other' && !reportReason.trim())) {
+            setReportMessage({ 
+                type: 'error', 
+                text: 'Please select a report category. If selecting "Other", provide a description.' 
+            });
+            setTimeout(() => setReportMessage(null), 5000); 
+            return;
+        }
 
+        const threadId = threadToReportId;
+        const threadType = threadToReportType;
+
+        // issueRelated maps to the selected category (for database column)
+        const issueRelated = reportCategory; 
+        
+        // reason column combines category and free-text for context
+        const reason = reportReason.trim() 
+            ? `${reportCategory}: ${reportReason.trim()}` 
+            : reportCategory; 
+
+        // Optimistically close the modal
+        setIsReportModalOpen(false);
+
+        const reportPayload = {
+            userId: userId,
+            targetId: threadId,
+            targetType: threadType, 
+            reason: reason,
+            issueRelated: issueRelated, // Maps to the issue_related column
+        };
+
+        try {
+            const res = await fetch('http://localhost:5000/api/report', { // ⭐ CORRECTED ENDPOINT
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reportPayload)
+            });
+
+            const data = await res.json();
+            
+            if (res.ok) {
+                // ⭐ CONFIRMATION MESSAGE INSTEAD OF ALERT
+                setReportMessage({ type: 'success', text: data.message });
+            } else {
+                // ⭐ ERROR MESSAGE INSTEAD OF ALERT
+                setReportMessage({ type: 'error', text: data.message || 'Failed to submit report. Please check the content ID.' });
+            }
+        } catch (err) {
+            console.error("Report network error:", err);
+            // ⭐ ERROR MESSAGE INSTEAD OF ALERT
+            setReportMessage({ type: 'error', text: 'Network error. Could not connect to the server.' });
+        } finally {
+            // Automatically clear the message after 5 seconds
+            setTimeout(() => setReportMessage(null), 5000); 
+
+            // Cleanup state
+            setThreadToReportId(null);
+            setThreadToReportType(null);
+            setReportReason('');
+            setReportCategory(reportCategories[0]);
+        }
+    };
+    // ⭐ END REPLACED FUNCTION
+
+    const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
+        const children = threadResponses.filter(r => (parentId === null && r.parent_id === null) || (parentId !== null && r.parent_id === parentId) );
+        
         return children.map(response => (
-            <div key={response.id} style={{
-                ...styles.responseItem,
-                marginLeft: response.parent_id ? '30px' : '0', 
-            }}>
+            <div key={response.id} style={{ ...styles.responseItem, marginLeft: response.parent_id ? '30px' : '0', }}>
                 <div style={styles.responseMeta}>
-                    {/* MODIFIED: Use renderAvatar for response author */}
                     {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
+                    <span style={styles.responseTimeSmall}>
+                        {getTimeSince(response.time)}
+                    </span>
                 </div>
-                
                 <p style={styles.responseContent}>
                     {response.parent_author && (
                         <span style={styles.replyToText}>@{response.parent_author} </span>
                     )}
                     {response.content}
                 </p>
-                
                 <div style={styles.responseActionLine}>
                     <div 
-                        style={styles.responseReplyButton}
+                        style={styles.responseReplyButton} 
                         onClick={() => handleReplyClick(threadId, threadType, response.id, response.author, response.content)}
                     >
                         Reply
                     </div>
-                    <span style={styles.responseTimeSmall}>
-                        {getTimeSince(response.time)}
-                    </span>
                 </div>
-
-                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
     };
 
-    // NEW HELPER: Function to render the media gallery with specific 1-on-2 layout
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
 
-        // Common style for images in the gallery
-        const imageStyle = {
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-        };
-
-        const imageElement = (url) => (
-            <div 
-                key={url}
-                style={{ 
-                    position: 'relative', 
-                    width: '100%', 
-                    height: '100%', 
-                    overflow: 'hidden',
-                    borderRadius: '10px'
-                }}
-            >
-                <img src={url} alt="Post media" style={imageStyle} />
+        return (
+            <div style={styles.mediaGallery}>
+                {mediaUrls.map((url, index) => {
+                    const ext = url.split('.').pop().toLowerCase();
+                    if (['jpg', 'jpeg', 'png', 'gif', 'svg'].includes(ext)) {
+                        return <img key={index} src={url} alt={`Media ${index}`} style={styles.mediaItem} />;
+                    } else if (ext === 'pdf') {
+                        // Display a PDF icon with a link
+                        return (
+                            <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={styles.pdfLink}>
+                                <FiPaperclip size={24} color="#dc2626" />
+                                <span style={{ marginLeft: '5px' }}>View Document ({`File ${index + 1}`})</span>
+                            </a>
+                        );
+                    }
+                    return null;
+                })}
             </div>
         );
-
-        // Only handles 1 photo now
-        if (mediaUrls.length >= 1) {
-            return (
-                <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
-                    {imageElement(mediaUrls[0])}
-                </div>
-            );
-        }
-
-        return null;
     };
-    
+
+
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
-                    {/* MODIFIED: Facebook-like Create Post Bar to use renderAvatar */}
+                    {/* Create Post Bar */}
                     <div style={styles.createPostBar} onClick={() => setIsModalOpen(true)}>
-                        {renderAvatar(profilePictureUrl, firstName, 'large')}
-                        <input 
-                            type="text" 
-                            placeholder={`What's on your mind, ${firstName}?`}
-                            style={styles.postInput}
-                            readOnly
-                        />
+                        {renderAvatar(profilePictureUrl, userName, 'small')}
+                        <input type="text" placeholder={`What's on your mind, ${firstName}?`} style={styles.postInput} readOnly />
                         <FiPaperclip size={20} color="#3b82f6" style={{ cursor: 'pointer' }} />
                     </div>
 
@@ -571,52 +585,44 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             <div key={thread.id} style={styles.threadPost}>
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
-                                        {/* MODIFIED: Use renderAvatar for author */}
                                         {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                         <span style={styles.threadAuthorName}>{thread.author}</span>
-                                        <span style={styles.threadTime}>
-                                            {getTimeSince(thread.time)}
-                                        </span>
+                                        <span style={styles.threadTime}> {getTimeSince(thread.time)} </span>
                                     </div>
-                                    {/* NEW: Right side actions (Tag and Report Icon) */}
                                     <div style={styles.threadRightActions}>
                                         <span style={styles.threadTagModified}>{thread.tag}</span>
-                                        {/* CONDITION: Only show report icon if the user is NOT the author */}
                                         {thread.author_id !== userId && (
                                             <div 
-                                                style={styles.reportIcon}
-                                                onClick={() => handleReportThread(thread.id, thread.type)}
+                                                style={styles.reportIcon} 
+                                                // ⭐ Call the new handler
+                                                onClick={() => handleReportThread(thread.id, thread.type)} 
                                                 title="Report Thread"
                                             >
                                                 <FiFlag size={18} />
                                             </div>
                                         )}
                                     </div>
-                                    {/* END NEW */}
                                 </div>
-
                                 <h3 style={styles.threadTitle}>{thread.title}</h3>
                                 <p style={styles.threadBodyModified}>
                                     {thread.body}
                                 </p>
-                                
-                                {/* MODIFIED: Media Display */}
                                 {renderMediaGallery(thread.mediaUrls)}
-
                                 <div style={styles.threadFooter}>
                                     <div style={styles.threadActions}>
                                         <div 
                                             style={{ 
                                                 ...styles.threadActionButton, 
-                                                color: thread.isBookmarked ? '#3b82f6' : '#555',
+                                                color: thread.isBookmarked ? '#3b82f6' : '#555', 
                                                 fontWeight: thread.isBookmarked ? '600' : '500',
                                             }}
                                             onClick={() => handleBookmark(thread.id, thread.type, thread.isBookmarked)}
                                         >
-                                            <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
+                                            <FiBookmark size={18} /> 
+                                            {thread.isBookmarked ? 'Saved' : 'Bookmark'}
                                         </div>
                                         <div 
-                                            style={styles.threadActionButton}
+                                            style={styles.threadActionButton} 
                                             onClick={() => handleReplyClick(thread.id, thread.type)}
                                         >
                                             <FiMessageSquare size={18} /> Add Response
@@ -627,20 +633,18 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                         onClick={() => toggleResponses(thread.id, thread.type)}
                                     >
                                         {thread.responseCount ?? 0} {thread.responseCount === 1 ? 'Response' : 'Responses'}
-                                        {expandedThreadId === thread.id ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
+                                        {expandedThreadId === thread.id ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
                                     </div>
                                 </div>
 
+                                {/* Responses Area */}
                                 {expandedThreadId === thread.id && (
                                     <div style={styles.responsesContainer}>
-                                        {isFetchingResponses && expandedThreadId === thread.id ? (
-                                            <p style={styles.loadingResponsesText}>Loading responses...</p>
+                                        {isFetchingResponses && <p style={{ textAlign: 'center', color: '#6b7280' }}>Loading responses...</p>}
+                                        {responses[thread.id] && responses[thread.id].length > 0 ? (
+                                            renderResponses(responses[thread.id], thread.id, thread.type)
                                         ) : (
-                                            (responses[thread.id] && responses[thread.id].length > 0) ? (
-                                                renderResponses(responses[thread.id], thread.id, thread.type, null)
-                                            ) : (
-                                                <p style={styles.noResponsesText}>No responses yet. Be the first!</p>
-                                            )
+                                            !isFetchingResponses && <p style={{ fontSize: '14px', color: '#9ca3af', padding: '10px 0' }}>No responses yet.</p>
                                         )}
                                     </div>
                                 )}
@@ -648,70 +652,57 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                         ))
                     )}
                 </div>
-
-                {/* Right Panel */}
-                <RightPanel 
-                    userName={userName} 
-                    userEmail={userEmail} 
-                    profilePictureUrl={profilePictureUrl} 
-                />
+                <RightPanel />
             </div>
 
-            {/* Post Modal */}
+            {/* Post/Job Creation Modal (Unchanged) */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}>Create New {postType === 'job' ? 'Job Post' : 'Community Post'}</h3>
+                            <h3 style={{ color: '#1e40af' }}> Create New {postType === 'job' ? 'Job Post' : 'Community Post'} </h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsModalOpen(false)} />
                         </div>
-                        
-                        <div style={styles.toggleContainer}>
+                        <div style={styles.modalUserSection}>
+                            {renderAvatar(profilePictureUrl, userName, 'small')}
+                            <span style={styles.modalUserName}>{userName}</span>
+                        </div>
+
+                        <div style={styles.categoryContainer}>
                             <button 
-                                style={{ ...styles.toggleButton, ...(postType === 'post' ? styles.toggleButtonActive : {}) }}
+                                style={postType === 'post' ? styles.toggleButtonActive : styles.toggleButton}
                                 onClick={() => handlePostTypeChange('post')}
                             >
-                                Community Post
+                                Post
                             </button>
                             <button 
-                                style={{ ...styles.toggleButton, ...(postType === 'job' ? styles.toggleButtonActive : {}) }}
+                                style={postType === 'job' ? styles.toggleButtonActive : styles.toggleButton}
                                 onClick={() => handlePostTypeChange('job')}
                             >
-                                Job Post
+                                Job
                             </button>
                         </div>
 
-                        {/* User Section (Modal) */}
-                        <div style={styles.modalUserSection}>
-                            {renderAvatar(profilePictureUrl, firstName, 'large')}
-                            <span style={styles.modalUserName}>{userName}</span>
-                        </div>
-                        
-                        {/* Category Selector */}
+                        <label style={styles.reportLabel}>Category</label>
                         <div style={styles.categoryContainer}>
                             {currentCategories.map(cat => (
-                                <button 
+                                <button
                                     key={cat}
-                                    style={{ 
-                                        ...styles.categoryButton, 
-                                        ...(postCategory === cat ? styles.categoryButtonActive : {}) 
-                                    }}
+                                    style={cat === postCategory ? styles.categoryButtonActive : styles.categoryButton}
                                     onClick={() => setPostCategory(cat)}
                                 >
                                     {cat}
                                 </button>
                             ))}
                         </div>
-
+                        
                         <textarea 
-                            placeholder={`Write your ${postType === 'job' ? 'job post title and details' : 'community post content'} here...`} 
+                            placeholder={`Write your ${postType === 'job' ? 'job post title and details' : 'community post content'} here...`}
                             value={postContent}
                             onChange={e => setPostContent(e.target.value)}
                             onKeyDown={handlePostKeyDown}
                             style={styles.modalTextarea}
                         />
-
-                        {/* MODIFIED: File Input Section */}
                         <div style={styles.fileInputSection}>
                             <label htmlFor="media-upload" style={styles.fileInputLabel}>
                                 <FiPaperclip size={20} /> Attach Media ({postType === 'job' ? 'PDF/Image (optional)' : 'Image (optional)'})
@@ -719,20 +710,17 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             <input 
                                 type="file" 
                                 id="media-upload" 
-                                style={{ display: 'none' }}
+                                style={{ display: 'none' }} 
                                 accept={postType === 'job' ? ".pdf,image/*" : "image/*"}
                                 onChange={(e) => setSelectedFile(e.target.files[0])}
                             />
                         </div>
-
                         {selectedFile && (
                             <div style={styles.selectedFileBox}>
                                 <span>File Selected: {selectedFile.name}</span>
                                 <FiX size={20} style={{ cursor: 'pointer', color: '#dc2626' }} onClick={() => setSelectedFile(null)} />
                             </div>
                         )}
-                        {/* END MODIFIED: File Input Section */}
-                        
                         <button 
                             onClick={handlePostSubmit} 
                             style={styles.modalPostButton}
@@ -744,530 +732,193 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 </div>
             )}
 
-            {/* Response Modal */}
+            {/* Response Modal (Unchanged) */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <div style={styles.modalHeader}>
-                            <h3 style={{ color: '#1e40af' }}> 
-                                Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'} 
-                            </h3>
+                            <h3 style={{ color: '#1e40af' }}> Reply to {threadTypeToReply === 'job' ? 'Job Post' : 'Community Post'} </h3>
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={() => setIsResponseModalOpen(false)} />
                         </div>
-
                         <div style={styles.replyContextBox}>
                             {parentResponseId ? (
                                 <>
-                                    <p style={styles.replyingToText}>
-                                        Replying to @{parentResponseAuthor}'s comment:
-                                    </p>
+                                    <p style={styles.replyingToText}> Replying to @{parentResponseAuthor}'s comment: </p>
                                     <p style={styles.replyContentSnippet}>
-                                        {parentResponseContent.substring(0, 150)} {parentResponseContent.length > 150 ? '...' : ''}
+                                        {parentResponseContent}
                                     </p>
                                 </>
                             ) : (
                                 <>
-                                    <p style={styles.replyingToText}>
-                                        Replying to the main {threadTypeToReply} topic:
-                                    </p>
+                                    <p style={styles.replyingToText}> Replying to post: </p>
                                     <p style={styles.threadSnippet}>
-                                        {threadToReplyDetails.body.substring(0, 150)} {threadToReplyDetails.body.length > 150 ? '...' : ''}
+                                        {threadToReplyDetails.title || threadToReplyDetails.body}
                                     </p>
                                 </>
                             )}
                         </div>
-
-                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
-                        <div style={styles.modalUserSection}>
-                            {renderAvatar(profilePictureUrl, firstName, 'large')}
-                            <span style={styles.modalUserName}>{userName}</span>
-                        </div>
-                        
                         <textarea 
-                            placeholder={parentResponseId ? `Replying to @${parentResponseAuthor}...` : `Reply to the ${threadTypeToReply} here...`}
+                            placeholder="Write your response here..."
                             value={responseContent}
                             onChange={e => setResponseContent(e.target.value)}
                             onKeyDown={handleResponseKeyDown}
-                            style={styles.modalTextarea} 
+                            style={styles.modalTextarea}
                         />
-                        
                         <button onClick={handleResponseSubmit} style={styles.modalPostButton}>
                             <FiMessageSquare color="#fff" /> Submit Response
                         </button>
                     </div>
                 </div>
             )}
+
+            {/* Report Modal */}
+            {isReportModalOpen && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalContent}>
+                        <div style={styles.modalHeader}>
+                            <h3 style={{ color: '#dc2626' }}> Report {threadToReportType === 'job' ? 'Job Post' : 'Community Post'} </h3>
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#991b1b' }} onClick={() => setIsReportModalOpen(false)} />
+                        </div>
+                        <div style={styles.modalUserSection}>
+                            {renderAvatar(profilePictureUrl, userName, 'small')}
+                            <span style={styles.modalUserName}>{userName}</span>
+                        </div>
+                        
+                        <label style={styles.reportLabel}>Select Issue Type*</label>
+                        <div style={styles.categoryContainer}>
+                            {reportCategories.map(cat => (
+                                <button
+                                    key={cat}
+                                    style={cat === reportCategory ? styles.categoryButtonActive : styles.categoryButton}
+                                    onClick={() => setReportCategory(cat)}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        <label style={styles.reportLabel}>Details {reportCategory === 'Other' ? '(Required)' : '(Optional)'}</label>
+                        <textarea 
+                            placeholder={reportCategory === 'Other' 
+                                ? "Please describe the issue in detail." 
+                                : "Add more details to help us investigate (optional)."}
+                            value={reportReason}
+                            onChange={e => setReportReason(e.target.value)}
+                            style={styles.modalTextarea}
+                            rows={4}
+                        />
+
+                        <button 
+                            onClick={handleReportSubmit} // ⭐ UPDATED FUNCTION NAME
+                            style={styles.reportSubmitButton}
+                            // ⭐ MODIFIED: Disable if no category is selected OR if "Other" is selected but no reason is provided
+                            disabled={!reportCategory || (reportCategory === 'Other' && reportReason.trim().length === 0)}
+                        >
+                            <FiFlag color="#fff" /> Submit Report
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ⭐ NEW: Confirmation/Error Message Display */}
+            {reportMessage && (
+                <div 
+                    style={{ 
+                        ...styles.reportMessageContainer, 
+                        ...(reportMessage.type === 'success' ? styles.successMessage : styles.errorMessage) 
+                    }}
+                >
+                    {reportMessage.text}
+                </div>
+            )}
         </div>
     );
 }
 
-// --- Styles (for HomePage and shared components) ---
+// --- Styles (for HomePage and shared components) --- 
 const styles = {
-    page: {
-        minHeight: '100vh',
-        padding: '10px'
-    },
-    container: {
-        display: 'flex',
-        gap: '30px',
-        alignItems: 'flex-start',
-        width: '100%',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        paddingRight: '340px', // Space for the fixed RightPanel
-        boxSizing: 'border-box'
-    },
-    mainContent: {
-        flex: 1,
-        minWidth: '600px'
-    },
-    sectionTitle: {
-        fontSize: '24px',
-        fontWeight: '700',
-        color: '#1e40af',
-        marginBottom: '15px',
-    },
-    loadingText: {
-        textAlign: 'center',
-        padding: '50px',
-        fontSize: '18px',
-        color: '#9ca3af',
-    },
-    // --- Create Post Bar Styles ---
-    createPostBar: {
-        display: 'flex',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        padding: '12px 20px',
-        borderRadius: '30px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
-        marginBottom: '25px',
-        border: '1px solid #e5e7eb',
-    },
-    postInput: {
-        flex: 1,
-        border: 'none',
-        outline: 'none',
-        padding: '10px 15px',
-        margin: '0 10px',
-        borderRadius: '20px',
-        backgroundColor: '#f3f4f6',
-        fontSize: '15px',
-        color: '#4b5563',
-        cursor: 'pointer',
-    },
-    // --- End: Create Post Bar Styles ---
-
-    // --- Thread/Post Styles ---
-    threadPost: {
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '16px',
-        marginBottom: '20px',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        border: '1px solid #e5e7eb',
-    },
-    // Media container styles
-    threadMediaContainer: {
-        marginTop: '15px',
-        marginBottom: '15px',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        border: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    threadImage: {
-        width: '100%',
-        height: 'auto',
-        objectFit: 'cover',
-        display: 'block',
-        maxWidth: '100%',
-    },
-    // End: Media container styles
-    threadMetaTop: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '10px',
-    },
-    threadAuthorInfo: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    // NEW STYLE
-    threadRightActions: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-    },
-    // NEW STYLE
-    reportIcon: {
-        color: '#9ca3af',
-        cursor: 'pointer',
-        padding: '5px',
-        borderRadius: '50%',
-        transition: 'color 0.2s, background-color 0.2s',
-    },
-    // NEW STYLE
-    threadAuthorName: {
-        fontWeight: '600',
-        fontSize: '15px',
-        color: '#1e40af',
-    },
-    threadTime: {
-        fontSize: '13px',
-        color: '#9ca3af',
-        marginLeft: '10px',
-    },
-    threadTagModified: {
-        padding: '4px 10px',
-        backgroundColor: '#e0f2fe',
-        color: '#1e40af',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: '600',
-    },
-    threadTitle: {
-        fontSize: '18px',
-        fontWeight: '700',
-        color: '#1f2937',
-        margin: '0 0 8px 0',
-    },
-    threadBodyModified: {
-        fontSize: '16px',
-        color: '#4b5563',
-        margin: '0 0 15px 0',
-        lineHeight: '1.5',
-    },
-    threadFooter: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: '15px',
-        borderTop: '1px solid #f3f4f6',
-    },
-    threadActions: {
-        display: 'flex',
-        gap: '15px',
-    },
-    threadActionButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        fontSize: '14px',
-        color: '#555',
-        cursor: 'pointer',
-        padding: '5px 8px',
-        borderRadius: '6px',
-        transition: 'background-color 0.2s',
-    },
-    responseToggleButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontSize: '14px',
-        color: '#1e40af',
-        fontWeight: '600',
-        cursor: 'pointer',
-        padding: '5px 8px',
-        borderRadius: '6px',
-        backgroundColor: '#eff6ff',
-    },
-    // --- End: Thread/Post Styles ---
-
-    // --- Response Styles ---
-    responsesContainer: {
-        marginTop: '15px',
-        padding: '10px 0',
-        borderTop: '1px solid #e5e7eb',
-    },
-    responseItem: {
-        padding: '10px 0',
-        borderBottom: '1px dashed #e5e7eb',
-    },
-    responseMeta: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        marginBottom: '4px',
-    },
-    responseAuthorName: {
-        fontWeight: '600',
-        fontSize: '13px',
-        color: '#374151',
-    },
-    responseContent: {
-        fontSize: '14px',
-        color: '#4b5563',
-        margin: '0 0 5px 30px',
-        lineHeight: '1.4',
-    },
-    responseActionLine: {
-        display: 'flex',
-        gap: '15px',
-        alignItems: 'center',
-        marginLeft: '30px',
-        marginBottom: '5px',
-    },
-    responseReplyButton: {
-        fontSize: '13px',
-        fontWeight: '600',
-        color: '#60a5fa',
-        cursor: 'pointer',
-        padding: '2px 0',
-        width: 'fit-content'
-    },
-    responseTimeSmall: {
-        fontSize: '12px',
-        color: '#9ca3af',
-        lineHeight: 1,
-    },
-    replyToText: {
-        fontWeight: '700',
-        color: '#1d4ed8',
-        marginRight: '4px',
-    },
-    loadingResponsesText: { 
-        textAlign: 'center', 
-        padding: '10px', 
-        fontSize: '14px', 
-        color: '#9ca3af' 
-    },
-    noResponsesText: { 
-        textAlign: 'center', 
-        padding: '10px', 
-        fontSize: '14px', 
-        color: '#9ca3af' 
-    },
-    // --- End: Response Styles ---
-
-    // --- Avatar Styles (Shared) ---
-    // NEW STYLE: For image inside the avatar circles
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: '50%',
-        objectFit: 'cover',
-    },
-    avatarCircleSmall: {
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '14px',
-        flexShrink: 0,
-        overflow: 'hidden', // Added for image
-    },
-    avatarCircleTiny: { // Added for responses
-        width: '24px', 
-        height: '24px', 
-        borderRadius: '50%', 
-        backgroundColor: '#3b82f6', 
-        color: '#fff', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        fontWeight: '600', 
-        fontSize: '12px', 
-        flexShrink: 0, 
-        overflow: 'hidden', 
-    },
-    avatarCircle: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '18px',
-        overflow: 'hidden', // Added for image
-    },
-    // --- End: Avatar Styles ---
-
-    // --- Modal Styles (Post & Response) ---
-    modalOverlay: {
+    page: { minHeight: '100vh', padding: '10px' },
+    container: { display: 'flex', gap: '30px', alignItems: 'flex-start', width: '100%', maxWidth: '1200px', margin: '0 auto', paddingRight: '340px', boxSizing: 'border-box' },
+    mainContent: { flex: 1, minWidth: '600px' },
+    sectionTitle: { fontSize: '24px', fontWeight: '700', color: '#1e40af', marginBottom: '15px', },
+    loadingText: { textAlign: 'center', padding: '50px', fontSize: '18px', color: '#9ca3af', },
+    createPostBar: { display: 'flex', alignItems: 'center', backgroundColor: '#fff', padding: '12px 20px', borderRadius: '30px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)', marginBottom: '25px', border: '1px solid #e5e7eb', cursor: 'pointer' },
+    postInput: { flex: 1, border: 'none', outline: 'none', fontSize: '16px', color: '#4b5563', padding: '0 15px', background: 'transparent', cursor: 'pointer' },
+    avatarCircle: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#3b82f6', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px', fontWeight: 'bold', flexShrink: 0, overflow: 'hidden' },
+    avatarCircleSmall: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#93c5fd', color: '#1e40af', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', fontWeight: 'bold', flexShrink: 0, overflow: 'hidden' },
+    avatarCircleTiny: { width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#bfdbfe', color: '#1e40af', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, overflow: 'hidden' },
+    avatarImage: { width: '100%', height: '100%', objectFit: 'cover' },
+    threadPost: { backgroundColor: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)', marginBottom: '20px', border: '1px solid #e5e7eb' },
+    threadMetaTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
+    threadAuthorInfo: { display: 'flex', alignItems: 'center', gap: '8px' },
+    threadAuthorName: { fontWeight: '700', fontSize: '15px', color: '#1f2937' },
+    threadTime: { fontSize: '12px', color: '#9ca3af' },
+    threadRightActions: { display: 'flex', alignItems: 'center', gap: '10px' },
+    threadTag: { backgroundColor: '#f0f9ff', color: '#1e40af', padding: '4px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: '600' },
+    threadTagModified: { backgroundColor: '#ecfdf5', color: '#047857', padding: '4px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: '600' },
+    reportIcon: { cursor: 'pointer', color: '#dc2626', transition: 'color 0.2s', padding: '4px', borderRadius: '50%', ':hover': { backgroundColor: '#fee2e2' } },
+    threadTitle: { fontSize: '18px', fontWeight: '700', color: '#1e40af', marginBottom: '8px' },
+    threadBody: { fontSize: '15px', color: '#4b5563', lineHeight: '1.6' },
+    threadBodyModified: { fontSize: '15px', color: '#4b5563', lineHeight: '1.6', marginBottom: '10px' },
+    mediaGallery: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px', marginBottom: '10px' },
+    mediaItem: { maxWidth: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '8px' },
+    pdfLink: { display: 'flex', alignItems: 'center', padding: '10px 15px', border: '1px solid #fca5a5', borderRadius: '8px', backgroundColor: '#fee2e2', color: '#dc2626', textDecoration: 'none', fontWeight: '600' },
+    threadFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' },
+    threadActions: { display: 'flex', gap: '20px' },
+    threadActionButton: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#555', cursor: 'pointer', padding: '5px 8px', borderRadius: '6px', transition: 'background-color 0.2s', },
+    responseToggleButton: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', color: '#1e40af', fontWeight: '600', cursor: 'pointer', padding: '5px 8px', borderRadius: '6px', backgroundColor: '#eff6ff', },
+    responsesContainer: { marginTop: '15px', padding: '10px 0', borderTop: '1px solid #e5e7eb', },
+    responseItem: { padding: '10px 0', borderBottom: '1px dashed #e5e7eb', },
+    responseMeta: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', },
+    responseAuthorName: { fontWeight: '600', fontSize: '13px', color: '#374151', },
+    responseContent: { fontSize: '14px', color: '#4b5563', margin: '0 0 5px 30px', lineHeight: '1.4', },
+    responseActionLine: { display: 'flex', gap: '15px', alignItems: 'center', marginLeft: '30px', marginBottom: '5px', },
+    responseReplyButton: { fontSize: '13px', fontWeight: '600', color: '#60a5fa', cursor: 'pointer', padding: '2px 0', width: 'fit-content' },
+    responseTimeSmall: { fontSize: '12px', color: '#9ca3af', lineHeight: 1 },
+    replyToText: { fontWeight: 'bold', color: '#1e40af', marginRight: '5px' },
+    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 50 },
+    modalContent: { backgroundColor: '#fff', borderRadius: '12px', padding: '30px', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' },
+    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb' },
+    modalTextarea: { width: '100%', minHeight: '100px', padding: '15px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '16px', resize: 'vertical', marginBottom: '15px', boxSizing: 'border-box' },
+    modalPostButton: { width: '100%', padding: '12px', backgroundColor: '#1e40af', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' },
+    reportSubmitButton: { width: '100%', padding: '12px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', ':disabled': { opacity: 0.5, cursor: 'not-allowed' } },
+    fileInputSection: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' },
+    fileInputLabel: { color: '#3b82f6', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
+    selectedFileBox: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px', color: '#059669', },
+    replyContextBox: { border: '1px solid #c7d2fe', backgroundColor: '#f0f9ff', padding: '12px', borderRadius: '10px', marginBottom: '10px', },
+    replyingToText: { fontSize: '14px', color: '#475569', fontWeight: '500', margin: '0', },
+    threadSnippet: { fontSize: '15px', color: '#1e40af', fontWeight: '600', margin: '5px 0 0 0', maxHeight: '40px', overflow: 'hidden', textOverflow: 'ellipsis', },
+    reportLabel: { display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px', },
+    toggleButton: { padding: '8px 14px', borderRadius: '20px', border: '1px solid #d1d5db', backgroundColor: '#f9fafb', color: '#4b5563', cursor: 'pointer', fontSize: '14px', fontWeight: '500', transition: 'all 0.2s' },
+    toggleButtonActive: { backgroundColor: '#1e40af', color: '#fff', },
+    modalUserSection: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' },
+    modalUserName: { fontWeight: 600, fontSize: '16px', color: '#1e3a8a' },
+    categoryContainer: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' },
+    categoryButton: { padding: '8px 14px', borderRadius: '20px', border: '1px solid #93c5fd', backgroundColor: '#e0f2fe', color: '#1e40af', cursor: 'pointer', fontSize: '14px', fontWeight: '500', transition: 'all 0.2s' },
+    categoryButtonActive: { backgroundColor: '#1e40af', color: '#fff', border: '1px solid #1e40af' },
+    // ⭐ NEW STYLES FOR CONFIRMATION MESSAGE
+    reportMessageContainer: { 
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        padding: '25px',
-        borderRadius: '16px',
-        width: '90%',
-        maxWidth: '500px',
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
-    },
-    modalHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid #c7d2fe',
-        paddingBottom: '12px'
-    },
-    toggleContainer: {
-        display: 'flex',
-        gap: '10px',
-        margin: '15px 0',
-        border: '1px solid #bfdbfe',
+        top: '20px',
+        right: '20px',
+        padding: '15px 25px',
         borderRadius: '8px',
-        overflow: 'hidden',
-    },
-    toggleButton: {
-        flex: 1,
-        padding: '8px 10px',
-        border: 'none',
-        backgroundColor: '#f9fafb',
-        color: '#4b5563',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        zIndex: 1000,
         fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        fontSize: '14px'
+        transition: 'opacity 0.5s ease-in-out',
+        minWidth: '250px',
+        textAlign: 'center',
     },
-    toggleButtonActive: {
-        backgroundColor: '#1e40af',
-        color: '#fff',
+    successMessage: { 
+        backgroundColor: '#d1fae5',
+        color: '#065f46',
+        border: '1px solid #6ee7b7',
     },
-    modalUserSection: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        marginBottom: '15px'
+    errorMessage: { 
+        backgroundColor: '#fee2e2',
+        color: '#991b1b',
+        border: '1px solid #fca5a5',
     },
-    modalUserName: {
-        fontWeight: 600,
-        fontSize: '16px',
-        color: '#1e3a8a'
-    },
-    categoryContainer: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '10px',
-        marginBottom: '15px'
-    },
-    categoryButton: {
-        padding: '8px 14px',
-        borderRadius: '20px',
-        border: '1px solid #93c5fd',
-        backgroundColor: '#e0f2fe',
-        color: '#1e40af',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'all 0.2s'
-    },
-    categoryButtonActive: {
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        borderColor: '#3b82f6',
-    },
-    modalTextarea: {
-        width: '100%',
-        minHeight: '150px',
-        padding: '12px',
-        marginBottom: '15px',
-        borderRadius: '10px',
-        border: '1px solid #d1d5db',
-        resize: 'vertical',
-        fontSize: '15px',
-        boxSizing: 'border-box'
-    },
-    modalPostButton: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        width: '100%',
-        padding: '12px',
-        borderRadius: '10px',
-        backgroundColor: '#1e40af',
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: '16px',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s'
-    },
-    fileInputSection: {
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: '15px',
-    },
-    fileInputLabel: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '8px 15px',
-        borderRadius: '20px',
-        border: '1px solid #93c5fd',
-        backgroundColor: '#f0f9ff',
-        color: '#1e40af',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'all 0.2s',
-    },
-    selectedFileBox: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#ecfdf5',
-        border: '1px solid #a7f3d0',
-        padding: '10px',
-        borderRadius: '8px',
-        marginBottom: '15px',
-        fontSize: '14px',
-        color: '#059669',
-    },
-    replyContextBox: {
-        border: '1px solid #c7d2fe',
-        backgroundColor: '#f0f9ff',
-        padding: '12px',
-        borderRadius: '10px',
-        marginBottom: '10px',
-    },
-    replyingToText: {
-        fontSize: '14px',
-        color: '#475569',
-        fontWeight: '500',
-        margin: '0',
-    },
-    threadSnippet: {
-        fontSize: '15px',
-        color: '#1e40af',
-        fontWeight: '600',
-        margin: '5px 0 0 0',
-        maxHeight: '40px',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-    },
-    replyContentSnippet: {
-        fontSize: '15px',
-        color: '#4b5563',
-        margin: '5px 0 0 0',
-        maxHeight: '40px',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-    },
-    // --- End: Modal Styles ---
+    // ⭐ END NEW STYLES
 };
