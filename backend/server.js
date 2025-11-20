@@ -14,7 +14,7 @@ const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 app.use(cors({
     origin: 'http://localhost:3000', 
-    methods: 'GET,POST,DELETE', // ⭐ MODIFIED: Added DELETE method
+    methods: 'GET,POST,DELETE', 
     credentials: true,
 }));
 app.use(bodyParser.json());
@@ -65,7 +65,7 @@ const profilePicUploader = multer({
     }
 }).single('profile_picture'); 
 
-// ⭐ Dedicated storage for DOCUMENT REQUIREMENTS
+// Dedicated storage for DOCUMENT REQUIREMENTS
 const requirementsStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -77,7 +77,7 @@ const requirementsStorage = multer.diskStorage({
     }
 });
 
-// ⭐ Multer instance for multiple requirements files (max 5)
+// Multer instance for multiple requirements files (max 5)
 const requirementsUploader = multer({ 
     storage: requirementsStorage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
@@ -111,7 +111,7 @@ db.connect(err => {
 });
 
 
-// ⭐ MODIFIED: To include author_id and author_picture_url
+// Modified to include author_id and author_picture_url
 const formatThread = (row, type) => {
     let mediaUrls = [];
     if (row.media_url) {
@@ -129,8 +129,8 @@ const formatThread = (row, type) => {
         type: type, 
         title: row.title,
         author: row.name, 
-        author_id: row.user_id, // ⭐ Added user_id
-        author_picture_url: row.profile_picture_url || '', // ⭐ Added profile_picture_url
+        author_id: row.user_id, 
+        author_picture_url: row.profile_picture_url || '', 
         time: row.created_at, 
         tag: row.tag,
         body: row.body,
@@ -142,11 +142,11 @@ const formatThread = (row, type) => {
     };
 };
 
-// ⭐ MODIFIED: To include author_picture_url
+// Modified to include author_picture_url
 const formatResponse = (row) => ({
     id: row.id,
     author: row.name, 
-    author_picture_url: row.profile_picture_url || '', // ⭐ Added profile_picture_url
+    author_picture_url: row.profile_picture_url || '', 
     content: row.content,
     time: row.created_at,
     parent_id: row.parent_id,
@@ -180,7 +180,7 @@ app.post('/api/upload-media', (req, res) => {
     });
 });
 
-// ⭐ NEW ENDPOINT: POST /api/upload-requirements
+// NEW ENDPOINT: POST /api/upload-requirements
 app.post('/api/upload-requirements', (req, res) => {
     requirementsUploader(req, res, (err) => {
         if (err instanceof multer.MulterError) {
@@ -235,7 +235,7 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
 
-    // ⭐ MODIFIED SQL: Join user_profiles to get the profile_picture_url
+    // Modified SQL: Join user_profiles to get the profile_picture_url
     const SQL_FIND_USER = `
         SELECT u.id, u.name, u.email, u.password, up.profile_picture_url 
         FROM users u 
@@ -251,7 +251,7 @@ app.post('/api/login', async (req, res) => {
         const match = await bcrypt.compare(password, user.password);
 
         if (match) {
-            // ⭐ MODIFIED RESPONSE: Include profilePictureUrl
+            // Modified response: Include profilePictureUrl
             res.status(200).json({ 
                 message: 'Login successful!', 
                 user: { 
@@ -267,7 +267,7 @@ app.post('/api/login', async (req, res) => {
     });
 });
 
-// ⭐ MODIFIED: SQL to include profile_picture_url in the thread fetch query
+// Modified SQL to include profile_picture_url in the thread fetch query
 app.get('/api/threads', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT 
@@ -277,7 +277,7 @@ app.get('/api/threads', (req, res) => {
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM posts p
         JOIN users u ON p.user_id = u.id
-        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
         LEFT JOIN responses r ON p.id = r.post_id
         GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name, up.profile_picture_url 
     `;
@@ -289,7 +289,7 @@ app.get('/api/threads', (req, res) => {
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
         FROM jobs j
         JOIN users u ON j.user_id = u.id
-        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
         LEFT JOIN responses r ON j.id = r.job_id
         GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url 
     `;
@@ -311,7 +311,7 @@ app.get('/api/threads', (req, res) => {
     });
 });
 
-// ⭐ NEW ENDPOINT: GET /api/user-threads/:userId - Fetch all posts and jobs created by a specific user
+// NEW ENDPOINT: GET /api/user-threads/:userId - Fetch all posts and jobs created by a specific user
 app.get('/api/user-threads/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) {
@@ -373,8 +373,89 @@ app.get('/api/user-threads/:userId', (req, res) => {
     });
 });
 
+// ⭐ NEW ENDPOINT: DELETE /api/user-threads/:userId - Delete ALL posts and jobs by a user
+app.delete('/api/user-threads/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    // Use userId from body for an additional security check, matching the frontend logic
+    const userIdFromBody = parseInt(req.body.userId, 10); 
 
-// ⭐ MODIFIED: SQL to include profile_picture_url in the thread fetch query after insertion
+    if (isNaN(userId) || isNaN(userIdFromBody) || userId !== userIdFromBody) {
+        return res.status(400).json({ message: 'Invalid or inconsistent User ID.' });
+    }
+
+    // SQL statements use subqueries to find the IDs of threads the user owns, and then
+    // delete responses/bookmarks related to those IDs.
+    const SQL_DELETE_RESPONSES = `
+        DELETE FROM responses 
+        WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?) 
+           OR job_id IN (SELECT id FROM jobs WHERE user_id = ?);
+    `;
+    const SQL_DELETE_BOOKMARKS = `
+        DELETE FROM bookmarks 
+        WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?) 
+           OR job_id IN (SELECT id FROM jobs WHERE user_id = ?);
+    `;
+    const SQL_DELETE_POSTS = `DELETE FROM posts WHERE user_id = ?`;
+    const SQL_DELETE_JOBS = `DELETE FROM jobs WHERE user_id = ?`;
+
+    // --- TRANSACTION START ---
+    db.beginTransaction(err => {
+        if (err) {
+            console.error("Delete All Transaction Error:", err);
+            return res.status(500).json({ message: 'Failed to start database transaction.' });
+        }
+
+        // 1. Delete all Responses linked to the user's posts/jobs
+        db.query(SQL_DELETE_RESPONSES, [userId, userId], (err, result) => {
+            if (err) return db.rollback(() => {
+                console.error("Database error deleting all responses:", err);
+                res.status(500).json({ message: 'Failed to delete thread dependencies (responses).' });
+            });
+            
+            // 2. Delete all Bookmarks linked to the user's posts/jobs
+            db.query(SQL_DELETE_BOOKMARKS, [userId, userId], (err, result) => {
+                 if (err) return db.rollback(() => {
+                    console.error("Database error deleting all bookmarks:", err);
+                    res.status(500).json({ message: 'Failed to delete thread dependencies (bookmarks).' });
+                });
+                
+                // 3. Delete all Posts (Parent Rows)
+                db.query(SQL_DELETE_POSTS, [userId], (err, postsResult) => {
+                    if (err) return db.rollback(() => {
+                        console.error("Database error deleting all posts:", err);
+                        res.status(500).json({ message: 'Failed to delete all posts.' });
+                    });
+                    
+                    // 4. Delete all Jobs (Parent Rows)
+                    db.query(SQL_DELETE_JOBS, [userId], (err, jobsResult) => {
+                        if (err) return db.rollback(() => {
+                            console.error("Database error deleting all jobs:", err);
+                            res.status(500).json({ message: 'Failed to delete all jobs.' });
+                        });
+
+                        const deletedCount = postsResult.affectedRows + jobsResult.affectedRows;
+                        
+                        // 5. Commit Transaction
+                        db.commit(commitErr => {
+                            if (commitErr) return db.rollback(() => {
+                                console.error("Transaction Commit Error:", commitErr);
+                                res.status(500).json({ message: 'Failed to complete bulk thread deletion.' });
+                            });
+
+                            res.status(200).json({ 
+                                message: `Successfully deleted ${deletedCount} threads.`, 
+                                deletedCount: deletedCount 
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+// ⭐ END NEW ENDPOINT
+
+// Modified SQL: Join user_profiles to get the profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
     const userId = parseInt(req.body.userId, 10); 
     const { postType, postContent, postCategory, mediaUrls } = req.body;
@@ -414,12 +495,12 @@ app.post('/api/threads', (req, res) => {
             return res.status(500).json({ message: userMessage });
         }
         
-        // ⭐ MODIFIED SQL: Join user_profiles to get the profile_picture_url
+        // Modified SQL: Join user_profiles to get the profile_picture_url
         const SQL_FETCH_NEW = `
             SELECT t.*, u.name, up.profile_picture_url, 0 AS response_count 
             FROM ${table} t
             JOIN users u ON t.user_id = u.id
-            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
+            LEFT JOIN user_profiles up ON u.id = up.user_id 
             WHERE t.id = ?;
         `;
         
@@ -435,7 +516,7 @@ app.post('/api/threads', (req, res) => {
     });
 });
 
-// ⭐ FIXED ENDPOINT: DELETE /api/threads/:threadId - Delete a post or job (Uses transaction to delete child rows first)
+// FIXED ENDPOINT: DELETE /api/threads/:threadId - Delete a post or job (Uses transaction to delete child rows first)
 app.delete('/api/threads/:threadId', (req, res) => {
     const threadId = parseInt(req.params.threadId, 10);
     const { threadType, userId } = req.body; 
@@ -536,7 +617,7 @@ app.post('/api/responses', (req, res) => {
     });
 });
 
-// ⭐ MODIFIED: SQL to include profile_picture_url in response fetch
+// Modified SQL to include profile_picture_url in response fetch
 app.get('/api/responses/:threadType/:threadId', (req, res) => {
     const threadId = parseInt(req.params.threadId, 10);
     const threadType = req.params.threadType;
@@ -554,10 +635,10 @@ app.get('/api/responses/:threadType/:threadId', (req, res) => {
             r.created_at, 
             r.parent_id,
             u.name, 
-            up.profile_picture_url -- ⭐ ADDED: Author's profile picture
+            up.profile_picture_url 
         FROM responses r
         JOIN users u ON r.user_id = u.id
-        LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN to get profile picture
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
         WHERE r.${threadKey} = ?
         ORDER BY r.created_at ASC
     `;
@@ -644,7 +725,7 @@ app.post('/api/bookmarks', (req, res) => {
     });
 });
 
-// ⭐ MODIFIED: SQL to include profile_picture_url in response fetch
+// Modified SQL to include profile_picture_url in response fetch
 app.get('/api/bookmarks/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) {
@@ -661,7 +742,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             FROM bookmarks b
             JOIN posts p ON b.post_id = p.id
             JOIN users u ON p.user_id = u.id
-            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
+            LEFT JOIN user_profiles up ON u.id = up.user_id 
             WHERE b.user_id = ? AND b.job_id IS NULL 
         )
         UNION ALL
@@ -674,7 +755,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
             FROM bookmarks b
             JOIN jobs j ON b.job_id = j.id
             JOIN users u ON j.user_id = u.id
-            LEFT JOIN user_profiles up ON u.id = up.user_id -- ⭐ JOIN user_profiles
+            LEFT JOIN user_profiles up ON u.id = up.user_id 
             WHERE b.user_id = ? AND b.post_id IS NULL 
         )
         ORDER BY bookmarked_at DESC
@@ -849,7 +930,7 @@ app.post('/api/profile/:userId', (req, res) => {
     });
 });
 
-// ⭐ FIXED: POST /api/document-application - Save application transaction (Added requirements_media_url to SQL)
+// FIXED: POST /api/document-application - Save application transaction (Added requirements_media_url to SQL)
 app.post('/api/document-application', (req, res) => {
     // requirementsMediaUrl is included in the body and will be passed to the database
     const { userId, documentName, purpose, fee, requirementsMediaUrl } = req.body;
@@ -859,13 +940,13 @@ app.post('/api/document-application', (req, res) => {
         return res.status(400).json({ message: 'Missing required fields for document application.' });
     }
 
-    // ⭐ CRITICAL FIX: requirements_media_url is added to the INSERT list
+    // CRITICAL FIX: requirements_media_url is added to the INSERT list
     const SQL_INSERT_APPLICATION = `
         INSERT INTO document_transactions (user_id, document_name, purpose, fee, status, requirements_media_url)
         VALUES (?, ?, ?, ?, ?, ?)
     `;
 
-    // ⭐ CRITICAL FIX: requirementsMediaUrl is passed as the 6th parameter (after status)
+    // CRITICAL FIX: requirementsMediaUrl is passed as the 6th parameter (after status)
     db.query(SQL_INSERT_APPLICATION, [userId, documentName, purpose, fee, status, requirementsMediaUrl], (err, result) => {
         if (err) {
             console.error("Database error inserting document application:", err);
@@ -925,8 +1006,7 @@ app.post('/api/document-applications/cancel/:transactionId', (req, res) => {
     });
 });
 
-// ⭐ MODIFIED: GET /api/document-applications/:userId - Fetch user's transaction history.
-// requirements_media_url is now selected to display the files on the frontend.
+// MODIFIED: GET /api/document-applications/:userId - Fetch user's transaction history.
 app.get('/api/document-applications/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
 
@@ -942,7 +1022,7 @@ app.get('/api/document-applications/:userId', (req, res) => {
             fee, 
             status, 
             created_at,
-            requirements_media_url -- ⭐ ADDED BACK: Must be included to display submitted files.
+            requirements_media_url 
         FROM document_transactions
         WHERE user_id = ?
         ORDER BY created_at DESC
@@ -965,7 +1045,7 @@ app.get('/api/document-applications/:userId', (req, res) => {
 });
 
 
-// ⭐ NEW ENDPOINT: DELETE /api/document-applications/delete-permanent/:transactionId - Permanently delete a cancelled application
+// NEW ENDPOINT: DELETE /api/document-applications/delete-permanent/:transactionId - Permanently delete a cancelled application
 app.delete('/api/document-applications/delete-permanent/:transactionId', (req, res) => {
     const transactionId = parseInt(req.params.transactionId, 10);
     const userId = parseInt(req.body.userId, 10); // Expect userId in the body for security
