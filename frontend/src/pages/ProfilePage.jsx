@@ -6,7 +6,7 @@ import {
     FiMessageSquare, 
     FiSend, 
     FiTrash2,
-    FiAlertOctagon, // New icon for the "Delete All" button
+    FiAlertOctagon, 
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
 
@@ -476,7 +476,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
     
     // Editable fields
     const [editedName, setEditedName] = useState(userName || '');
-    const [editedContact, setEditedContact] = useState('');
+    const [editedContact, setEditedContact, ] = useState('');
     const [editedAddress, setEditedAddress] = useState('');
     
     // Profile Picture State
@@ -737,16 +737,15 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
         setDeleteAllModal(true);
     };
 
-    // --- Confirmation Handler (Performs actual bulk deletion) (NEW) ---
+    // ⭐ UPDATED: Clear userThreads state upon successful bulk deletion
     const confirmDeleteAllThreads = async () => {
         setDeleteAllModal(false);
         setLoading(true);
         try {
-            // New API endpoint to delete all user threads
             const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId }), // Pass required data
+                body: JSON.stringify({ userId: currentUserId }), 
             });
 
             if (!res.ok) {
@@ -754,8 +753,9 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                 throw new Error(data.message || 'Failed to delete all threads.');
             }
 
-            // Update state: clear all threads
+            // 🌟 CRITICAL UPDATE FOR AUTO-REFRESH: Clear the state immediately
             setUserThreads([]);
+            
             setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
 
         } catch (err) {
@@ -978,7 +978,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
                     {/* User Posts Section */}
                     <div style={styles.postsSectionContainer}>
-                        <div style={styles.postsSectionHeader}> {/* NEW: Header for title and button */}
+                        <div style={styles.postsSectionHeader}> 
                             <h2 style={styles.postsSectionTitle}>Your Community Threads ({userThreads.length})</h2>
                             {userThreads.length > 0 && (
                                 <button 
@@ -994,14 +994,13 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                         {isThreadsLoading ? (
                             <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
                         ) : userThreads.length > 0 ? (
-                            // Pass currentUserId, setPopup, AND handleDeleteThread to UserThread
                             userThreads.map(thread => (
                                 <UserThread 
                                     key={thread.id} 
                                     thread={thread} 
                                     currentUserId={currentUserId} 
                                     setPopup={setPopup} 
-                                    handleDeleteThread={handleDeleteThread} // Pass the handler
+                                    handleDeleteThread={handleDeleteThread} 
                                 />
                             ))
                         ) : (
@@ -1254,7 +1253,7 @@ const styles = {
         marginTop: '20px',
         boxShadow: 'none',
     },
-    postsSectionHeader: { // NEW style for the title and button container
+    postsSectionHeader: { 
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -1265,9 +1264,9 @@ const styles = {
         fontSize: '20px',
         fontWeight: '700',
         color: '#1f2937',
-        margin: 0, // Reset margin
+        margin: 0, 
     },
-    deleteAllButton: { // NEW style for the 'Delete All' button
+    deleteAllButton: { 
         padding: '8px 15px',
         borderRadius: '8px',
         cursor: 'pointer',
@@ -1449,7 +1448,7 @@ const styles = {
         margin: '0',
         fontSize: '14px',
         color: '#374151',
-        paddingLeft: '36px', // Adjusted to align under name/details
+        paddingLeft: '36px', 
     },
     responseForm: {
         display: 'flex', 
