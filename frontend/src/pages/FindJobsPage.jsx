@@ -120,7 +120,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
             
             {/* Main Content Area - Uses margins to create space for side panels */}
             <div style={styles.mainContent}>
-                <h1 style={styles.heading}>Explore Job Opportunities <Briefcase size={32} style={{ marginLeft: '10px' }} /></h1>
+                <h1 style={styles.heading}>Explore Job Opportunities</h1>
                 
                 {/* Category Filter Buttons */}
                 <div style={styles.filterContainer}>

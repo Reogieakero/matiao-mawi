@@ -539,7 +539,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
         return (
             <div style={documentStyles.modalBackdrop}>
                 <div style={documentStyles.modalContent}>
-                    <h2 style={documentStyles.modalHeader}>✅ Application Sent!</h2>
+                    <h2 style={documentStyles.modalHeader}>Application Sent!</h2>
                     <p>Your application for {document.name} has been successfully submitted.</p>
                     <p style={{ color: '#059669', fontWeight: 'bold' }}>
                         {submitMessage}

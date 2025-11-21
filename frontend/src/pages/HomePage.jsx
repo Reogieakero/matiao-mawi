@@ -33,6 +33,9 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
+    
+    // ⭐ NEW STATE: Contact number for job posts
+    const [contactNumber, setContactNumber] = useState(''); 
 
     // ⭐ REMOVED: jobPostTrigger state is no longer needed
 
@@ -228,10 +231,11 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
         setSelectedFile(null); 
+        setContactNumber(''); // ⭐ NEW: Clear contact number on type change
     };
 
 
-    // MODIFIED: handlePostSubmit to include single-file upload logic and job count update
+    // MODIFIED: handlePostSubmit to include single-file upload logic, job count update, and contact number
     const handlePostSubmit = async () => {
         if (!userId) {
              alert('User ID not found. Please log in again to post.');
@@ -243,6 +247,21 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             return alert('Post cannot be empty if no media is attached!');
         }
         if (!postCategory) return alert('Please select a category.');
+
+        // ⭐ MODIFIED 2: Validation for job post contact number with Regex
+        if (postType === 'job') {
+            if (!contactNumber.trim()) {
+                return alert('Contact number is required for job posts.');
+            }
+            // Philippine Mobile Number Regex: Allows 09XXxxxxxxx or +639XXxxxxxxx (11 or 12 characters)
+            // It allows for the 11-digit mobile number starting with 09 or +639
+            const phNumberRegex = /^(09|\+639)\d{9}$/; 
+            
+            if (!phNumberRegex.test(contactNumber.trim())) {
+                return alert('Please enter a valid Philippine mobile number format (e.g., 09xxxxxxxxx or +639xxxxxxxxx).');
+            }
+        }
+        // -------------------------------------------------------------
 
         // --- File Upload Logic ---
         let mediaUrls = []; 
@@ -292,6 +311,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             isSubmitting: true, 
             isBookmarked: false,
             mediaUrls: mediaUrls,
+            // contact_number is not needed for optimistic display
         };
         setThreads([optimisticThread, ...threads]);
         setIsModalOpen(false);
@@ -306,6 +326,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     postContent,
                     postCategory,
                     mediaUrls: mediaUrls,
+                    // ⭐ MODIFIED: Include contactNumber in the request body
+                    contactNumber: postType === 'job' ? contactNumber : null,
                 }),
             });
 
@@ -346,6 +368,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setPostCategory(currentCategories[0]); 
         setPostType("post");
         setSelectedFile(null); 
+        // ⭐ NEW: Cleanup the new state
+        setContactNumber('');
     };
     
     // handleReplyClick
@@ -665,6 +689,26 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             ))}
                         </div>
 
+                        {/* ⭐ NEW: Conditional Input for Contact Number */}
+                        {postType === 'job' && (
+                            <input
+                                type="tel" // Use 'tel' for better mobile support
+                                placeholder="Contact Number (e.g., 09xxxxxxxxx or +639xxxxxxxxx)"
+                                value={contactNumber}
+                                onChange={(e) => setContactNumber(e.target.value)}
+                                style={{ 
+                                    width: '100%', 
+                                    padding: '12px',
+                                    marginBottom: '15px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #d1d5db',
+                                    fontSize: '15px',
+                                    boxSizing: 'border-box',
+                                    outline: 'none',
+                                }}
+                            />
+                        )}
+                        
                         <textarea 
                             placeholder={`Write your ${postType === 'job' ? 'job post title and details' : 'community post content'} here...`} 
                             value={postContent}

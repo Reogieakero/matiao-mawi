@@ -460,20 +460,35 @@ app.delete('/api/user-threads/:userId', (req, res) => {
 
 // Modified SQL: Join user_profiles to get the profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
-    const userId = parseInt(req.body.userId, 10);
-    const { postType, postContent, postCategory, mediaUrls } = req.body;
-    
+    // MODIFICATION 1: Destructure contactNumber from the request body
+    const { userId, postContent, postType, postCategory, mediaUrls, contactNumber } = req.body; 
+
     if (!userId || isNaN(userId) || !postContent || !postType || !postCategory) {
         return res.status(400).json({ message: 'Missing required fields for thread creation.' });
     }
-
+    
     const table = postType === 'post' ? 'posts' : 'jobs';
     const mediaUrlJson = mediaUrls && mediaUrls.length > 0 ? JSON.stringify(mediaUrls) : null;
     const title = postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent;
+    
+    let SQL_INSERT;
+    let params;
 
-    const SQL_INSERT = `INSERT INTO ${table} (user_id, title, body, tag, media_url) VALUES (?, ?, ?, ?, ?)`;
+    if (postType === 'post') {
+        // MODIFICATION 2a: Standard POST INSERT statement (no contact_number)
+        SQL_INSERT = `INSERT INTO ${table} (user_id, title, body, tag, media_url) VALUES (?, ?, ?, ?, ?)`;
+        params = [userId, title, postContent, postCategory, mediaUrlJson];
+    } else { // postType === 'job'
+        // MODIFICATION 2b: JOB INSERT statement now includes contact_number
+        if (!contactNumber) {
+            return res.status(400).json({ message: 'Contact number is required for job posts.' });
+        }
+        SQL_INSERT = `INSERT INTO ${table} (user_id, title, body, tag, media_url, contact_number) VALUES (?, ?, ?, ?, ?, ?)`;
+        params = [userId, title, postContent, postCategory, mediaUrlJson, contactNumber];
+    }
 
-    db.query(SQL_INSERT, [userId, title, postContent, postCategory, mediaUrlJson], (err, result) => {
+    // MODIFICATION 3: Use the new parameterized query and parameters array
+    db.query(SQL_INSERT, params, (err, result) => { 
         if (err) {
             console.error("Database error creating thread:", err);
             return res.status(500).json({ message: 'Failed to create thread.' });
