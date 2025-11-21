@@ -120,8 +120,10 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
-    // ⭐ NEW STATE: Tracks which post bodies are fully expanded
-    const [expandedPostIds, setExpandedPostIds] = useState({}); 
+    // ⭐ MODIFIED: Removed expandedPostIds state. Added Read Modal states.
+    const [isReadModalOpen, setIsReadModalOpen] = useState(false);
+    const [readModalThread, setReadModalThread] = useState(null); 
+    // ---------------------------------
     
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
@@ -224,12 +226,15 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
 
-    // ⭐ NEW FUNCTION: Toggle post content expansion
-    const togglePostExpansion = (threadId) => {
-        setExpandedPostIds(prev => ({
-            ...prev,
-            [threadId]: !prev[threadId]
-        }));
+    // ⭐ NEW HANDLERS FOR READ MODAL (Copied from HomePage)
+    const openReadModal = (thread) => {
+        setReadModalThread(thread);
+        setIsReadModalOpen(true);
+    };
+
+    const closeReadModal = () => {
+        setIsReadModalOpen(false);
+        setReadModalThread(null);
     };
 
     // handleReplyClick (Copied from HomePage - simplified)
@@ -312,14 +317,13 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
     
-    // ⭐ NEW HELPER: Function to render the post body with truncation
+    // ⭐ MODIFIED: Function to render the post body with truncation (Opens Modal)
     const renderPostBody = (thread) => {
         // Ensure body exists before accessing length
         const bodyContent = thread.body || ""; 
         const isLongPost = bodyContent.length > MAX_POST_LENGTH;
-        const isExpanded = expandedPostIds[thread.id];
 
-        if (isLongPost && !isExpanded) {
+        if (isLongPost) {
             // Truncated content
             const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
             return (
@@ -329,7 +333,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                     </p>
                     <div 
                         style={styles.readMoreButton} 
-                        onClick={() => togglePostExpansion(thread.id)}
+                        onClick={() => openReadModal(thread)} // <--- CALLS MODAL
                     >
                         <FiChevronDown size={14} /> Read More
                     </div>
@@ -337,21 +341,11 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             );
         }
 
-        // Full content
+        // Full content if not long
         return (
-            <>
-                <p style={styles.threadBodyModified}>
-                    {bodyContent}
-                </p>
-                {isLongPost && (
-                    <div 
-                        style={styles.readMoreButton} 
-                        onClick={() => togglePostExpansion(thread.id)}
-                    >
-                        <FiChevronUp size={14} /> Read Less
-                    </div>
-                )}
-            </>
+            <p style={styles.threadBodyModified}>
+                {bodyContent}
+            </p>
         );
     };
 
@@ -416,7 +410,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                                 type, 
                                 author, 
                                 title, 
-                                body, 
+                                // body, // Handled by thread object
                                 tag, 
                                 time, 
                                 responseCount, 
@@ -501,6 +495,40 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                 />
             </div>
             
+            {/* ⭐ NEW: Read Details Modal (Copied from HomePage) */}
+            {isReadModalOpen && readModalThread && (
+                // Click outside to close
+                <div style={styles.modalOverlay} onClick={closeReadModal}>
+                    {/* Stop propagation for clicks inside content */}
+                    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        {/* Header without title/border */}
+                        <div style={styles.modalHeaderNoBorder}> 
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
+                        </div>
+                        
+                        <div style={styles.modalUserSection}>
+                            {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')} 
+                            <span style={styles.modalUserName}>{readModalThread.author}</span>
+                            <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
+                            <span style={styles.threadTagModified}>{readModalThread.tag}</span>
+                        </div>
+                        
+                        {/* Full Content */}
+                        <p style={styles.modalThreadBody}>
+                            {readModalThread.body}
+                        </p>
+
+                        {/* Media (if any) */}
+                        {renderMediaGallery(readModalThread.mediaUrls)}
+
+                        <button onClick={closeReadModal} style={styles.modalCloseButton}>
+                            <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
+                        </button>
+                    </div>
+                </div>
+            )}
+            {/* End Read Modal */}
+
             {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
@@ -559,7 +587,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     );
 }
 
-// --- Styles (Copied and merged from HomePage.jsx for consistency) --- 
+// --- Styles (Copied and merged from HomePage.jsx for consistency, including new modal styles) --- 
 const styles = { 
     page: { 
         minHeight: '100vh', 
@@ -668,7 +696,6 @@ const styles = {
         color: '#1f2937', 
         margin: '0 0 8px 0', 
     }, 
-    // ⭐ MODIFIED: Removed bottom margin so renderPostBody can control spacing
     threadBodyModified: { 
         fontSize: '16px', 
         color: '#4b5563', 
@@ -677,7 +704,7 @@ const styles = {
         wordWrap: 'break-word', 
         overflowWrap: 'break-word', 
     }, 
-    // ⭐ NEW Style for Read More Button
+    // ⭐ Read More Button Style (Copied from HomePage)
     readMoreButton: {
         display: 'flex',
         alignItems: 'center',
@@ -802,9 +829,10 @@ const styles = {
     modalContent: { 
         backgroundColor: '#fff', 
         padding: '25px', 
-        borderRadius: '16px', 
         width: '90%', 
-        maxWidth: '500px', 
+        maxWidth: '500px',
+        maxHeight: '80vh', // ⭐ Added for scrollable modal
+        overflowY: 'auto', // ⭐ Added for scrollable modal
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
     }, 
     modalHeader: { 
@@ -814,11 +842,22 @@ const styles = {
         borderBottom: '1px solid #c7d2fe', 
         paddingBottom: '12px' 
     }, 
+    // ⭐ NEW Style: For Read Modal (No Title)
+    modalHeaderNoBorder: { 
+        display: 'flex', 
+        justifyContent: 'flex-end', 
+        alignItems: 'center', 
+        paddingBottom: '10px', 
+        paddingTop: '5px',
+        marginBottom: '5px',
+    },
     modalUserSection: { 
         display: 'flex', 
         alignItems: 'center', 
         gap: '12px', 
-        marginTop: '15px'
+        marginTop: '0px', // Adjusted for Read Modal flow
+        borderBottom: '1px solid #e5e7eb', // Added to separate from body
+        paddingBottom: '15px' // Added to separate from body
     }, 
     avatarCircle: { 
         width: '40px', 
@@ -838,6 +877,11 @@ const styles = {
         fontSize: '16px', 
         color: '#1e3a8a' 
     }, 
+    modalTime: { // ⭐ Copied from HomePage
+        fontSize: '13px',
+        color: '#9ca3af',
+        marginLeft: '10px',
+    },
     modalTextarea: { 
         width: '100%', 
         minHeight: '100px', 
@@ -865,6 +909,32 @@ const styles = {
         border: 'none', 
         cursor: 'pointer', 
         transition: 'background-color 0.2s' 
+    },
+    // ⭐ NEW Style for Full Post Content in Read Modal (Copied from HomePage)
+    modalThreadBody: {
+        fontSize: '15px',
+        color: '#4b5563',
+        margin: '15px 0',
+        lineHeight: '1.6',
+        whiteSpace: 'pre-wrap', // Preserve newlines
+    },
+    // ⭐ NEW Style for Close Button in Read Modal (Copied from HomePage)
+    modalCloseButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '8px', 
+        width: '100%', 
+        padding: '12px', 
+        borderRadius: '10px', 
+        backgroundColor: '#60a5fa', 
+        color: '#fff', 
+        fontWeight: '700', 
+        fontSize: '16px', 
+        border: 'none', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s',
+        marginTop: '20px',
     },
     replyContextBox: {
         border: '1px solid #c7d2fe',

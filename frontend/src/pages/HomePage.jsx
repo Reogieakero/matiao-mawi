@@ -1200,7 +1200,6 @@ const styles = {
         backgroundColor: '#fff',
         padding: '25px',
         // Consistent Radius
-        borderRadius: '16px',
         width: '90%',
         maxWidth: '500px',
         // Added for Read Modal overflow
