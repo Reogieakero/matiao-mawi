@@ -808,100 +808,87 @@ app.get('/api/bookmarks/:userId', (req, res) => {
 });
 
 // GET /api/threads/search?q=...&category=...&type=...
-app.get('/api/threads/search', (req, res) => {
-    const { q, category, type } = req.query; 
+app.get('/api/search', (req, res) => {
+    // The query 'q' comes from the URL: /api/search?q=search+term
+    const { q } = req.query; 
+
+    // If no search query is provided, return an empty array
+    if (!q) {
+        return res.status(200).json([]);
+    }
 
     // Base query parts
-    let postConditions = [];
-    let jobConditions = [];
+    let searchConditions = [];
     let queryParams = [];
 
     // 1. Search term 'q' (Applies to both)
     if (q) {
-        // Use full-text search for better performance on large text fields
+        // Use LIKE operator for full text search on title and body
         const searchPattern = `%${q}%`;
-        postConditions.push(`(p.title LIKE ? OR p.body LIKE ?)`);
-        jobConditions.push(`(j.title LIKE ? OR j.body LIKE ?)`);
+        
+        // Conditions for posts (p)
+        searchConditions.push(`(p.title LIKE ? OR p.body LIKE ?)`);
+        // Conditions for jobs (j)
+        searchConditions.push(`(j.title LIKE ? OR j.body LIKE ?)`);
+        
+        // Query parameters for the two pairs of LIKE conditions
         queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
     
-    // 2. Category filter (Applies to both)
-    if (category && category !== 'All') {
-        postConditions.push(`p.tag = ?`);
-        jobConditions.push(`j.tag = ?`);
-        queryParams.push(category, category);
-    }
+    const postWhereClause = searchConditions[0] ? `WHERE ${searchConditions[0]}` : '';
+    const jobWhereClause = searchConditions[1] ? `WHERE ${searchConditions[1]}` : '';
 
-    const postWhereClause = postConditions.length > 0 ? `WHERE ${postConditions.join(' AND ')}` : '';
-    const jobWhereClause = jobConditions.length > 0 ? `WHERE ${jobConditions.join(' AND ')}` : '';
-
+    // SQL to fetch matching POSTS
     const SQL_FETCH_POSTS = `
         SELECT 
             p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, 
             u.name, 
             up.profile_picture_url, 
-            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
+            'post' AS thread_type
         FROM posts p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id 
         LEFT JOIN responses r ON p.id = r.post_id
         ${postWhereClause}
-        GROUP BY p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, u.name, up.profile_picture_url 
+        GROUP BY p.id
     `;
-
+    
+    // SQL to fetch matching JOBS
     const SQL_FETCH_JOBS = `
         SELECT 
             j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, 
             u.name, 
             up.profile_picture_url, 
-            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
+            'job' AS thread_type
         FROM jobs j
         JOIN users u ON j.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id 
         LEFT JOIN responses r ON j.id = r.job_id
         ${jobWhereClause}
-        GROUP BY j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url 
+        GROUP BY j.id
+    `;
+    
+    // The final query uses UNION ALL to combine the results from both tables
+    const FINAL_SQL_QUERY = `
+        ${SQL_FETCH_POSTS}
+        UNION ALL
+        ${SQL_FETCH_JOBS}
+        ORDER BY created_at DESC
     `;
 
-    let finalQuery = '';
-    let finalParams = [];
-
-    if (!type || type === 'All') {
-        finalQuery = `${SQL_FETCH_POSTS};${SQL_FETCH_JOBS}`;
-        finalParams = queryParams;
-    } else if (type === 'post') {
-        finalQuery = SQL_FETCH_POSTS;
-        finalParams = queryParams.slice(0, postConditions.length * 2); 
-    } else if (type === 'job') {
-        finalQuery = SQL_FETCH_JOBS;
-        finalParams = queryParams.slice(postConditions.length * 2);
-    } else {
-        return res.status(400).json({ message: 'Invalid thread type specified for search.' });
-    }
-
-    db.query(finalQuery, finalParams, (err, results) => {
+    // Execute the combined query with the search parameters
+    db.query(FINAL_SQL_QUERY, queryParams, (err, results) => {
         if (err) {
             console.error("Database error fetching search results:", err);
             return res.status(500).json({ message: 'Failed to fetch search results.' });
         }
-
-        let posts, jobs;
-
-        if (!type || type === 'All') {
-            posts = results[0].map(row => formatThread(row, 'post'));
-            jobs = results[1].map(row => formatThread(row, 'job'));
-        } else if (type === 'post') {
-            posts = results.map(row => formatThread(row, 'post'));
-            jobs = [];
-        } else if (type === 'job') {
-            posts = [];
-            jobs = results.map(row => formatThread(row, 'job'));
-        }
-
-        const allResults = [...posts, ...jobs].sort((a, b) => 
-            new Date(b.time) - new Date(a.time) 
-        );
-
+        
+        // Format all results into threads
+        const allResults = results.map(row => formatThread(row, row.thread_type));
+        
+        // The front-end is responsible for checking bookmark status later
         res.status(200).json(allResults);
     });
 });
