@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Briefcase, MapPin, Tag, Clock, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react'; 
 
 import Sidebar from '../components/Sidebar';
-import RightPanel from '../components/RightPanel';
+// import RightPanel from '../components/RightPanel'; <-- REMOVED
 
 // Utility function to format the time (Copied from HomePage for consistency)
 const getTimeSince = (date) => {
@@ -221,10 +221,10 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
 
     return (
         <div style={styles.pageContainer}>
-            {/* Sidebar (Left Panel) - Must be positioned correctly in its component (fixed/absolute) */}
+            {/* Sidebar (Left Panel) */}
             <Sidebar /> 
             
-            {/* Main Content Area - Uses margins to create space for side panels */}
+            {/* Main Content Area - Now uses full width (minus sidebar) */}
             <div style={styles.mainContent}>
                 <h1 style={styles.heading}>Explore Job Opportunities</h1>
                 
@@ -253,12 +253,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                 </div>
             </div>
             
-            {/* Right Panel - Must be positioned correctly in its component (fixed/absolute) */}
-            <RightPanel 
-                userName={userName} 
-                userEmail={userEmail} 
-                profilePictureUrl={profilePictureUrl} 
-            />
+            {/* Right Panel component removed */}
 
             {/* NEW: Job Details Modal */}
             {isModalOpen && modalJob && (
@@ -302,9 +297,12 @@ const styles = {
         justifyContent: 'flex-start',
     },
     mainContent: {
-        marginRight: '290px', 
-        paddingRight: '60px', 
+        // marginRight: '290px', <-- REMOVED
+        // paddingRight: '60px', <-- REMOVED
         paddingLeft: '15px',
+        paddingRight: '60px', // Re-add padding to the right edge
+        paddingTop: '20px', 
+        paddingBottom: '20px', 
         flexGrow: 1,
     },
     heading: {
@@ -346,7 +344,8 @@ const styles = {
     },
     jobListContainer: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
+        // MODIFIED to explicitly force 3 columns per row
+        gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '25px',
     },
     jobCard: {
