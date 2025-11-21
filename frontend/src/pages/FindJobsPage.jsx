@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Briefcase, MapPin, Tag, Clock, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react'; 
 
 import Sidebar from '../components/Sidebar';
@@ -81,9 +81,18 @@ const renderMediaGallery = (mediaUrls) => {
 
 
 const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
+    const location = useLocation(); // Get location object to read URL query
     const [jobs, setJobs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedCategory, setSelectedCategory] = useState('All');
+    
+    // Helper function to determine the category from the URL
+    const getInitialCategory = () => {
+        const params = new URLSearchParams(location.search);
+        const category = params.get('category');
+        return allCategories.includes(category) ? category : 'All';
+    };
+    
+    const [selectedCategory, setSelectedCategory] = useState(getInitialCategory); // Set initial state from URL
     
     // NEW STATES FOR MODAL 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,6 +123,14 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
     useEffect(() => {
         fetchJobs(selectedCategory);
     }, [selectedCategory]);
+    
+    // NEW Effect: Update selectedCategory when the URL query changes (e.g., from sidebar link click)
+    useEffect(() => {
+        const newCategory = getInitialCategory();
+        if (newCategory !== selectedCategory) {
+            setSelectedCategory(newCategory);
+        }
+    }, [location.search]);
 
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
@@ -198,11 +215,15 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                     </div>
                 </div>
                 
-                {/* Use the renderPostBody helper */}
-                {renderPostBody(job)} 
+                {/* START: Job Content Wrapper - Takes up remaining space and handles overflow */}
+                <div style={styles.jobContentWrapper}>
+                    {/* Use the renderPostBody helper */}
+                    {renderPostBody(job)} 
 
-                {/* Display media gallery if URLs exist */}
-                {renderMediaGallery(job.mediaUrls)}
+                    {/* Display media gallery if URLs exist */}
+                    {renderMediaGallery(job.mediaUrls)}
+                </div>
+                {/* END: Job Content Wrapper */}
                 
                 <div style={styles.jobMeta}>
                     <div style={styles.metaItem}><Clock size={14} /> {getTimeSince(job.time)}</div>
@@ -211,10 +232,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                         <div style={styles.metaItem}><Briefcase size={14} /> Contact: {job.contactNumber}</div>
                     )}
                 </div>
-                {/* Use Link if you have a detail page, otherwise a button */}
-                <button style={styles.applyButton}> 
-                    View Details & Apply <ArrowRight size={16} style={{ marginLeft: '5px' }} />
-                </button>
+                {/* Button removed as requested */}
             </div>
         );
     };
@@ -248,7 +266,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                     ) : jobs.length > 0 ? (
                         jobs.map(renderJobCard)
                     ) : (
-                        <p style={styles.noJobsText}>No jobs found in the **{selectedCategory}** category.</p>
+                        <p style={styles.noJobsText}>No jobs found in the {selectedCategory} category.</p>
                     )}
                 </div>
             </div>
@@ -344,7 +362,7 @@ const styles = {
     },
     jobListContainer: {
         display: 'grid',
-        // MODIFIED to explicitly force 3 columns per row
+        // ENSURED: 3 columns per row
         gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '25px',
     },
@@ -356,12 +374,22 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         transition: 'transform 0.2s',
+        // MODIFIED: Fixed Height for horizontal alignment of footer
+        height: '480px', 
+    },
+    // NEW: Wrapper for variable content
+    jobContentWrapper: {
+        flex: 1, // Allows it to take up all available vertical space
+        overflowY: 'auto', // Adds scrollbar if content overflows
+        paddingBottom: '15px', 
+        marginBottom: '10px',
     },
     jobHeader: {
         display: 'flex',
         alignItems: 'center',
         marginBottom: '15px',
         gap: '15px',
+        flexShrink: 0, // Ensure header does not shrink
     },
     jobTitleArea: {
         flexGrow: 1,
@@ -397,6 +425,7 @@ const styles = {
         marginBottom: '15px',
         borderRadius: '10px',
         overflow: 'hidden',
+        flexShrink: 0, // Ensure media container doesn't shrink inside content wrapper
     },
     readMoreButton: {
         display: 'flex',
@@ -409,13 +438,19 @@ const styles = {
         marginTop: '10px',
         marginBottom: '15px', 
         width: 'fit-content',
+        flexShrink: 0, // Ensure button does not shrink
     },
     jobMeta: {
         display: 'flex',
         gap: '20px',
-        marginBottom: '20px',
+        // ADJUSTED: Padding and border moved up to maintain alignment after button removal
+        // Also removed marginBottom which was intended for spacing before the button
         paddingTop: '10px',
         borderTop: '1px solid #f3f4f6',
+        flexShrink: 0, // Ensure meta section does not shrink
+        marginTop: 'auto', // Push meta and clock to the bottom (since no button is below it)
+        marginBottom: '0', 
+        paddingBottom: '10px', // Added padding bottom to give space from the card edge
     },
     metaItem: {
         display: 'flex',
@@ -424,21 +459,7 @@ const styles = {
         fontSize: '12px',
         color: '#6b7280',
     },
-    applyButton: {
-        backgroundColor: '#10b981',
-        color: '#ffffff',
-        border: 'none',
-        padding: '10px 15px',
-        borderRadius: '10px',
-        fontSize: '14px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s',
-        marginTop: 'auto', 
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    // applyButton style removed
     loadingText: {
         fontSize: '16px',
         color: '#6b7280',
@@ -474,7 +495,7 @@ const styles = {
         objectFit: 'cover',
     },
     
-    // NEW MODAL STYLES
+    // MODAL STYLES (Kept as is)
     modalOverlay: { 
         position: 'fixed', 
         top: 0, 

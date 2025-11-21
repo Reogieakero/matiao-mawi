@@ -113,16 +113,22 @@ const Sidebar = ({ refetchTrigger }) => {
 
                 <ul style={styles.jobList}>
                     {jobCounts.map((job, index) => (
-                        <li key={index} style={styles.jobItem}>
-                            {/* Subtle wavy background */}
-                            <div style={{ 
-                                ...styles.wavyBackground, 
-                                background: job.color, 
-                                opacity: 0.2 
-                            }}></div>
+                        // MODIFIED: Use li as a wrapper, and Link for the clickable area
+                        <li key={index} style={styles.jobItemWrapper}>
+                            <Link 
+                                to={`/find-jobs?category=${job.title}`}
+                                style={styles.jobLink}
+                            >
+                                {/* Subtle wavy background */}
+                                <div style={{ 
+                                    ...styles.wavyBackground, 
+                                    background: job.color, 
+                                    opacity: 0.2 
+                                }}></div>
 
-                            <span style={styles.jobTitle}>{job.title}</span>
-                            <span style={styles.vacancyCount}>{job.vacancies}</span>
+                                <span style={styles.jobTitle}>{job.title}</span>
+                                <span style={styles.vacancyCount}>{job.vacancies}</span>
+                            </Link>
                         </li>
                     ))}
                 </ul>
@@ -186,7 +192,14 @@ const styles = {
         flexDirection: 'column',
         gap: '12px',
     },
-    jobItem: {
+    // NEW style for the li wrapper
+    jobItemWrapper: {
+        listStyle: 'none',
+        padding: 0,
+        margin: 0,
+    },
+    // NEW style for the Link component
+    jobLink: {
         position: 'relative',
         display: 'flex',
         justifyContent: 'space-between',
@@ -201,6 +214,8 @@ const styles = {
         backgroundColor: '#ffffff',
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         transition: 'transform 0.2s, box-shadow 0.2s',
+        textDecoration: 'none', // Remove underline
+        width: '85%',
     },
     wavyBackground: {
         position: 'absolute',
