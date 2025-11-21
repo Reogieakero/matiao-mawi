@@ -34,10 +34,12 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
     
-    // ⭐ NEW STATE: Contact number for job posts
+    // ⭐ RE-INTRODUCED: Contact number for job posts
     const [contactNumber, setContactNumber] = useState(''); 
 
-    // ⭐ REMOVED: jobPostTrigger state is no longer needed
+    // ⭐ RE-INTRODUCED: Custom Error Modal States
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+    const [errorModalMessage, setErrorModalMessage] = useState('');
 
     // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -98,7 +100,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         try {
             const res = await fetch("http://localhost:5000/api/threads");
             if (!res.ok) throw new Error("Failed to fetch threads");
-            allThreads = await res.json();
+            // ⭐ FIX: Ensure allThreads is an array even if the server returns null/undefined
+            allThreads = (await res.json()) || []; 
         } catch (error) {
             console.error("Error fetching threads:", error);
             setIsLoading(false);
@@ -155,7 +158,12 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
-        if (!userId) return alert('You must be logged in to save a thread.');
+        if (!userId) {
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage('You must be logged in to save a thread.');
+            setIsErrorModalOpen(true);
+            return;
+        }
         
         // Optimistic UI Update
         setThreads(prevThreads => prevThreads.map(t => 
@@ -176,14 +184,18 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             const data = await res.json();
             
             if (!res.ok) {
-                 alert(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+                 // ⭐ MODIFIED: Replace alert with custom error modal
+                 setErrorModalMessage(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+                 setIsErrorModalOpen(true);
                  setThreads(prevThreads => prevThreads.map(t => 
                     t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
                  ));
             }
         } catch (error) {
             console.error("Bookmark network error:", error);
-            alert(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
+            setIsErrorModalOpen(true);
             setThreads(prevThreads => prevThreads.map(t => 
                 t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
             ));
@@ -231,34 +243,44 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
         setSelectedFile(null); 
-        setContactNumber(''); // ⭐ NEW: Clear contact number on type change
+        setContactNumber(''); // Clear contact number on switch
     };
 
 
-    // MODIFIED: handlePostSubmit to include single-file upload logic, job count update, and contact number
+    // ⭐ MODIFIED 2: handlePostSubmit with contact number validation and custom error modal
     const handlePostSubmit = async () => {
         if (!userId) {
-             alert('User ID not found. Please log in again to post.');
+             setErrorModalMessage('User ID not found. Please log in again to post.');
+             setIsErrorModalOpen(true);
              setIsModalOpen(false);
              return;
         }
 
         if (!postContent.trim() && !selectedFile) {
-            return alert('Post cannot be empty if no media is attached!');
+            setErrorModalMessage('Post cannot be empty if no media is attached!');
+            setIsErrorModalOpen(true);
+            return;
         }
-        if (!postCategory) return alert('Please select a category.');
+        if (!postCategory) {
+            setErrorModalMessage('Please select a category for your post or job.');
+            setIsErrorModalOpen(true);
+            return;
+        }
 
-        // ⭐ MODIFIED 2: Validation for job post contact number with Regex
+        // Validation for job post contact number with custom modal (Confirmation message replacement)
         if (postType === 'job') {
             if (!contactNumber.trim()) {
-                return alert('Contact number is required for job posts.');
+                setErrorModalMessage('Contact number is required for job posts.');
+                setIsErrorModalOpen(true);
+                return;
             }
             // Philippine Mobile Number Regex: Allows 09XXxxxxxxx or +639XXxxxxxxx (11 or 12 characters)
-            // It allows for the 11-digit mobile number starting with 09 or +639
             const phNumberRegex = /^(09|\+639)\d{9}$/; 
             
             if (!phNumberRegex.test(contactNumber.trim())) {
-                return alert('Please enter a valid Philippine mobile number format (e.g., 09xxxxxxxxx or +639xxxxxxxxx).');
+                setErrorModalMessage('The contact number is not in a valid Philippine mobile format. Please use 09xxxxxxxxx or +639xxxxxxxxx (no spaces or hyphens).');
+                setIsErrorModalOpen(true);
+                return; // Stop the post submission
             }
         }
         // -------------------------------------------------------------
@@ -286,7 +308,9 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 mediaUrls = uploadData.mediaUrls; 
             } catch (err) {
                 console.error("Media upload error:", err);
-                alert(`Failed to upload media. Post was cancelled. Error: ${err.message}`);
+                // ⭐ MODIFIED: Replace alert with custom error modal
+                setErrorModalMessage(`Failed to upload media. Post was cancelled. Error: ${err.message}`);
+                setIsErrorModalOpen(true);
                 setIsUploadingFile(false);
                 return;
             } finally {
@@ -301,8 +325,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             type: postType,
             title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
             author: userName || 'User',
-            author_id: userId, // ⭐ Added for optimistic and fallback logic
-            author_picture_url: profilePictureUrl, // ⭐ Added for optimistic display
+            author_id: userId, 
+            author_picture_url: profilePictureUrl, 
             time: new Date(),
             tag: postCategory,
             body: postContent,
@@ -311,7 +335,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             isSubmitting: true, 
             isBookmarked: false,
             mediaUrls: mediaUrls,
-            // contact_number is not needed for optimistic display
         };
         setThreads([optimisticThread, ...threads]);
         setIsModalOpen(false);
@@ -326,7 +349,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     postContent,
                     postCategory,
                     mediaUrls: mediaUrls,
-                    // ⭐ MODIFIED: Include contactNumber in the request body
                     contactNumber: postType === 'job' ? contactNumber : null,
                 }),
             });
@@ -338,7 +360,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 
                 if (res.ok && data.thread) {
                     if (postType === 'job') {
-                        // ⭐ MODIFIED 2: Use setRefetchTrigger prop to trigger Sidebar update
                         if (setRefetchTrigger) {
                             setRefetchTrigger(prev => prev + 1);
                         }
@@ -346,20 +367,22 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     
                     const newThreadWithUrls = {
                         ...data.thread, 
-                        // Ensure mediaUrls is an array
                         mediaUrls: data.thread.mediaUrls || (data.thread.mediaUrl ? [data.thread.mediaUrl] : []),
-                        // NOTE: author_picture_url is now correctly included by the server fix
                     };
                     return [newThreadWithUrls, ...updatedThreads];
                 } else {
-                    alert(data.message || "Something went wrong while posting. Please try again.");
+                    // ⭐ MODIFIED: Replace alert with custom error modal
+                    setErrorModalMessage(data.message || "Something went wrong while posting. Please try again.");
+                    setIsErrorModalOpen(true);
                     return updatedThreads;
                 }
             });
 
         } catch (err) {
             console.error("Post network error:", err);
-            alert("A network error occurred. Check server status.");
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage("A network error occurred. Check server status.");
+            setIsErrorModalOpen(true);
             setThreads(prevThreads => prevThreads.filter(t => t.id !== tempId));
         }
         
@@ -368,16 +391,25 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setPostCategory(currentCategories[0]); 
         setPostType("post");
         setSelectedFile(null); 
-        // ⭐ NEW: Cleanup the new state
         setContactNumber('');
     };
     
     // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
-        if (!userId) return alert('You must be logged in to reply.');
+        if (!userId) {
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage('You must be logged in to reply.');
+            setIsErrorModalOpen(true);
+            return;
+        }
         
         const thread = threads.find(t => t.id === threadId);
-        if (!thread) return alert('Thread not found.');
+        if (!thread) {
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage('The thread you are trying to reply to was not found.');
+            setIsErrorModalOpen(true);
+            return;
+        }
 
         setThreadToReplyDetails({
             title: thread.title,
@@ -395,7 +427,12 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     // handleResponseSubmit
     const handleResponseSubmit = async () => {
-        if (!responseContent.trim()) return alert('Response cannot be empty!');
+        if (!responseContent.trim()) {
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage('Your response cannot be empty!');
+            setIsErrorModalOpen(true);
+            return;
+        }
         
         const responseData = {
             userId: userId,
@@ -425,12 +462,16 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 }
 
             } else {
-                alert(data.message || "Failed to add response.");
+                // ⭐ MODIFIED: Replace alert with custom error modal
+                setErrorModalMessage(data.message || "Failed to add response.");
+                setIsErrorModalOpen(true);
             }
 
         } catch (err) {
             console.error("Response network error:", err);
-            alert("A network error occurred while submitting response.");
+            // ⭐ MODIFIED: Replace alert with custom error modal
+            setErrorModalMessage("A network error occurred while submitting response.");
+            setIsErrorModalOpen(true);
         }
 
         setIsResponseModalOpen(false);
@@ -639,7 +680,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     userName={userName} 
                     userEmail={userEmail} 
                     profilePictureUrl={profilePictureUrl} 
-                    // ⭐ MODIFIED 3: jobPostTrigger prop removed
                 />
             </div>
 
@@ -689,7 +729,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             ))}
                         </div>
 
-                        {/* ⭐ NEW: Conditional Input for Contact Number */}
+                        {/* ⭐ MODIFIED: Input for Contact Number with updated placeholder */}
                         {postType === 'job' && (
                             <input
                                 type="tel" // Use 'tel' for better mobile support
@@ -717,7 +757,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             style={styles.modalTextarea}
                         />
 
-                        {/* MODIFIED: File Input Section */}
+                        {/* File Input Section */}
                         <div style={styles.fileInputSection}>
                             <label htmlFor="media-upload" style={styles.fileInputLabel}>
                                 <FiPaperclip size={20} /> Attach Media ({postType === 'job' ? 'PDF/Image (optional)' : 'Image (optional)'})
@@ -737,7 +777,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                 <FiX size={20} style={{ cursor: 'pointer', color: '#dc2626' }} onClick={() => setSelectedFile(null)} />
                             </div>
                         )}
-                        {/* END MODIFIED: File Input Section */}
+                        {/* END File Input Section */}
                         
                         <button 
                             onClick={handlePostSubmit} 
@@ -783,7 +823,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             )}
                         </div>
 
-                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
+                        {/* Response Modal User Section */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
@@ -803,6 +843,32 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     </div>
                 </div>
             )}
+            
+            {/* ⭐ MODIFIED: Custom Error Modal (Reduced width) */}
+            {isErrorModalOpen && (
+                <div style={styles.modalOverlay}>
+                    <div style={{ ...styles.modalContent, maxWidth: '350px' }}>
+                        <div style={styles.modalHeader}>
+                            <h3 style={{ color: '#dc2626' }}>Validation Error</h3>
+                            <FiX 
+                                size={28} 
+                                style={{ cursor: 'pointer', color: '#dc2626' }} 
+                                onClick={() => setIsErrorModalOpen(false)} 
+                            />
+                        </div>
+                        <p style={styles.errorModalText}>
+                            {errorModalMessage}
+                        </p>
+                        <button 
+                            onClick={() => setIsErrorModalOpen(false)} 
+                            style={styles.errorModalButton}
+                        >
+                            Understood
+                        </button>
+                    </div>
+                </div>
+            )}
+            
         </div>
     );
 }
@@ -873,26 +939,6 @@ const styles = {
         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         border: '1px solid #e5e7eb',
     },
-    // Media container styles
-    threadMediaContainer: {
-        marginTop: '15px',
-        marginBottom: '15px',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        border: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    threadImage: {
-        width: '100%',
-        height: 'auto',
-        objectFit: 'cover',
-        display: 'block',
-        maxWidth: '100%',
-    },
-    // End: Media container styles
     threadMetaTop: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -904,7 +950,6 @@ const styles = {
         alignItems: 'center',
         gap: '8px',
     },
-    // NEW STYLE: For image inside the avatar circles
     avatarImage: {
         width: '100%',
         height: '100%',
@@ -923,9 +968,9 @@ const styles = {
         fontWeight: '600',
         fontSize: '14px',
         flexShrink: 0,
-        overflow: 'hidden', // Added for image
+        overflow: 'hidden', 
     },
-    avatarCircleTiny: { // Added for responses
+    avatarCircleTiny: { 
         width: '24px', 
         height: '24px', 
         borderRadius: '50%', 
@@ -1071,7 +1116,7 @@ const styles = {
     },
     // --- End: Response Styles ---
 
-    // --- Modal Styles (Post & Response) ---
+    // --- Modal Styles (Post & Response & Error) ---
     modalOverlay: {
         position: 'fixed',
         top: 0,
@@ -1139,7 +1184,7 @@ const styles = {
         justifyContent: 'center',
         fontWeight: '700',
         fontSize: '18px',
-        overflow: 'hidden', // Added for image
+        overflow: 'hidden', 
     },
     modalUserName: {
         fontWeight: 600,
@@ -1256,6 +1301,27 @@ const styles = {
         maxHeight: '40px',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
+    },
+    // ⭐ NEW Styles for Error Modal
+    errorModalText: {
+        fontSize: '16px',
+        color: '#4b5563',
+        margin: '15px 0 25px 0',
+        lineHeight: '1.6',
+        textAlign: 'center',
+        padding: '0 15px',
+    },
+    errorModalButton: {
+        width: '100%',
+        padding: '12px',
+        borderRadius: '10px',
+        backgroundColor: '#dc2626',
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: '16px',
+        border: 'none',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s'
     },
     // --- End: Modal Styles ---
 };
