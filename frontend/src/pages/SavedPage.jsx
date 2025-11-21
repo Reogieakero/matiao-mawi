@@ -431,7 +431,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                                         </div>
                                         <span style={styles.threadTagModified}>{tag}</span>
                                     </div>
-                                    <h3 style={styles.threadTitle}>{title}</h3>
                                     
                                     {/* ⭐ MODIFICATION: Use the new renderPostBody helper */}
                                     {renderPostBody(thread)}

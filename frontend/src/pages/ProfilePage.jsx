@@ -7,8 +7,13 @@ import {
     FiSend, 
     FiTrash2,
     FiAlertOctagon, 
+    FiChevronDown, // ⭐ NEW: Added for Read More button
+    FiChevronUp, // ⭐ NEW: Added for Close View button
 } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel'; 
+
+// CONSTANT for truncation length (Max characters to show before "Read More")
+const MAX_POST_LENGTH = 300; 
 
 // --- Utility Functions (Essential for rendering) ---
 const getTimeSince = (date) => {
@@ -362,7 +367,7 @@ const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
 // ----------------------------------------------------
 
 // --- UserThread Component (Updated to pass full thread object) ---
-const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread }) => {
+const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread, renderPostBody }) => { // ⭐ MODIFIED: Added renderPostBody prop
     const [showResponses, setShowResponses] = useState(false);
 
     const renderMediaGallery = (mediaUrls) => {
@@ -422,12 +427,10 @@ const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread }) => 
                 </div>
             </div>
 
-            <h3 style={styles.threadTitle}>
-                {thread.title}
-            </h3>
-            <p style={styles.threadBody}>
-                {thread.body}
-            </p>
+           
+            
+            {/* ⭐ MODIFIED: Use renderPostBody function for truncation/Read More */}
+            {renderPostBody(thread)}
 
             {renderMediaGallery(thread.mediaUrls)}
 
@@ -501,6 +504,10 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
     // Confirmation Modal State for deleting all threads (NEW)
     const [deleteAllModal, setDeleteAllModal] = useState(false);
+    
+    // ⭐ NEW: State for Read More Modal
+    const [isReadModalOpen, setIsReadModalOpen] = useState(false);
+    const [readModalThread, setReadModalThread] = useState(null); 
 
 
     const fileInputRef = useRef(null);
@@ -508,6 +515,18 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
     // User ID from localStorage
     const currentUserId = parseInt(localStorage.getItem('userId'), 10); 
+
+    // --- Read Modal Handlers (Copied from SavedPage/HomePage) ---
+    const openReadModal = (thread) => {
+        setReadModalThread(thread);
+        setIsReadModalOpen(true);
+    };
+
+    const closeReadModal = () => {
+        setIsReadModalOpen(false);
+        setReadModalThread(null);
+    };
+    // ----------------------------------------------------
 
     // --- Data Fetching ---
     const fetchUserData = useCallback(async () => {
@@ -692,6 +711,11 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
     // --- Delete Single Thread Handler (Receives full thread object and passes mediaUrls) ---
     const handleDeleteThread = (thread) => {
+        // Close Read Modal if open for this thread
+        if (readModalThread && readModalThread.id === thread.id) {
+             closeReadModal();
+        }
+        
         // Open custom confirmation modal instead of using window.confirm
         setConfirmationModal({
             isVisible: true,
@@ -854,6 +878,40 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
 
     const currentPictureSource = previewUrl || profilePictureUrl;
 
+    // --- ⭐ NEW: Function to render the post body with truncation (Opens Modal) ---
+    const renderPostBody = (thread) => {
+        // Ensure body exists before accessing length
+        const bodyContent = thread.body || ""; 
+        const isLongPost = bodyContent.length > MAX_POST_LENGTH;
+
+        if (isLongPost) {
+            // Truncated content
+            const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
+            return (
+                <>
+                    <p style={styles.threadBody}>
+                        {truncatedContent}
+                    </p>
+                    <div 
+                        style={styles.readMoreButton} 
+                        onClick={() => openReadModal(thread)} // <--- CALLS MODAL
+                    >
+                        <FiChevronDown size={14} /> Read More
+                    </div>
+                </>
+            );
+        }
+
+        // Full content if not long
+        return (
+            <p style={styles.threadBody}>
+                {bodyContent}
+            </p>
+        );
+    };
+    // ----------------------------------------------------
+
+
     return (
         <div style={styles.pageContainer}>
             <AlertPopup 
@@ -874,7 +932,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                 onCancel={() => setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] })} 
             />
             
-            {/* Confirmation Modal for Delete All Threads (NEW) */}
+            {/* Confirmation Modal for Delete All Threads */}
             <ConfirmationModal 
                 isVisible={deleteAllModal}
                 title="PERMANENTLY DELETE ALL POSTS"
@@ -887,6 +945,49 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                 confirmButtonText={`Delete ALL (${userThreads.length})`}
                 confirmIcon={<FiAlertOctagon size={18} />}
             />
+            
+            {/* ⭐ NEW: Read Details Modal (Copied from SavedPage/HomePage) */}
+            {isReadModalOpen && readModalThread && (
+                // Click outside to close
+                <div style={styles.modalOverlay} onClick={closeReadModal}>
+                    {/* Stop propagation for clicks inside content */}
+                    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        {/* Header without title/border */}
+                        <div style={styles.modalHeaderNoBorder}> 
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
+                        </div>
+                        
+                        <div style={styles.modalUserSection}>
+                            {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')} 
+                            <span style={styles.modalUserName}>{readModalThread.author}</span>
+                            <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
+                            <span style={styles.threadTag}>{readModalThread.tag}</span>
+                        </div>
+                        
+                        {/* Full Content */}
+                        <p style={styles.modalThreadBody}>
+                            {readModalThread.body}
+                        </p>
+
+                        {/* Media (Need to replicate renderMediaGallery if it's not available globally or pass it) 
+                           - For simplicity here, we'll assume a basic image display if mediaUrls are present. 
+                           - Using the local renderMediaGallery from UserThread is not possible here, so we will keep it simple or skip media in the modal for now, or ensure renderMediaGallery is a standalone helper (which it is not currently).
+                           - I'll create a basic media render for the modal using the styles from UserThread.
+                        */}
+                        {readModalThread.mediaUrls && readModalThread.mediaUrls.length > 0 && (
+                             <div style={{height: '300px', margin: '15px 0', borderRadius: '10px', overflow: 'hidden'}}>
+                                 <img src={readModalThread.mediaUrls[0]} alt="Post media" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                             </div>
+                        )}
+
+
+                        <button onClick={closeReadModal} style={styles.modalCloseButton}>
+                            <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
+                        </button>
+                    </div>
+                </div>
+            )}
+            {/* End Read Modal */}
 
 
             {/* Page Title - Now part of the main page flow */}
@@ -1001,6 +1102,7 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                                     currentUserId={currentUserId} 
                                     setPopup={setPopup} 
                                     handleDeleteThread={handleDeleteThread} 
+                                    renderPostBody={renderPostBody} // ⭐ NEW: Passed the renderPostBody function
                                 />
                             ))
                         ) : (
@@ -1336,6 +1438,21 @@ const styles = {
         color: '#374151',
         margin: 0,
         lineHeight: '1.6',
+        wordWrap: 'break-word', 
+        overflowWrap: 'break-word', 
+    },
+    // ⭐ NEW Style: Read More Button Style 
+    readMoreButton: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#3b82f6',
+        cursor: 'pointer',
+        marginTop: '10px',
+        marginBottom: '15px', 
+        width: 'fit-content',
     },
     threadActions: {
         display: 'flex',
@@ -1487,5 +1604,77 @@ const styles = {
         color: '#9ca3af', 
         textAlign: 'center', 
         padding: '10px 0',
-    }
+    },
+    // ⭐ NEW Styles for Read Modal (Copied/Adapted from SavedPage/HomePage)
+    modalOverlay: { 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        zIndex: 1000 
+    }, 
+    modalContent: { 
+        backgroundColor: '#fff', 
+        padding: '25px', 
+        width: '90%', 
+        maxWidth: '500px',
+        maxHeight: '80vh', 
+        overflowY: 'auto', 
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
+    }, 
+    modalHeaderNoBorder: { 
+        display: 'flex', 
+        justifyContent: 'flex-end', 
+        alignItems: 'center', 
+        paddingBottom: '10px', 
+        paddingTop: '5px',
+        marginBottom: '5px',
+    },
+    modalUserSection: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '12px', 
+        marginTop: '0px', 
+        borderBottom: '1px solid #e5e7eb', 
+        paddingBottom: '15px' 
+    }, 
+    modalUserName: { 
+        fontWeight: 600, 
+        fontSize: '16px', 
+        color: '#1e3a8a' 
+    }, 
+    modalTime: { 
+        fontSize: '13px',
+        color: '#9ca3af',
+        marginLeft: '10px',
+    },
+    modalThreadBody: {
+        fontSize: '15px',
+        color: '#4b5563',
+        margin: '15px 0',
+        lineHeight: '1.6',
+        whiteSpace: 'pre-wrap', 
+    },
+    modalCloseButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '8px', 
+        width: '100%', 
+        padding: '12px', 
+        borderRadius: '10px', 
+        backgroundColor: '#60a5fa', 
+        color: '#fff', 
+        fontWeight: '700', 
+        fontSize: '16px', 
+        border: 'none', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s',
+        marginTop: '20px',
+    },
 };
