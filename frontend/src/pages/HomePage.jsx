@@ -21,8 +21,10 @@ const getTimeSince = (date) => {
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
+// CONSTANT for truncation length (Max characters to show before "Read More")
+const MAX_POST_LENGTH = 300; 
 
-// ⭐ MODIFIED 1: Accept setRefetchTrigger prop from App.jsx
+
 export default function HomePage({ userName, userEmail, profilePictureUrl, setRefetchTrigger }) {
     const [threads, setThreads] = useState([]);
     const [postContent, setPostContent] = useState('');
@@ -34,10 +36,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
     
-    // ⭐ RE-INTRODUCED: Contact number for job posts
     const [contactNumber, setContactNumber] = useState(''); 
 
-    // ⭐ RE-INTRODUCED: Custom Error Modal States
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
     const [errorModalMessage, setErrorModalMessage] = useState('');
 
@@ -55,10 +55,14 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
     
+    // ⭐ MODIFIED: Removed expandedPostIds state. Added Read Modal states.
+    const [isReadModalOpen, setIsReadModalOpen] = useState(false);
+    const [readModalThread, setReadModalThread] = useState(null); 
+    // ---------------------------------
+
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'User';
-    // Use the user ID from localStorage
     const userId = parseInt(localStorage.getItem('userId'), 10); 
 
     // NEW HELPER: Function to render avatar based on URL presence
@@ -100,7 +104,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         try {
             const res = await fetch("http://localhost:5000/api/threads");
             if (!res.ok) throw new Error("Failed to fetch threads");
-            // ⭐ FIX: Ensure allThreads is an array even if the server returns null/undefined
             allThreads = (await res.json()) || []; 
         } catch (error) {
             console.error("Error fetching threads:", error);
@@ -111,10 +114,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         const mapThreadMedia = (thread) => ({
             ...thread,
             isBookmarked: thread.isBookmarked || false,
-            // Use mediaUrls from server and ensure it is an array
             mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
-            // ⭐ FIX: If the thread belongs to the current user (based on userId check), 
-            // and the thread is missing a picture URL (e.g., old data), use the current user's local URL.
             author_picture_url: 
                 (thread.author_id === userId && !thread.author_picture_url && profilePictureUrl)
                     ? profilePictureUrl
@@ -128,7 +128,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 const bookmarks = await bookmarkRes.json();
                 
                 const bookmarkMap = bookmarks.reduce((acc, thread) => {
-                    // Note: thread object from bookmarks only contains id and type in this API structure
                     acc[`${thread.type}-${thread.id}`] = true;
                     return acc;
                 }, {});
@@ -150,8 +149,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsLoading(false);
     };
 
-    // Fetch threads on component mount
-    // ⭐ FIX: Added profilePictureUrl to dependencies
     useEffect(() => {
         fetchThreads();
     }, [userId, profilePictureUrl]); 
@@ -159,7 +156,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
         if (!userId) {
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage('You must be logged in to save a thread.');
             setIsErrorModalOpen(true);
             return;
@@ -184,7 +180,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             const data = await res.json();
             
             if (!res.ok) {
-                 // ⭐ MODIFIED: Replace alert with custom error modal
                  setErrorModalMessage(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
                  setIsErrorModalOpen(true);
                  setThreads(prevThreads => prevThreads.map(t => 
@@ -193,7 +188,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             }
         } catch (error) {
             console.error("Bookmark network error:", error);
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
             setIsErrorModalOpen(true);
             setThreads(prevThreads => prevThreads.map(t => 
@@ -216,7 +210,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             if (!res.ok) throw new Error("Failed to fetch responses");
             const data = await res.json();
             
-            // Note: Data is ordered DESC by created_at in server, reversing here for chronological display
             setResponses(prevResponses => ({
                 ...prevResponses,
                 [threadId]: data.reverse()
@@ -238,6 +231,17 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
+    // ⭐ NEW HANDLERS FOR READ MODAL
+    const openReadModal = (thread) => {
+        setReadModalThread(thread);
+        setIsReadModalOpen(true);
+    };
+
+    const closeReadModal = () => {
+        setIsReadModalOpen(false);
+        setReadModalThread(null);
+    };
+    
     // Handle category change when postType changes
     const handlePostTypeChange = (type) => {
         setPostType(type);
@@ -246,8 +250,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setContactNumber(''); // Clear contact number on switch
     };
 
-
-    // ⭐ MODIFIED 2: handlePostSubmit with contact number validation and custom error modal
+    // handlePostSubmit
     const handlePostSubmit = async () => {
         if (!userId) {
              setErrorModalMessage('User ID not found. Please log in again to post.');
@@ -267,14 +270,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             return;
         }
 
-        // Validation for job post contact number with custom modal (Confirmation message replacement)
+        // Validation for job post contact number
         if (postType === 'job') {
             if (!contactNumber.trim()) {
                 setErrorModalMessage('Contact number is required for job posts.');
                 setIsErrorModalOpen(true);
                 return;
             }
-            // Philippine Mobile Number Regex: Allows 09XXxxxxxxx or +639XXxxxxxxx (11 or 12 characters)
             const phNumberRegex = /^(09|\+639)\d{9}$/; 
             
             if (!phNumberRegex.test(contactNumber.trim())) {
@@ -308,7 +310,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 mediaUrls = uploadData.mediaUrls; 
             } catch (err) {
                 console.error("Media upload error:", err);
-                // ⭐ MODIFIED: Replace alert with custom error modal
                 setErrorModalMessage(`Failed to upload media. Post was cancelled. Error: ${err.message}`);
                 setIsErrorModalOpen(true);
                 setIsUploadingFile(false);
@@ -323,7 +324,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         const optimisticThread = {
             id: tempId,
             type: postType,
-            title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : ''),
+            title: '', 
             author: userName || 'User',
             author_id: userId, 
             author_picture_url: profilePictureUrl, 
@@ -371,7 +372,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     };
                     return [newThreadWithUrls, ...updatedThreads];
                 } else {
-                    // ⭐ MODIFIED: Replace alert with custom error modal
                     setErrorModalMessage(data.message || "Something went wrong while posting. Please try again.");
                     setIsErrorModalOpen(true);
                     return updatedThreads;
@@ -380,7 +380,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
         } catch (err) {
             console.error("Post network error:", err);
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage("A network error occurred. Check server status.");
             setIsErrorModalOpen(true);
             setThreads(prevThreads => prevThreads.filter(t => t.id !== tempId));
@@ -397,7 +396,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) {
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage('You must be logged in to reply.');
             setIsErrorModalOpen(true);
             return;
@@ -405,7 +403,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         
         const thread = threads.find(t => t.id === threadId);
         if (!thread) {
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage('The thread you are trying to reply to was not found.');
             setIsErrorModalOpen(true);
             return;
@@ -428,7 +425,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     // handleResponseSubmit
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) {
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage('Your response cannot be empty!');
             setIsErrorModalOpen(true);
             return;
@@ -462,14 +458,12 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 }
 
             } else {
-                // ⭐ MODIFIED: Replace alert with custom error modal
                 setErrorModalMessage(data.message || "Failed to add response.");
                 setIsErrorModalOpen(true);
             }
 
         } catch (err) {
             console.error("Response network error:", err);
-            // ⭐ MODIFIED: Replace alert with custom error modal
             setErrorModalMessage("A network error occurred while submitting response.");
             setIsErrorModalOpen(true);
         }
@@ -500,7 +494,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // MODIFIED: renderResponses to use renderAvatar
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -513,7 +506,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
-                    {/* MODIFIED: Use renderAvatar for response author */}
                     {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
@@ -537,17 +529,15 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     </span>
                 </div>
 
-                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
     };
 
-    // NEW HELPER: Function to render the media gallery with specific 1-on-2 layout
+    // NEW HELPER: Function to render the media gallery 
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
 
-        // Common style for images in the gallery
         const imageStyle = {
             width: '100%',
             height: '100%',
@@ -570,7 +560,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             </div>
         );
 
-        // Only handles 1 photo now
         if (mediaUrls.length >= 1) {
             return (
                 <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
@@ -581,6 +570,38 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
         return null;
     };
+
+    // ⭐ MODIFIED: Function to render the post body with truncation (Opens Modal)
+    const renderPostBody = (thread) => {
+        const bodyContent = thread.body || "";
+        const isLongPost = bodyContent.length > MAX_POST_LENGTH;
+
+        if (isLongPost) { 
+            // Truncated content
+            const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
+            return (
+                <>
+                    <p style={styles.threadBodyModified}>
+                        {truncatedContent}
+                    </p>
+                    {/* Read More button calls openReadModal */}
+                    <div 
+                        style={styles.readMoreButton} 
+                        onClick={() => openReadModal(thread)}
+                    >
+                        <FiChevronDown size={14} /> Read More
+                    </div>
+                </>
+            );
+        }
+
+        // Full content if not long
+        return (
+            <p style={styles.threadBodyModified}>
+                {bodyContent}
+            </p>
+        );
+    };
     
     return (
         <div style={styles.page}>
@@ -589,7 +610,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
-                    {/* MODIFIED: Facebook-like Create Post Bar to use renderAvatar */}
                     <div style={styles.createPostBar} onClick={() => setIsModalOpen(true)}>
                         {renderAvatar(profilePictureUrl, firstName, 'large')}
                         <input 
@@ -611,7 +631,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             <div key={thread.id} style={styles.threadPost}>
                                 <div style={styles.threadMetaTop}>
                                     <div style={styles.threadAuthorInfo}>
-                                        {/* MODIFIED: Use renderAvatar for author */}
                                         {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                         <span style={styles.threadAuthorName}>{thread.author}</span>
                                         <span style={styles.threadTime}>
@@ -621,10 +640,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                     <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
 
-                                <h3 style={styles.threadTitle}>{thread.title}</h3>
-                                <p style={styles.threadBodyModified}>
-                                    {thread.body}
-                                </p>
+                                {/* MODIFICATION: Use the updated renderPostBody helper */}
+                                {renderPostBody(thread)}
                                 
                                 {/* MODIFIED: Media Display */}
                                 {renderMediaGallery(thread.mediaUrls)}
@@ -683,6 +700,40 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 />
             </div>
 
+            {/* ⭐ NEW: Read Details Modal */}
+            {isReadModalOpen && readModalThread && (
+                // Click outside to close
+                <div style={styles.modalOverlay} onClick={closeReadModal}>
+                    {/* Stop propagation for clicks inside content */}
+                    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        {/* Header without title/border */}
+                        <div style={styles.modalHeaderNoBorder}> 
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
+                        </div>
+                        
+                        <div style={styles.modalUserSection}>
+                            {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')} 
+                            <span style={styles.modalUserName}>{readModalThread.author}</span>
+                            <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
+                            <span style={styles.threadTagModified}>{readModalThread.tag}</span>
+                        </div>
+                        
+                        {/* Full Content */}
+                        <p style={styles.modalThreadBody}>
+                            {readModalThread.body}
+                        </p>
+
+                        {/* Media (if any) */}
+                        {renderMediaGallery(readModalThread.mediaUrls)}
+
+                        <button onClick={closeReadModal} style={styles.modalCloseButton}>
+                            <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
+                        </button>
+                    </div>
+                </div>
+            )}
+            {/* End Read Modal */}
+
             {/* Post Modal */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
@@ -729,10 +780,10 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             ))}
                         </div>
 
-                        {/* ⭐ MODIFIED: Input for Contact Number with updated placeholder */}
+                        {/* Input for Contact Number */}
                         {postType === 'job' && (
                             <input
-                                type="tel" // Use 'tel' for better mobile support
+                                type="tel" 
                                 placeholder="Contact Number (e.g., 09xxxxxxxxx or +639xxxxxxxxx)"
                                 value={contactNumber}
                                 onChange={(e) => setContactNumber(e.target.value)}
@@ -844,7 +895,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 </div>
             )}
             
-            {/* ⭐ MODIFIED: Custom Error Modal (Reduced width) */}
+            {/* Custom Error Modal */}
             {isErrorModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={{ ...styles.modalContent, maxWidth: '350px' }}>
@@ -1011,8 +1062,24 @@ const styles = {
     threadBodyModified: {
         fontSize: '16px',
         color: '#4b5563',
-        margin: '0 0 15px 0',
+        margin: '5px 0 0 0', // Top margin adjusted from previous steps
         lineHeight: '1.5',
+        // Text wrapping fix
+        wordWrap: 'break-word', 
+        overflowWrap: 'break-word',
+    },
+    // NEW Style for Read More Button
+    readMoreButton: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#3b82f6',
+        cursor: 'pointer',
+        marginTop: '10px',
+        marginBottom: '15px', // Adds space before the footer or media
+        width: 'fit-content',
     },
     threadFooter: {
         display: 'flex',
@@ -1116,7 +1183,7 @@ const styles = {
     },
     // --- End: Response Styles ---
 
-    // --- Modal Styles (Post & Response & Error) ---
+    // --- Modal Styles (Post & Response & Error & Read) ---
     modalOverlay: {
         position: 'fixed',
         top: 0,
@@ -1132,17 +1199,30 @@ const styles = {
     modalContent: {
         backgroundColor: '#fff',
         padding: '25px',
+        // Consistent Radius
         borderRadius: '16px',
         width: '90%',
         maxWidth: '500px',
+        // Added for Read Modal overflow
+        maxHeight: '80vh',
+        overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
     },
-    modalHeader: {
+    modalHeader: { // For modals with a title (Post/Response/Error)
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderBottom: '1px solid #c7d2fe',
         paddingBottom: '12px'
+    },
+    // NEW Style: For Read Modal (No Title)
+    modalHeaderNoBorder: { 
+        display: 'flex', 
+        justifyContent: 'flex-end', 
+        alignItems: 'center', 
+        paddingBottom: '10px', 
+        paddingTop: '5px',
+        marginBottom: '5px',
     },
     toggleContainer: {
         display: 'flex',
@@ -1171,7 +1251,9 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        marginBottom: '15px'
+        marginBottom: '15px',
+        borderBottom: '1px solid #e5e7eb', // Added to separate from body
+        paddingBottom: '15px' // Added to separate from body
     },
     avatarCircle: {
         width: '40px',
@@ -1240,6 +1322,32 @@ const styles = {
         cursor: 'pointer',
         transition: 'background-color 0.2s'
     },
+    // NEW Style for Full Post Content in Read Modal
+    modalThreadBody: {
+        fontSize: '15px',
+        color: '#4b5563',
+        margin: '15px 0',
+        lineHeight: '1.6',
+        whiteSpace: 'pre-wrap', // Preserve newlines
+    },
+    // NEW Style for Close Button in Read Modal
+    modalCloseButton: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '8px', 
+        width: '100%', 
+        padding: '12px', 
+        borderRadius: '10px', 
+        backgroundColor: '#60a5fa', 
+        color: '#fff', 
+        fontWeight: '700', 
+        fontSize: '16px', 
+        border: 'none', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s',
+        marginTop: '20px',
+    },
     fileInputSection: {
         display: 'flex',
         justifyContent: 'center',
@@ -1302,7 +1410,7 @@ const styles = {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
     },
-    // ⭐ NEW Styles for Error Modal
+    // Styles for Error Modal
     errorModalText: {
         fontSize: '16px',
         color: '#4b5563',

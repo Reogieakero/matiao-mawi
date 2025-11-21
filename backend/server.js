@@ -139,6 +139,8 @@ const formatThread = (row, type) => {
         isBookmarked: row.is_bookmarked || false,
         bookmarked_at: row.bookmarked_at || null,
         mediaUrls: mediaUrls || [],
+        // ⭐ ADDED: Include contact number for jobs
+        contactNumber: row.contact_number || null, 
     };
 };
 
@@ -332,6 +334,7 @@ app.get('/api/user-threads/:userId', (req, res) => {
                 p.tag, 
                 p.body, 
                 p.media_url, 
+                NULL AS contact_number, /* Ensure the post branch has a contact_number field for UNION consistency */
                 (SELECT COUNT(*) FROM responses WHERE post_id = p.id) AS response_count
             FROM posts p
             JOIN users u ON p.user_id = u.id
@@ -351,6 +354,7 @@ app.get('/api/user-threads/:userId', (req, res) => {
                 j.tag, 
                 j.body, 
                 j.media_url, 
+                j.contact_number, /* Include contact_number for jobs */
                 (SELECT COUNT(*) FROM responses WHERE job_id = j.id) AS response_count
             FROM jobs j
             JOIN users u ON j.user_id = u.id
@@ -773,6 +777,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 p.tag, 
                 p.body, 
                 p.media_url, 
+                NULL AS contact_number, /* Ensure the post branch has a contact_number field for UNION consistency */
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.post_id = p.id) AS response_count 
             FROM bookmarks b
@@ -794,6 +799,7 @@ app.get('/api/bookmarks/:userId', (req, res) => {
                 j.tag, 
                 j.body, 
                 j.media_url, 
+                j.contact_number, /* Include contact_number for jobs */
                 b.created_at AS bookmarked_at,
                 (SELECT COUNT(r.id) FROM responses r WHERE r.job_id = j.id) AS response_count 
             FROM bookmarks b
@@ -857,6 +863,7 @@ app.get('/api/search', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT 
             p.id, p.user_id, p.title, p.body, p.tag, p.created_at, p.media_url, 
+            NULL AS contact_number, /* Ensure the post branch has a contact_number field for UNION consistency */
             u.name, 
             up.profile_picture_url, 
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
@@ -873,6 +880,7 @@ app.get('/api/search', (req, res) => {
     const SQL_FETCH_JOBS = `
         SELECT 
             j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, 
+            j.contact_number, /* Include contact_number for jobs */
             u.name, 
             up.profile_picture_url, 
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count,
@@ -1111,12 +1119,15 @@ app.delete('/api/document-application/:transactionId', (req, res) => {
         res.status(200).json({ message: 'Document application permanently deleted successfully!', deletedId: transactionId });
     });
 });
+
+// ⭐ FIX APPLIED HERE: Removed JavaScript comments (//) and added j.contact_number to SELECT and GROUP BY
 app.get('/api/jobs', (req, res) => {
     const { category } = req.query; // 'category' is the tag
     
     let SQL_FETCH_JOBS = `
         SELECT 
             j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url,
+            j.contact_number, 
             u.name,
             up.profile_picture_url,
             CAST(COUNT(r.id) AS UNSIGNED) AS response_count
@@ -1141,7 +1152,7 @@ app.get('/api/jobs', (req, res) => {
     
     SQL_FETCH_JOBS += ` 
         GROUP BY 
-            j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url
+            j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, j.contact_number, u.name, up.profile_picture_url
         ORDER BY j.created_at DESC
     `;
     

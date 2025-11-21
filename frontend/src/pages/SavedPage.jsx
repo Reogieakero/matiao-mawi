@@ -18,6 +18,9 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
+// CONSTANT for truncation length (Max characters to show before "Read More")
+const MAX_POST_LENGTH = 300; 
+
 // --- START: Helper functions copied from HomePage.jsx for consistent design ---
 
 // NEW HELPER: Function to render avatar based on URL presence
@@ -116,6 +119,9 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     const [responses, setResponses] = useState({}); 
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
     // ---------------------------------
+    
+    // ⭐ NEW STATE: Tracks which post bodies are fully expanded
+    const [expandedPostIds, setExpandedPostIds] = useState({}); 
     
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
@@ -218,6 +224,14 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
 
+    // ⭐ NEW FUNCTION: Toggle post content expansion
+    const togglePostExpansion = (threadId) => {
+        setExpandedPostIds(prev => ({
+            ...prev,
+            [threadId]: !prev[threadId]
+        }));
+    };
+
     // handleReplyClick (Copied from HomePage - simplified)
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
@@ -296,6 +310,49 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             e.preventDefault(); 
             handleResponseSubmit();
         }
+    };
+    
+    // ⭐ NEW HELPER: Function to render the post body with truncation
+    const renderPostBody = (thread) => {
+        // Ensure body exists before accessing length
+        const bodyContent = thread.body || ""; 
+        const isLongPost = bodyContent.length > MAX_POST_LENGTH;
+        const isExpanded = expandedPostIds[thread.id];
+
+        if (isLongPost && !isExpanded) {
+            // Truncated content
+            const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
+            return (
+                <>
+                    <p style={styles.threadBodyModified}>
+                        {truncatedContent}
+                    </p>
+                    <div 
+                        style={styles.readMoreButton} 
+                        onClick={() => togglePostExpansion(thread.id)}
+                    >
+                        <FiChevronDown size={14} /> Read More
+                    </div>
+                </>
+            );
+        }
+
+        // Full content
+        return (
+            <>
+                <p style={styles.threadBodyModified}>
+                    {bodyContent}
+                </p>
+                {isLongPost && (
+                    <div 
+                        style={styles.readMoreButton} 
+                        onClick={() => togglePostExpansion(thread.id)}
+                    >
+                        <FiChevronUp size={14} /> Read Less
+                    </div>
+                )}
+            </>
+        );
     };
 
     // renderResponses (Copied from HomePage)
@@ -381,9 +438,9 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                                         <span style={styles.threadTagModified}>{tag}</span>
                                     </div>
                                     <h3 style={styles.threadTitle}>{title}</h3>
-                                    <p style={styles.threadBodyModified}>
-                                        {body}
-                                    </p>
+                                    
+                                    {/* ⭐ MODIFICATION: Use the new renderPostBody helper */}
+                                    {renderPostBody(thread)}
                                     
                                     {/* MODIFIED: Use renderMediaGallery for consistent image display */}
                                     {renderMediaGallery(mediaUrls)}
@@ -611,12 +668,28 @@ const styles = {
         color: '#1f2937', 
         margin: '0 0 8px 0', 
     }, 
+    // ⭐ MODIFIED: Removed bottom margin so renderPostBody can control spacing
     threadBodyModified: { 
         fontSize: '16px', 
         color: '#4b5563', 
-        margin: '0 0 15px 0', 
+        margin: '0 0 0 0', 
         lineHeight: '1.5', 
+        wordWrap: 'break-word', 
+        overflowWrap: 'break-word', 
     }, 
+    // ⭐ NEW Style for Read More Button
+    readMoreButton: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#3b82f6',
+        cursor: 'pointer',
+        marginTop: '10px',
+        marginBottom: '15px', // Adds space before the footer or media
+        width: 'fit-content',
+    },
     threadFooter: { 
         display: 'flex', 
         justifyContent: 'space-between', 
