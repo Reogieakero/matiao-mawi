@@ -10,8 +10,9 @@ import SavedPage from './pages/SavedPage';
 import SearchResultsPage from './pages/SearchResultsPage'; 
 import ProfilePage from './pages/ProfilePage'; 
 import DocumentsPage from './pages/DocumentsPage'; 
+import ServicesPage from './pages/ServicesPage'; 
 // [!code focus]
-import ServicesPage from './pages/ServicesPage'; // <--- NEW IMPORT
+import FindJobsPage from './pages/FindJobsPage'; // <--- NEW IMPORT
 // [!code focus]
 
 const Placeholder = ({ title }) => (
@@ -101,7 +102,7 @@ const App = () => {
                             profilePictureUrl={profilePictureUrl} 
                         />} 
                     />
-                    <Route path="/search" element={<SearchResultsPage userName={userName} userEmail={userEmail} />} />
+                    <Route path="/search" element={<SearchResultsPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl}/>} />
 
                     <Route 
                         path="/profile" 
@@ -125,13 +126,17 @@ const App = () => {
                     />
                     {/* Placeholder Routes */}
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
-                    {/* [!code focus:1] */}
                     <Route path="/services" element={<ServicesPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} />
-                    {/* [!code focus:1] */}
                     <Route path="/about" element={<Placeholder title="About" />} />
                     <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
                     <Route path="/contact" element={<Placeholder title="Contact" />} />
-                    <Route path="/find-jobs" element={<Placeholder title="Find Jobs" />} />
+                    {/* [!code focus:4] */}
+                    {/* UPDATED: Route to the actual FindJobsPage component */}
+                    <Route 
+                        path="/find-jobs" 
+                        element={<FindJobsPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
+                    />
+                    {/* [!code focus:4] */}
                     
                     {/* Default Route */}
                     <Route path="/" element={<Navigate to="/login" replace />} />

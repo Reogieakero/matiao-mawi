@@ -73,7 +73,7 @@ const Header = ({ userName, profilePictureUrl }) => {
                     <div style={styles.searchContainer}>
                         <input
                             type="text"
-                            placeholder="Search posts, services, or events..."
+                            placeholder="Search posted threads..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyPress={(e) => {

@@ -127,6 +127,7 @@ const Sidebar = ({ refetchTrigger }) => {
                     ))}
                 </ul>
 
+                {/* This link redirects to the FindJobsPage */}
                 <Link to="/find-jobs" style={styles.findJobButton}>
                     Explore All Jobs
                 </Link>
@@ -152,6 +153,7 @@ const styles = {
         gap: '15px',
         backgroundColor: '#f7f9fc',
         boxShadow: '2px 0 15px rgba(0,0,0,0.1)',
+        zIndex: 10, // Ensure sidebar is above main content
     },
     findJobCard: {
         padding: '20px',

@@ -1096,6 +1096,51 @@ app.delete('/api/document-application/:transactionId', (req, res) => {
         res.status(200).json({ message: 'Document application permanently deleted successfully!', deletedId: transactionId });
     });
 });
+app.get('/api/jobs', (req, res) => {
+    const { category } = req.query; // 'category' is the tag
+    
+    let SQL_FETCH_JOBS = `
+        SELECT 
+            j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url,
+            u.name,
+            up.profile_picture_url,
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count
+        FROM jobs j
+        JOIN users u ON j.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
+        LEFT JOIN responses r ON j.id = r.job_id
+    `;
+    
+    let whereClause = [];
+    let queryParams = [];
+
+    // Filter by category if provided and not 'All' 
+    if (category && category !== 'All') {
+        whereClause.push('j.tag = ?');
+        queryParams.push(category);
+    }
+    
+    if (whereClause.length > 0) {
+        SQL_FETCH_JOBS += ` WHERE ${whereClause.join(' AND ')}`;
+    }
+    
+    SQL_FETCH_JOBS += ` 
+        GROUP BY 
+            j.id, j.user_id, j.title, j.body, j.tag, j.created_at, j.media_url, u.name, up.profile_picture_url
+        ORDER BY j.created_at DESC
+    `;
+    
+    db.query(SQL_FETCH_JOBS, queryParams, (err, results) => {
+        if (err) {
+            console.error("Database error fetching jobs:", err);
+            return res.status(500).json({ message: 'Failed to fetch jobs.' });
+        }
+
+        // Use the existing formatThread helper, passing 'job' as the type
+        const jobs = results.map(row => formatThread(row, 'job'));
+        res.status(200).json(jobs);
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
