@@ -35,9 +35,10 @@ const documentTypes = [
 ];
 
 // Define the available downloadable documents
+// FIX: Updated file paths to be relative to the public directory (e.g., /forms/...)
 const availableDownloads = [
-    { id: 'u1', name: "Barangay Clearance Form", file: "clearance_form.pdf" },
-    { id: 'u2', name: "Certificate of Residency Request Form", file: "residency_form.pdf" },
+    { id: 'u1', name: "Volunteer Program Form.pdf", file: "/forms/Volunteer.pdf" },
+    { id: 'u2', name: "Blotter Intake Form.pdf", file: "/forms/Blotter.pdf" }, // Added .pdf to name for clarity
 ];
 
 // ⭐ Cancellation Confirmation Modal Component
@@ -117,7 +118,7 @@ const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onC
 // -------------------------------------------------------------------
 
 // Transaction History Component
-const TransactionHistory = ({ currentUserId }) => {
+const TransactionHistory = ({ currentUserId, refreshKey }) => { // MODIFIED: Accept refreshKey
     const [transactions, setTransactions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -157,8 +158,9 @@ const TransactionHistory = ({ currentUserId }) => {
 
     useEffect(() => {
         const idToFetch = currentUserId || 1;
+        // The fetch is triggered when currentUserId changes OR when refreshKey changes
         fetchTransactions(idToFetch);
-    }, [currentUserId, fetchTransactions]);
+    }, [currentUserId, fetchTransactions, refreshKey]); // MODIFIED: Added refreshKey dependency
 
     // Function to open the custom cancellation modal
     const openCancelModal = (id, name) => {
@@ -170,7 +172,7 @@ const TransactionHistory = ({ currentUserId }) => {
         setDeletionTarget({ id, name });
     };
 
-    // ⭐ Cancellation handler that executes the API call (PUT to UPDATE status)
+    // Cancellation handler that executes the API call (PUT to UPDATE status)
     const handleCancelExecute = async (transactionId) => {
         // Close the modal immediately after confirmation
         setCancellationTarget(null);
@@ -181,7 +183,7 @@ const TransactionHistory = ({ currentUserId }) => {
         try {
             setIsLoading(true);
 
-            // ⭐ Call the backend PUT route for cancellation
+            // Call the backend PUT route for cancellation
             const response = await fetch(`http://localhost:5000/api/document-application/cancel/${transactionId}`, {
                 method: 'PUT', // Use PUT to update the resource status
                 headers: { 'Content-Type': 'application/json' },
@@ -207,7 +209,7 @@ const TransactionHistory = ({ currentUserId }) => {
         }
     };
     
-    // ⭐ Deletion handler that executes the API call (DELETE for permanent removal)
+    // Deletion handler that executes the API call (DELETE for permanent removal)
     const handleDeleteExecute = async (transactionId) => {
         // Close the modal immediately after confirmation
         setDeletionTarget(null);
@@ -262,13 +264,18 @@ const TransactionHistory = ({ currentUserId }) => {
         });
     };
 
-    if (isLoading && transactions.length === 0) {
+    if (isLoading && transactions.length === 0 && refreshKey === 0) { // Check refreshKey to avoid initial false-loading state
         return (
             <section style={documentStyles.transactionSection}>
                 <p style={{ textAlign: 'center', color: '#4b5563' }}><FiClock size={16} style={{marginRight: '5px'}}/> Loading application status...</p>
             </section>
         );
     }
+    
+    if (isLoading && transactions.length > 0) {
+        // Show existing data while loading updates
+    }
+
 
     return (
         <section style={documentStyles.transactionSection}>
@@ -297,8 +304,23 @@ const TransactionHistory = ({ currentUserId }) => {
                     Error: {error}
                 </p>
             )}
+            
+            {isLoading && transactions.length > 0 && (
+                 <div style={{
+                    textAlign: 'center',
+                    color: '#2563eb',
+                    backgroundColor: '#eff6ff',
+                    padding: '5px',
+                    borderRadius: '8px',
+                    marginBottom: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                }}>
+                    Updating list...
+                </div>
+            )}
 
-            {transactions.length === 0 ? (
+            {transactions.length === 0 && !isLoading ? (
                 <p style={{ textAlign: 'center', color: '#6b7280', padding: '10px 0' }}>
                     You have no document application transactions yet.
                 </p>
@@ -429,7 +451,8 @@ const DocumentCard = ({ doc, onApplyClick }) => {
 
 
 // Application Modal Component
-const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId }) => {
+// MODIFIED: Accepts 'onSuccess' prop
+const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId, onSuccess }) => {
     const [purpose, setPurpose] = useState('');
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -521,8 +544,8 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             if (response.ok) {
                 setSubmitMessage(`Application submitted successfully! Transaction ID: ${data.transactionId}. Status: ${data.status}`);
                 setIsSubmitted(true);
-                // Call onClose to signal to the parent to potentially refresh the transaction list
-                setTimeout(onClose, 1500); 
+                // MODIFIED: Call onSuccess instead of onClose to trigger history refresh
+                setTimeout(onSuccess, 1500); 
             } else {
                 throw new Error(data.message || 'Server error during application submission.');
             }
@@ -547,7 +570,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                     <p>
                         The transaction history will refresh shortly.
                     </p>
-                    <button style={documentStyles.closeButtonSuccess} onClick={onClose}>
+                    <button style={documentStyles.closeButtonSuccess} onClick={onSuccess}> {/* MODIFIED: Call onSuccess on button click */}
                         Close
                     </button>
                 </div>
@@ -661,8 +684,10 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
 
 
 // Main Documents Page Component
+// MODIFIED: Added refreshTrigger state and handleApplicationSuccess function
 export default function DocumentsPage({ userName, userEmail, profilePictureUrl, currentUserId }) {
     const [selectedDocument, setSelectedDocument] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0); // ADDED: State to force history refresh
 
     const PLACEHOLDER_USER_ID = currentUserId || 1;
 
@@ -670,9 +695,15 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
         setSelectedDocument(doc);
     };
 
-    // Refreshes the transactions list upon modal close
+    // This handles closing the modal when the user cancels or hits 'X'
     const handleModalClose = () => {
         setSelectedDocument(null);
+    };
+    
+    // ADDED: New function to trigger a refresh AND close the modal on successful application
+    const handleApplicationSuccess = () => {
+        setRefreshTrigger(prev => prev + 1); // Increment to force TransactionHistory useEffect to run
+        setSelectedDocument(null); // Close the application modal
     };
 
     return (
@@ -700,7 +731,8 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                         {availableDownloads.map(item => (
                             <a
                                 key={item.id}
-                                href={`/forms/${item.file}`}
+                                // FIX: Use item.file directly (e.g., /forms/Volunteer.pdf)
+                                href={item.file}
                                 download
                                 style={documentStyles.downloadLink}
                             >
@@ -711,7 +743,7 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                     </div>
                 </section>
 
-                <TransactionHistory currentUserId={PLACEHOLDER_USER_ID} />
+                <TransactionHistory currentUserId={PLACEHOLDER_USER_ID} refreshKey={refreshTrigger} /> {/* MODIFIED: Pass refreshKey */}
 
             </main>
             <RightPanel userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />
@@ -719,6 +751,7 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
                 <ApplicationModal
                     document={selectedDocument}
                     onClose={handleModalClose}
+                    onSuccess={handleApplicationSuccess} // MODIFIED: Pass the new success handler
                     userName={userName}
                     userEmail={userEmail}
                     currentUserId={PLACEHOLDER_USER_ID}
