@@ -14,7 +14,7 @@ const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 app.use(cors({
     origin: 'http://localhost:3000', 
-    methods: 'GET,POST,DELETE', 
+    methods: 'GET,POST,DELETE,PUT', // ⭐ MODIFIED: Added PUT to allowed methods for cancellation
     credentials: true,
 }));
 app.use(bodyParser.json());
@@ -994,7 +994,7 @@ app.put('/api/profile/:userId', (req, res) => {
     });
 });
 
-// FIXED: POST /api/document-application - Save application transaction (Added requirements_media_url to SQL)
+// POST /api/document-application - Save application transaction
 app.post('/api/document-application', (req, res) => {
     // requirementsMediaUrl is included in the body and will be passed to the database
     const { userId, documentName, purpose, fee, requirementsMediaUrl } = req.body;
@@ -1020,7 +1020,7 @@ app.post('/api/document-application', (req, res) => {
     });
 });
 
-// PUT /api/document-application/cancel/:transactionId - Cancel a pending application
+// ⭐ CANCEL ROUTE: PUT /api/document-application/cancel/:transactionId
 app.put('/api/document-application/cancel/:transactionId', (req, res) => {
     const transactionId = parseInt(req.params.transactionId, 10);
     const userId = parseInt(req.body.userId, 10); 
@@ -1051,7 +1051,7 @@ app.put('/api/document-application/cancel/:transactionId', (req, res) => {
     });
 });
 
-// MODIFIED: GET /api/document-applications/:userId - Fetch user's transaction history.
+// GET /api/document-applications/:userId - Fetch user's transaction history.
 app.get('/api/document-applications/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
 
@@ -1091,10 +1091,9 @@ app.get('/api/document-applications/:userId', (req, res) => {
 });
 
 // DELETE /api/document-application/:transactionId - Permanently delete a CANCELLED application
-app.delete('/api/document-application/:transactionId', (req, res) => {
+app.delete('/api/document-applications/:transactionId', (req, res) => {
     const transactionId = parseInt(req.params.transactionId, 10);
     const userId = parseInt(req.body.userId, 10); 
-
     if (isNaN(transactionId) || isNaN(userId)) {
         return res.status(400).json({ message: 'Invalid Transaction ID or User ID.' });
     }
@@ -1120,7 +1119,6 @@ app.delete('/api/document-application/:transactionId', (req, res) => {
     });
 });
 
-// ⭐ FIX APPLIED HERE: Removed JavaScript comments (//) and added j.contact_number to SELECT and GROUP BY
 app.get('/api/jobs', (req, res) => {
     const { category } = req.query; // 'category' is the tag
     

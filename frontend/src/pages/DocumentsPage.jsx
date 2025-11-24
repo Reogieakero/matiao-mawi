@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// ⭐ MODIFIED: Added FiTrash2 for the delete icon
-import { FiFileText, FiDownload, FiInfo, FiSend, FiUploadCloud, FiTrash2 } from 'react-icons/fi'; 
+import { FiFileText, FiDownload, FiInfo, FiSend, FiUploadCloud, FiTrash2, FiClock } from 'react-icons/fi'; 
 import RightPanel from '../components/RightPanel';
 
 // Define the available documents
@@ -37,11 +36,11 @@ const documentTypes = [
 
 // Define the available downloadable documents
 const availableDownloads = [
-    { id: 'u1', name: "Barangay Clearance", file: "user1.pdf" },
-    { id: 'u2', name: "Certificate of Residency", file: "user2.pdf" },
+    { id: 'u1', name: "Barangay Clearance Form", file: "clearance_form.pdf" },
+    { id: 'u2', name: "Certificate of Residency Request Form", file: "residency_form.pdf" },
 ];
 
-// ⭐ NEW: Cancellation Confirmation Modal Component (Existing, unchanged)
+// ⭐ Cancellation Confirmation Modal Component
 const CancellationConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
     return (
         <div style={documentStyles.modalBackdrop}>
@@ -56,7 +55,7 @@ const CancellationConfirmationModal = ({ transactionId, documentName, onConfirm,
                     Are you sure you want to cancel the application for {documentName} (ID: {transactionId})?
                 </p>
                 <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
-                    This action cannot be undone.
+                    This action updates the status to 'Cancelled' and cannot be reverted to 'Pending'.
                 </p>
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
@@ -78,12 +77,12 @@ const CancellationConfirmationModal = ({ transactionId, documentName, onConfirm,
     );
 };
 
-// ⭐ NEW: Deletion Confirmation Modal Component
+// ⭐ Deletion Confirmation Modal Component
 const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
     return (
         <div style={documentStyles.modalBackdrop}>
             <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
-                <h2 style={{ ...documentStyles.modalHeader, color: '#b91c1c' }}> {/* Changed icon color to a darker red */}
+                <h2 style={{ ...documentStyles.modalHeader, color: '#b91c1c' }}>
                     <FiTrash2 size={24} style={{ marginRight: '8px' }} />
                     Confirm Deletion
                 </h2>
@@ -105,7 +104,7 @@ const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onC
                     </button>
                     <button
                         onClick={() => onConfirm(transactionId)}
-                        style={documentStyles.deleteButtonPrimary} // ⭐ NEW Style for the primary delete action
+                        style={documentStyles.deleteButtonPrimary} 
                     >
                         Yes, Delete Permanently
                     </button>
@@ -114,6 +113,7 @@ const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onC
         </div>
     );
 };
+
 // -------------------------------------------------------------------
 
 // Transaction History Component
@@ -123,8 +123,7 @@ const TransactionHistory = ({ currentUserId }) => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
     const [cancellationTarget, setCancellationTarget] = useState(null); 
-    // ⭐ NEW: State for deletion target
-    const [deletionTarget, setDeletionTarget] = useState(null); // { id: 1, name: 'Barangay Clearance' }
+    const [deletionTarget, setDeletionTarget] = useState(null); 
 
     const fetchTransactions = useCallback(async (idToFetch) => {
         if (!idToFetch) {
@@ -140,7 +139,11 @@ const TransactionHistory = ({ currentUserId }) => {
             const data = await response.json();
 
             if (response.ok) {
-                setTransactions(data);
+                // Ensure data.requirementsMediaUrl is consistently an array (though backend handles parsing)
+                setTransactions(data.map(t => ({
+                    ...t,
+                    requirementsMediaUrl: t.requirementsMediaUrl || [] 
+                })));
             } else {
                 setError(data.message || 'Failed to fetch transaction history.');
             }
@@ -157,17 +160,17 @@ const TransactionHistory = ({ currentUserId }) => {
         fetchTransactions(idToFetch);
     }, [currentUserId, fetchTransactions]);
 
-    // Function to open the custom cancellation modal (Existing, unchanged)
+    // Function to open the custom cancellation modal
     const openCancelModal = (id, name) => {
         setCancellationTarget({ id, name });
     };
 
-    // ⭐ NEW: Function to open the custom deletion modal
+    // Function to open the custom deletion modal
     const openDeleteModal = (id, name) => {
         setDeletionTarget({ id, name });
     };
 
-    // Cancellation handler that executes the API call (Existing, unchanged logic)
+    // ⭐ Cancellation handler that executes the API call (PUT to UPDATE status)
     const handleCancelExecute = async (transactionId) => {
         // Close the modal immediately after confirmation
         setCancellationTarget(null);
@@ -176,11 +179,11 @@ const TransactionHistory = ({ currentUserId }) => {
         setSuccessMessage(null);
 
         try {
-            // Keep isLoading for visual feedback during the API call
             setIsLoading(true);
 
-            const response = await fetch(`http://localhost:5000/api/document-applications/cancel/${transactionId}`, {
-                method: 'POST',
+            // ⭐ Call the backend PUT route for cancellation
+            const response = await fetch(`http://localhost:5000/api/document-application/cancel/${transactionId}`, {
+                method: 'PUT', // Use PUT to update the resource status
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: currentUserId }),
             });
@@ -193,6 +196,7 @@ const TransactionHistory = ({ currentUserId }) => {
                 const idToFetch = currentUserId || 1;
                 fetchTransactions(idToFetch);
             } else {
+                // If the backend returns a 400 or 500
                 setError(`Cancellation failed: ${data.message}`);
                 setIsLoading(false);
             }
@@ -203,7 +207,7 @@ const TransactionHistory = ({ currentUserId }) => {
         }
     };
     
-    // ⭐ NEW: Deletion handler that executes the API call
+    // ⭐ Deletion handler that executes the API call (DELETE for permanent removal)
     const handleDeleteExecute = async (transactionId) => {
         // Close the modal immediately after confirmation
         setDeletionTarget(null);
@@ -214,8 +218,9 @@ const TransactionHistory = ({ currentUserId }) => {
         try {
             setIsLoading(true);
 
+            // Call the backend DELETE route for permanent removal
             const response = await fetch(`http://localhost:5000/api/document-applications/${transactionId}`, {
-                method: 'DELETE', // ⭐ Use DELETE method
+                method: 'DELETE', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: currentUserId }),
             });
@@ -240,7 +245,7 @@ const TransactionHistory = ({ currentUserId }) => {
 
     const getStatusStyle = (status) => {
         switch (status) {
-            case 'Pending': return { backgroundColor: '#fff7ed', color: '#b45309', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
+            case 'Pending': return { backgroundColor: '#fff7ed', color: '#b45309', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' };
             case 'Approved': return { backgroundColor: '#ecfdf5', color: '#059669', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
             case 'Rejected': return { backgroundColor: '#fee2e2', color: '#ef4444', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
             case 'Cancelled': return { backgroundColor: '#f3f4f6', color: '#6b7280', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
@@ -260,7 +265,7 @@ const TransactionHistory = ({ currentUserId }) => {
     if (isLoading && transactions.length === 0) {
         return (
             <section style={documentStyles.transactionSection}>
-                <p style={{ textAlign: 'center', color: '#4b5563' }}>Loading application status...</p>
+                <p style={{ textAlign: 'center', color: '#4b5563' }}><FiClock size={16} style={{marginRight: '5px'}}/> Loading application status...</p>
             </section>
         );
     }
@@ -287,7 +292,6 @@ const TransactionHistory = ({ currentUserId }) => {
                 </div>
             )}
 
-            {/* Display Error Message */}
             {error && (
                 <p style={{ textAlign: 'center', color: '#ef4444', padding: '10px 0', backgroundColor: '#fee2e2', borderRadius: '8px', marginBottom: '15px' }}>
                     Error: {error}
@@ -301,17 +305,8 @@ const TransactionHistory = ({ currentUserId }) => {
             ) : (
                 <div style={documentStyles.transactionList}>
                     {transactions.map((transaction) => {
-                        let mediaUrls = [];
-                        if (transaction.requirements_media_url) {
-                            try {
-                                mediaUrls = JSON.parse(transaction.requirements_media_url);
-                            } catch (e) {
-                                console.error("Error parsing media URL JSON:", e);
-                                if (typeof transaction.requirements_media_url === 'string') {
-                                    mediaUrls = [transaction.requirements_media_url];
-                                }
-                            }
-                        }
+                        // Backend already parses requirements_media_url to requirementsMediaUrl array
+                        const mediaUrls = transaction.requirementsMediaUrl || []; 
 
                         return (
                             <div key={transaction.id} style={documentStyles.transactionItem}>
@@ -321,6 +316,7 @@ const TransactionHistory = ({ currentUserId }) => {
                                     </span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <span style={getStatusStyle(transaction.status)}>
+                                            {transaction.status === 'Pending' && <FiClock size={14} />}
                                             {transaction.status}
                                         </span>
 
@@ -336,15 +332,15 @@ const TransactionHistory = ({ currentUserId }) => {
                                             </button>
                                         )}
                                         
-                                        {/* ⭐ NEW: Deletion Button - Only for Cancelled Status */}
+                                        {/* Deletion Button - Only for Cancelled Status */}
                                         {transaction.status === 'Cancelled' && (
                                             <button
                                                 onClick={() => openDeleteModal(transaction.id, transaction.document_name)}
-                                                style={documentStyles.deleteButton} // ⭐ Use new style
+                                                style={documentStyles.deleteButton} 
                                                 title="Delete Record Permanently"
                                                 disabled={isLoading}
                                             >
-                                                <FiTrash2 size={12} /> {/* ⭐ Use trash icon */}
+                                                <FiTrash2 size={12} />
                                             </button>
                                         )}
                                     </div>
@@ -373,7 +369,7 @@ const TransactionHistory = ({ currentUserId }) => {
 
                                 <div style={documentStyles.transactionFooter}>
                                     <span style={documentStyles.transactionInfo}>
-                                        Date: {formatDate(transaction.created_at)}
+                                        Date Filed: {formatDate(transaction.created_at)}
                                     </span>
                                     <span style={documentStyles.transactionInfo}>
                                         Fee: ₱{parseFloat(transaction.fee).toFixed(2)}
@@ -395,7 +391,7 @@ const TransactionHistory = ({ currentUserId }) => {
                 />
             )}
             
-            {/* ⭐ NEW: Custom Confirmation Modal for Deletion */}
+            {/* Custom Confirmation Modal for Deletion */}
             {deletionTarget && (
                 <DeletionConfirmationModal
                     transactionId={deletionTarget.id}
@@ -409,9 +405,8 @@ const TransactionHistory = ({ currentUserId }) => {
 };
 
 
-// Document Card Component (Unchanged)
+// Document Card Component
 const DocumentCard = ({ doc, onApplyClick }) => {
-// ... (DocumentCard component code)
     return (
         <div style={documentStyles.card}>
             <div style={documentStyles.cardHeader}>
@@ -433,9 +428,8 @@ const DocumentCard = ({ doc, onApplyClick }) => {
 };
 
 
-// Application Modal Component (Unchanged)
+// Application Modal Component
 const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId }) => {
-// ... (ApplicationModal component code)
     const [purpose, setPurpose] = useState('');
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -467,7 +461,8 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             const data = await response.json();
 
             if (response.ok) {
-                return data.mediaUrls;
+                // Returns an array of mediaUrls from the backend
+                return data.mediaUrls; 
             } else {
                 throw new Error(data.message || 'Requirements upload failed.');
             }
@@ -496,17 +491,20 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
         let uploadedUrls = null;
 
         try {
+            // Step 1: Upload Files
             if (selectedFiles.length > 0) {
                 uploadedUrls = await uploadRequirements();
             }
 
             setSubmitMessage('Submitting application...');
 
+            // Step 2: Submit Application Details
             const applicationData = {
                 userId: currentUserId,
                 documentName: document.name,
                 purpose: purpose,
                 fee: document.fee,
+                // requirementsMediaUrl must be a JSON string of the array for the backend SQL INSERT
                 requirementsMediaUrl: uploadedUrls && uploadedUrls.length > 0 ? JSON.stringify(uploadedUrls) : null,
             };
 
@@ -523,6 +521,8 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
             if (response.ok) {
                 setSubmitMessage(`Application submitted successfully! Transaction ID: ${data.transactionId}. Status: ${data.status}`);
                 setIsSubmitted(true);
+                // Call onClose to signal to the parent to potentially refresh the transaction list
+                setTimeout(onClose, 1500); 
             } else {
                 throw new Error(data.message || 'Server error during application submission.');
             }
@@ -545,7 +545,7 @@ const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserI
                         {submitMessage}
                     </p>
                     <p>
-                        You will be notified via email ({userEmail}) regarding the status.
+                        The transaction history will refresh shortly.
                     </p>
                     <button style={documentStyles.closeButtonSuccess} onClick={onClose}>
                         Close
@@ -670,6 +670,7 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
         setSelectedDocument(doc);
     };
 
+    // Refreshes the transactions list upon modal close
     const handleModalClose = () => {
         setSelectedDocument(null);
     };
@@ -727,6 +728,7 @@ export default function DocumentsPage({ userName, userEmail, profilePictureUrl, 
     );
 }
 
+// ⭐ Styles remain the same for completeness
 const documentStyles = {
     pageContainer: {
         minHeight: '100vh',
@@ -823,8 +825,8 @@ const documentStyles = {
         gap: '6px',
         transition: 'background-color 0.2s',
     },
-
-    // --- Modal Styles ---
+    
+    // --- Application Modal Styles ---
     modalBackdrop: {
         position: 'fixed',
         top: 0,
@@ -936,30 +938,30 @@ const documentStyles = {
         padding: '10px',
         border: '2px dashed #93c5fd',
         borderRadius: '8px',
-        backgroundColor: '#f0f9ff',
         cursor: 'pointer',
+        backgroundColor: '#f7faff',
+        fontSize: '14px',
     },
     fileCountText: {
         fontSize: '12px',
-        color: '#059669',
+        color: '#10b981',
         marginTop: '5px',
-        padding: '5px 10px',
-        backgroundColor: '#ecfdf5',
-        borderRadius: '4px',
-        border: '1px solid #a7f3d0'
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
     },
     modalSmallPrint: {
-        fontSize: '11px',
+        fontSize: '12px',
         color: '#6b7280',
         marginTop: '5px',
     },
     submitButton: (isLoading) => ({
         width: '100%',
-        padding: '12px',
-        backgroundColor: isLoading ? '#60a5fa' : '#2563eb',
+        backgroundColor: isLoading ? '#93c5fd' : '#2563eb',
         color: '#fff',
         border: 'none',
         borderRadius: '8px',
+        padding: '12px 20px',
         cursor: isLoading ? 'not-allowed' : 'pointer',
         fontSize: '16px',
         fontWeight: '600',
@@ -968,62 +970,62 @@ const documentStyles = {
         justifyContent: 'center',
         gap: '8px',
         transition: 'background-color 0.2s',
+        marginTop: '20px',
     }),
     closeButtonSuccess: {
-        backgroundColor: '#059669',
+        backgroundColor: '#10b981',
         color: '#fff',
         border: 'none',
         borderRadius: '8px',
         padding: '10px 15px',
-        marginTop: '20px',
         cursor: 'pointer',
         fontSize: '16px',
         fontWeight: '600',
-        transition: 'background-color 0.2s',
+        marginTop: '20px',
+        width: '100%',
     },
-
+    // --- Download Section Styles ---
     downloadSection: {
-        padding: '20px',
-        backgroundColor: '#fff',
-        borderRadius: '12px',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
-        marginBottom: '20px',
-    },
-    sectionTitle: {
-        fontSize: '20px',
-        color: '#1e3a8a',
-        marginBottom: '15px',
-        display: 'flex',
-        alignItems: 'center',
-        fontWeight: '600',
+        marginBottom: '40px',
     },
     downloadList: {
         display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
+        flexWrap: 'wrap',
+        gap: '15px',
     },
     downloadLink: {
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '10px 15px',
-        backgroundColor: '#eff6ff',
-        color: '#1e40af',
-        borderRadius: '8px',
+        gap: '8px',
+        backgroundColor: '#f0f9ff',
+        color: '#2563eb',
         textDecoration: 'none',
+        padding: '10px 15px',
+        borderRadius: '8px',
+        border: '1px solid #bfdbfe',
+        fontSize: '14px',
         fontWeight: '500',
         transition: 'background-color 0.2s',
+        flexGrow: 1,
+        maxWidth: '350px',
     },
-
-    // --- Transaction Styles ---
+    // --- Transaction History Styles ---
     transactionSection: {
-        padding: '20px',
         backgroundColor: '#fff',
+        padding: '25px',
         borderRadius: '12px',
-        marginTop: '20px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         border: '1px solid #e5e7eb',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+    },
+    sectionTitle: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#3b82f6',
+        marginBottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        paddingBottom: '10px',
+        borderBottom: '1px solid #eff6ff',
     },
     transactionList: {
         display: 'flex',
@@ -1032,96 +1034,72 @@ const documentStyles = {
     },
     transactionItem: {
         border: '1px solid #e5e7eb',
-        borderRadius: '8px',
+        borderRadius: '10px',
         padding: '15px',
-        backgroundColor: '#ffffffff',
+        backgroundColor: '#f9fafb',
     },
     transactionHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '8px',
+        marginBottom: '5px',
+        borderBottom: '1px solid #f3f4f6',
         paddingBottom: '8px',
-        borderBottom: '1px dotted #d1d5db',
     },
     transactionDocName: {
         fontSize: '16px',
-        fontWeight: '600',
-        color: '#1e40af',
+        fontWeight: '700',
+        color: '#1f2937',
     },
     transactionPurpose: {
         fontSize: '14px',
         color: '#4b5563',
-        margin: '0 0 10px 0',
-    },
-    requirementLink: {
-        fontSize: '12px',
-        color: '#10b981',
-        fontWeight: '500',
-        textDecoration: 'underline',
-        display: 'inline-flex',
-        alignItems: 'center',
-        marginRight: '10px',
-        marginTop: '5px',
+        margin: '5px 0',
     },
     transactionRequirements: {
-        margin: '0 0 10px 0',
+        marginTop: '10px',
+        paddingTop: '10px',
+        borderTop: '1px dashed #e5e7eb',
+    },
+    requirementLink: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: '12px',
+        color: '#10b981',
+        textDecoration: 'none',
+        marginRight: '15px',
+        backgroundColor: '#ecfdf5',
+        padding: '3px 8px',
+        borderRadius: '4px',
     },
     transactionFooter: {
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        marginTop: '10px',
+        paddingTop: '10px',
+        borderTop: '1px solid #e5e7eb',
+    },
+    transactionInfo: {
         fontSize: '12px',
         color: '#6b7280',
     },
     cancelButton: {
-        backgroundColor: '#fecaca',
-        color: '#b91c1c',
-        border: 'none',
+        backgroundColor: '#fef2f2',
+        color: '#ef4444',
+        border: '1px solid #fecaca',
         borderRadius: '50%',
-        width: '24px',
-        height: '24px',
-        lineHeight: '1',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
+        width: '28px',
+        height: '28px',
         display: 'flex',
-        justifyContent: 'center',
         alignItems: 'center',
-        transition: 'background-color 0.2s',
-    },
-    // ⭐ NEW: Style for the Delete Icon button in the transaction list
-    deleteButton: {
-        backgroundColor: '#f3f4f6', // Light gray background
-        color: '#6b7280', // Darker gray icon/text
-        border: '1px solid #d1d5db',
-        borderRadius: '50%',
-        width: '24px',
-        height: '24px',
-        lineHeight: '1',
-        fontSize: '12px',
+        justifyContent: 'center',
+        cursor: 'pointer',
         fontWeight: 'bold',
-        cursor: 'pointer',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        transition: 'background-color 0.2s',
-    },
-    // Styles for the Confirmation Modal Buttons
-    cancelButtonPrimary: {
-        backgroundColor: '#ef4444', // Red for cancellation (destructive action)
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '10px 15px',
-        cursor: 'pointer',
         fontSize: '14px',
-        fontWeight: '600',
         transition: 'background-color 0.2s',
     },
-    // ⭐ NEW: Style for the Primary Delete button (more permanent-looking red)
-    deleteButtonPrimary: {
-        backgroundColor: '#b91c1c', 
+    cancelButtonPrimary: {
+        backgroundColor: '#ef4444',
         color: '#fff',
         border: 'none',
         borderRadius: '8px',
@@ -1132,9 +1110,34 @@ const documentStyles = {
         transition: 'background-color 0.2s',
     },
     cancelButtonSecondary: {
-        backgroundColor: '#e5e7eb',
-        color: '#4b5563',
+        backgroundColor: '#f3f4f6',
+        color: '#374151',
         border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        padding: '10px 15px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '600',
+    },
+    deleteButton: {
+        backgroundColor: '#fef2f2',
+        color: '#b91c1c',
+        border: '1px solid #fecaca',
+        borderRadius: '50%',
+        width: '28px',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px',
+        transition: 'background-color 0.2s',
+    },
+    deleteButtonPrimary: {
+        backgroundColor: '#b91c1c',
+        color: '#fff',
+        border: 'none',
         borderRadius: '8px',
         padding: '10px 15px',
         cursor: 'pointer',

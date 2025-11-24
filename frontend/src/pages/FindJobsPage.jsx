@@ -271,9 +271,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                 </div>
             </div>
             
-            {/* Right Panel component removed */}
 
-            {/* NEW: Job Details Modal */}
             {isModalOpen && modalJob && (
                 // ⭐ MODIFIED: Add onClick handler to close the modal when clicking the overlay
                 <div style={styles.modalOverlay} onClick={closeJobModal}>
