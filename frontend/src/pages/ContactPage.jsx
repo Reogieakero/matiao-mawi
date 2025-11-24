@@ -1,10 +1,79 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Clock } from 'lucide-react';
 
-const ContactPage = ({ userName, userEmail, profilePictureUrl }) => {
-    // The Map URL points to the location we found: Matiao, Mati City.
-    // For embedding, we use the standard Google Maps link format.
+// Assumes the API is running on localhost:5000
+const API_BASE_URL = 'http://localhost:5000/api'; 
+
+// тнР NEW: Define subject options
+const SUBJECT_OPTIONS = [
+    { value: '', label: 'Select a Subject' },
+    { value: 'Technical Support', label: 'Technical Support (App Errors, Bugs)' },
+    { value: 'Document Inquiry', label: 'Inquiry about Document Requests' },
+    { value: 'Community Concern', label: 'Community Thread or Job Post Concern' },
+    { value: 'General Feedback', label: 'General Feedback/Suggestion' },
+    { value: 'Other', label: 'Other' },
+];
+
+const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
     const mapEmbedUrl = "https://maps.google.com/maps?q=Matiao,+City+of+Mati,+Davao+Oriental&t=&z=14&ie=UTF8&iwloc=&output=embed";
+
+    const [formData, setFormData] = useState({
+        fullName: userName || '',
+        emailAddress: userEmail || '',
+        subject: SUBJECT_OPTIONS[0].value, // тнР MODIFIED: Set initial subject to the first option (empty)
+        message: '',
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitMessage, setSubmitMessage] = useState(null); // { type: 'success' | 'error', text: string }
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        // тнР NEW: Validation for subject selection
+        if (formData.subject === '') {
+            setSubmitMessage({ type: 'error', text: 'Please select a subject from the list.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmitMessage(null);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/contact-message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: userId, 
+                    fullName: formData.fullName,
+                    emailAddress: formData.emailAddress,
+                    subject: formData.subject, // Value is sent to server
+                    message: formData.message,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setSubmitMessage({ type: 'success', text: data.message || 'Thank you for your message! We will get back to you soon.' });
+                // Clear the subject and message fields upon successful submission
+                setFormData(prev => ({ ...prev, subject: SUBJECT_OPTIONS[0].value, message: '' }));
+            } else {
+                setSubmitMessage({ type: 'error', text: data.message || 'Failed to send message. Please try again.' });
+            }
+        } catch (error) {
+            console.error('Submission Error:', error);
+            setSubmitMessage({ type: 'error', text: 'Network error. Please check your connection or try again later.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
         <div style={styles.container}>
@@ -16,7 +85,7 @@ const ContactPage = ({ userName, userEmail, profilePictureUrl }) => {
             </header>
 
             <div style={styles.contentGrid}>
-                {/* Contact Information Cards - CLEANED UP DESIGN */}
+                {/* Contact Information Cards */}
                 <div style={styles.infoCards}>
                     {/* Email Card */}
                     <div style={styles.card}>
@@ -52,36 +121,84 @@ const ContactPage = ({ userName, userEmail, profilePictureUrl }) => {
                 {/* Contact Form */}
                 <div style={styles.formContainer}>
                     <h2 style={styles.formTitle}>Send a Direct Message</h2>
-                    <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
+                    {submitMessage && (
+                        <div style={submitMessage.type === 'success' ? styles.successAlert : styles.errorAlert}>
+                            {submitMessage.text}
+                        </div>
+                    )}
+                    <form style={styles.form} onSubmit={handleSubmit}>
                         <div style={styles.formGroup}>
-                            <label htmlFor="name" style={styles.label}>Full Name</label>
-                            <input type="text" id="name" name="name" style={styles.input} required />
+                            <label htmlFor="fullName" style={styles.label}>Full Name</label>
+                            <input 
+                                type="text" 
+                                id="fullName" 
+                                name="fullName" 
+                                value={formData.fullName} 
+                                onChange={handleChange}
+                                style={styles.input} 
+                                required 
+                            />
                         </div>
 
                         <div style={styles.formGroup}>
-                            <label htmlFor="email" style={styles.label}>Email Address</label>
-                            <input type="email" id="email" name="email" style={styles.input} required />
+                            <label htmlFor="emailAddress" style={styles.label}>Email Address</label>
+                            <input 
+                                type="email" 
+                                id="emailAddress" 
+                                name="emailAddress" 
+                                value={formData.emailAddress} 
+                                onChange={handleChange}
+                                style={styles.input} 
+                                required 
+                            />
                         </div>
 
+                        {/* тнР MODIFIED: SUBJECT FIELD (Input changed to Select) */}
                         <div style={styles.formGroup}>
                             <label htmlFor="subject" style={styles.label}>Subject</label>
-                            <input type="text" id="subject" name="subject" style={styles.input} required />
+                            <select 
+                                id="subject" 
+                                name="subject" 
+                                value={formData.subject} 
+                                onChange={handleChange}
+                                style={styles.select} // Use the new select style
+                                required 
+                            >
+                                {SUBJECT_OPTIONS.map(option => (
+                                    <option key={option.value} value={option.value} disabled={option.value === ''}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+                        {/* тнР END MODIFIED SUBJECT FIELD */}
 
                         <div style={styles.formGroup}>
                             <label htmlFor="message" style={styles.label}>Your Message</label>
-                            <textarea id="message" name="message" rows="5" style={styles.textarea} required></textarea>
+                            <textarea 
+                                id="message" 
+                                name="message" 
+                                rows="5" 
+                                value={formData.message} 
+                                onChange={handleChange}
+                                style={styles.textarea} 
+                                required
+                            ></textarea>
                         </div>
 
-                        <button type="submit" style={styles.submitButton}>
+                        <button 
+                            type="submit" 
+                            style={styles.submitButton}
+                            disabled={isSubmitting} 
+                        >
                             <MessageCircle size={20} style={{ marginRight: '8px' }} />
-                            Send Message
+                            {isSubmitting ? 'Sending...' : 'Send Message'}
                         </button>
                     </form>
                 </div>
             </div>
 
-            {/* Map/Location Section - UPDATED WITH EMBEDDED MAP */}
+            {/* Map/Location Section */}
             <div style={styles.locationSection}>
                 <MapPin size={24} style={{ color: styles.locationTitle.color }} />
                 <h3 style={styles.locationTitle}>Our Headquarters Location</h3>
@@ -89,7 +206,6 @@ const ContactPage = ({ userName, userEmail, profilePictureUrl }) => {
                     Our office is located in Matiao, City of Mati, Davao Oriental, Philippines.
                 </p>
                 
-                {/* Actual Map Embed */}
                 <div style={styles.mapContainer}>
                     <iframe
                         src={mapEmbedUrl}
@@ -111,7 +227,7 @@ const styles = {
     // --- Layout and Structure ---
     container: {
         padding: '30px',
-        maxWidth: '1300px', // Slightly wider for a grander feel
+        maxWidth: '1300px', 
         margin: '0 auto',
     },
     header: {
@@ -119,12 +235,12 @@ const styles = {
         marginBottom: '50px',
         padding: '30px',
         borderRadius: '15px',
-        backgroundColor: '#f8fafd', // Very light background
+        backgroundColor: '#f8fafd', 
     },
     title: {
         fontSize: '40px',
         fontWeight: 800,
-        color: '#1e40af', // Primary blue
+        color: '#1e40af', 
         marginBottom: '10px',
     },
     subtitle: {
@@ -135,7 +251,7 @@ const styles = {
     },
     contentGrid: {
         display: 'grid',
-        gridTemplateColumns: '1.2fr 2fr', // Info section slightly narrower
+        gridTemplateColumns: '1.2fr 2fr', 
         gap: '40px',
         marginBottom: '50px',
     },
@@ -150,21 +266,21 @@ const styles = {
         backgroundColor: '#ffffff',
         padding: '30px',
         borderRadius: '15px',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05)', // Softer, deeper shadow
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05)', 
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
-        border: '1px solid #e5e7eb', // Subtle border
+        border: '1px solid #e5e7eb', 
         transition: 'box-shadow 0.3s',
         ':hover': {
             boxShadow: '0 15px 40px rgba(0, 0, 0, 0.1)',
         },
     },
     cardIcon: {
-        color: '#1e40af', // Primary blue icon
+        color: '#1e40af', 
         marginBottom: '15px',
         padding: '10px',
-        backgroundColor: '#eff6ff', // Light blue circle background
+        backgroundColor: '#eff6ff', 
         borderRadius: '50%',
     },
     cardTitle: {
@@ -237,6 +353,22 @@ const styles = {
             outline: 'none',
         }
     },
+    // тнР NEW: Style for the select dropdown
+    select: {
+        padding: '12px',
+        borderRadius: '8px',
+        border: '1px solid #d1d5db',
+        fontSize: '16px',
+        backgroundColor: '#ffffff',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        // Optional: Custom arrow styling can be complex in plain CSS-in-JS but often handled by browser
+        ':focus': {
+            borderColor: '#1e40af',
+            boxShadow: '0 0 0 1px #1e40af',
+            outline: 'none',
+        }
+    },
     textarea: {
         padding: '12px',
         borderRadius: '8px',
@@ -271,6 +403,33 @@ const styles = {
         ':active': {
             transform: 'scale(0.99)',
         },
+        // For disabled state
+        ':disabled': {
+            backgroundColor: '#9ca3af',
+            cursor: 'not-allowed',
+        }
+    },
+
+    // Alert Styles
+    successAlert: {
+        padding: '15px',
+        marginBottom: '20px',
+        backgroundColor: '#d1e7dd', 
+        color: '#0f5132', 
+        border: '1px solid #badbcc',
+        borderRadius: '8px',
+        fontWeight: 600,
+        textAlign: 'center',
+    },
+    errorAlert: {
+        padding: '15px',
+        marginBottom: '20px',
+        backgroundColor: '#f8d7da', 
+        color: '#842029', 
+        border: '1px solid #f5c2c7',
+        borderRadius: '8px',
+        fontWeight: 600,
+        textAlign: 'center',
     },
 
     // --- Location Section ---
@@ -295,7 +454,7 @@ const styles = {
         marginBottom: '20px',
     },
     mapContainer: {
-        height: '350px', // Increased height for better map visibility
+        height: '350px', 
         borderRadius: '10px',
         overflow: 'hidden',
         border: '1px solid #d1d5db',

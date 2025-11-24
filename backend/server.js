@@ -1166,6 +1166,30 @@ app.get('/api/jobs', (req, res) => {
     });
 });
 
+app.post('/api/contact-message', (req, res) => {
+    const { userId, fullName, emailAddress, subject, message } = req.body;
+
+    if (!fullName || !emailAddress || !subject || !message) {
+        return res.status(400).json({ message: 'All form fields are required.' });
+    }
+
+    // Convert userId to INT or NULL if it's undefined/null/empty string from frontend
+    const user_id_val = userId && !isNaN(parseInt(userId, 10)) ? parseInt(userId, 10) : null;
+    
+    const SQL_INSERT_MESSAGE = `
+        INSERT INTO contact_messages 
+            (user_id, full_name, email_address, subject, message) 
+        VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.query(SQL_INSERT_MESSAGE, [user_id_val, fullName, emailAddress, subject, message], (err, result) => {
+        if (err) {
+            console.error("Database error inserting contact message:", err);
+            return res.status(500).json({ message: 'Failed to submit contact message.' });
+        }
+        res.status(201).json({ message: 'Message sent successfully!', messageId: result.insertId });
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
