@@ -11,9 +11,9 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ProfilePage from './pages/ProfilePage'; 
 import DocumentsPage from './pages/DocumentsPage'; 
 import ServicesPage from './pages/ServicesPage'; 
-// [!code focus]
-import FindJobsPage from './pages/FindJobsPage'; // <--- NEW IMPORT
-// [!code focus]
+import FindJobsPage from './pages/FindJobsPage'; 
+import AboutPage from './pages/AboutPage'; // Import AboutPage
+import ContactPage from './pages/ContactPage'; // NEW: Import ContactPage
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -111,11 +111,11 @@ const App = () => {
                             userName={userName} 
                             userEmail={userEmail}
                             onUpdateUser={handleUpdateUser} 
-                            profilePictureUrl={profilePictureUrl} // ⭐ Passed to ProfilePage
+                            profilePictureUrl={profilePictureUrl}
                         />} 
                     />
 
-                    {/* NEW DOCUMENT PAGE ROUTE */}
+                    {/* DOCUMENT PAGE ROUTE */}
                     <Route 
                         path="/documents" 
                         element={<DocumentsPage 
@@ -124,19 +124,30 @@ const App = () => {
                             profilePictureUrl={profilePictureUrl}
                         />} 
                     />
+                    
                     {/* Placeholder Routes */}
                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
                     <Route path="/services" element={<ServicesPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} />
-                    <Route path="/about" element={<Placeholder title="About" />} />
+                    
+                    {/* UPDATED: Route to the actual AboutPage component */}
+                    <Route 
+                        path="/about" 
+                        element={<AboutPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
+                    />
+                    
                     <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
-                    <Route path="/contact" element={<Placeholder title="Contact" />} />
-                    {/* [!code focus:4] */}
-                    {/* UPDATED: Route to the actual FindJobsPage component */}
+                    
+                    {/* UPDATED: Route to the actual ContactPage component */}
+                    <Route 
+                        path="/contact" 
+                        element={<ContactPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
+                    />
+                    
+                    {/* Route to the actual FindJobsPage component */}
                     <Route 
                         path="/find-jobs" 
                         element={<FindJobsPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
                     />
-                    {/* [!code focus:4] */}
                     
                     {/* Default Route */}
                     <Route path="/" element={<Navigate to="/login" replace />} />
