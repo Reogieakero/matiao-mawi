@@ -15,7 +15,7 @@ const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 app.use(cors({
     origin: 'http://localhost:3000', 
-    methods: 'GET,POST,DELETE,PUT', // ⭐ MODIFIED: Added PUT to allowed methods for cancellation
+    methods: 'GET,POST,DELETE,PUT', // тнР MODIFIED: Added PUT to allowed methods for cancellation
     credentials: true,
 }));
 app.use(bodyParser.json());
@@ -42,7 +42,7 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } 
 }).single('media'); 
 
-// Dedicated storage for PROFILE PICTURES
+// Dedicated storage for PROFILE PICTURES (Users)
 const profilePicStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -65,6 +65,30 @@ const profilePicUploader = multer({
         }
     }
 }).single('profile_picture'); 
+
+// Dedicated storage for OFFICIAL PROFILE PICTURES
+const officialPicStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir); 
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        // Use a distinct prefix for officials
+        cb(null, `official-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`);
+    }
+});
+
+const officialPicUploader = multer({ 
+    storage: officialPicStorage, 
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed!'), false);
+        }
+    }
+}).single('official_picture'); // Field name matches client-side: 'official_picture'
 
 // Dedicated storage for DOCUMENT REQUIREMENTS
 const requirementsStorage = multer.diskStorage({
@@ -140,7 +164,7 @@ const formatThread = (row, type) => {
         isBookmarked: row.is_bookmarked || false,
         bookmarked_at: row.bookmarked_at || null,
         mediaUrls: mediaUrls || [],
-        // ⭐ ADDED: Include contact number for jobs
+        // тнР ADDED: Include contact number for jobs
         contactNumber: row.contact_number || null, 
     };
 };
@@ -378,7 +402,7 @@ app.get('/api/user-threads/:userId', (req, res) => {
     });
 });
 
-// ⭐ NEW ENDPOINT: DELETE /api/user-threads/:userId - Delete ALL posts and jobs by a user
+// тнР NEW ENDPOINT: DELETE /api/user-threads/:userId - Delete ALL posts and jobs by a user
 app.delete('/api/user-threads/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     // Use userId from body for an additional security check, matching the frontend logic
@@ -461,7 +485,7 @@ app.delete('/api/user-threads/:userId', (req, res) => {
         });
     });
 });
-// ⭐ END NEW ENDPOINT 
+// тнР END NEW ENDPOINT 
 
 // Modified SQL: Join user_profiles to get the profile_picture_url in the thread fetch query after insertion
 app.post('/api/threads', (req, res) => {
@@ -1021,7 +1045,7 @@ app.post('/api/document-application', (req, res) => {
     });
 });
 
-// ⭐ CANCEL ROUTE: PUT /api/document-application/cancel/:transactionId
+// тнР CANCEL ROUTE: PUT /api/document-application/cancel/:transactionId
 app.put('/api/document-application/cancel/:transactionId', (req, res) => {
     const transactionId = parseInt(req.params.transactionId, 10);
     const userId = parseInt(req.body.userId, 10); 
@@ -1310,6 +1334,112 @@ app.delete('/api/admin/users/:userId', (req, res) => {
     });
 });
 
+// --- OFFICIALS API ROUTES ---
+
+// GET all officials
+app.get('/api/officials', (req, res) => {
+    // Assuming the officials table now includes 'picture_path'
+    const SQL_SELECT_OFFICIALS = 'SELECT * FROM officials ORDER BY name ASC';
+    db.query(SQL_SELECT_OFFICIALS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching officials:", err);
+            return res.status(500).json({ message: 'Failed to fetch officials.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// POST /api/officials/upload-picture - Uploads picture and returns the path
+app.post('/api/officials/upload-picture', (req, res) => {
+    // FIX: Using the defined multer instance `officialPicUploader` (Corrected name)
+    officialPicUploader(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error("Multer error:", err);
+            return res.status(500).json({ message: `File upload error: ${err.message}` });
+        } else if (err) {
+            console.error("Unknown file upload error:", err);
+            return res.status(500).json({ message: err.message || 'File upload error.' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file selected.' });
+        }
+
+        // Return the full URL path, accessible via the static middleware '/media'
+        const picturePath = `http://localhost:${PORT}/media/${req.file.filename}`; 
+        res.status(200).json({
+            message: 'Picture uploaded successfully.',
+            picturePath: picturePath
+        });
+    });
+});
+
+// POST /api/officials - Create a new official
+app.post('/api/officials', (req, res) => {
+    const { name, position, committee, contact, picturePath } = req.body; 
+
+    if (!name || !position) {
+        return res.status(400).json({ message: 'Name and Position are required.' });
+    }
+
+    const SQL_INSERT_OFFICIAL = 'INSERT INTO officials (name, position, committee, contact, picture_path) VALUES (?, ?, ?, ?, ?)';
+    
+    db.query(SQL_INSERT_OFFICIAL, [name, position, committee || null, contact || null, picturePath || null], (err, result) => {
+        if (err) {
+            console.error("Database error inserting official:", err);
+            return res.status(500).json({ message: 'Failed to add new official.' });
+        }
+        res.status(201).json({ 
+            id: result.insertId, 
+            message: 'Official added successfully.',
+            official: { id: result.insertId, name, position, committee, contact, picturePath }
+        });
+    });
+});
+
+// PUT /api/officials/:id - Update an official
+app.put('/api/officials/:id', (req, res) => {
+    const officialId = parseInt(req.params.id, 10);
+    const { name, position, committee, contact, picturePath } = req.body; 
+
+    if (isNaN(officialId) || !name || !position) {
+        return res.status(400).json({ message: 'Invalid Official ID or missing required fields.' });
+    }
+
+    const SQL_UPDATE_OFFICIAL = 'UPDATE officials SET name = ?, position = ?, committee = ?, contact = ?, picture_path = ? WHERE id = ?';
+    
+    db.query(SQL_UPDATE_OFFICIAL, [name, position, committee || null, contact || null, picturePath || null, officialId], (err, result) => {
+        if (err) {
+            console.error("Database error updating official:", err);
+            return res.status(500).json({ message: 'Failed to update official.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Official not found or no changes made.' });
+        }
+        res.status(200).json({ message: 'Official updated successfully.' });
+    });
+});
+
+// DELETE an official
+app.delete('/api/officials/:id', (req, res) => {
+    const officialId = parseInt(req.params.id, 10);
+    
+    if (isNaN(officialId)) {
+        return res.status(400).json({ message: 'Invalid Official ID.' });
+    }
+
+    const SQL_DELETE_OFFICIAL = 'DELETE FROM officials WHERE id = ?';
+    db.query(SQL_DELETE_OFFICIAL, [officialId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting official:", err);
+            return res.status(500).json({ message: 'Failed to delete official.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Official not found.' });
+        }
+        res.status(200).json({ message: 'Official deleted successfully.' });
+    });
+});
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

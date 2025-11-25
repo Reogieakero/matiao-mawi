@@ -3,9 +3,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 // REMOVED: Edit import
-import { Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Trash2, CheckCircle } from 'lucide-react'; // Added CheckCircle for the alert
 
-// --- Modal Component (Inline Styles) ---
+// --- Success Alert Component (NEW) ---
+const SuccessAlert = ({ message, style }) => {
+    if (!message) return null;
+    return (
+        <div style={{...styles.successAlert, ...style}}>
+            <CheckCircle size={20} style={{ marginRight: '10px' }} />
+            {message}
+        </div>
+    );
+};
+
+// --- Modal Component (Inline Styles) (Omitted for brevity, unchanged) ---
 const DeleteConfirmationModal = ({ show, user, onConfirm, onCancel }) => {
     if (!show || !user) return null;
 
@@ -111,17 +122,17 @@ const AdminUsersPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    // UPDATED: Default sort column is now 'id'
     const [sortBy, setSortBy] = useState('id'); 
     const [sortDirection, setSortDirection] = useState('asc');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null); // { id, name }
+    // NEW STATE for success message
+    const [successMessage, setSuccessMessage] = useState(null); 
 
-    // --- Data Fetching ---
+    // --- Data Fetching (Omitted for brevity, unchanged) ---
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                // Ensure your server.js is updated to return 'id'
                 const response = await axios.get('http://localhost:5000/api/admin/users');
                 setUsers(response.data);
             } catch (err) {
@@ -135,13 +146,13 @@ const AdminUsersPage = () => {
         fetchUsers();
     }, []);
 
-    // --- Sorting and Filtering Logic ---
+    // --- Sorting and Filtering Logic (Omitted for brevity, unchanged) ---
     const filteredAndSortedUsers = useMemo(() => {
         let currentUsers = [...users];
 
         if (searchTerm) {
             currentUsers = currentUsers.filter(user =>
-                (user.id && String(user.id).includes(searchTerm)) || // Allow searching by ID
+                (user.id && String(user.id).includes(searchTerm)) ||
                 (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -152,7 +163,6 @@ const AdminUsersPage = () => {
             const aValue = a[sortBy] || '';
             const bValue = b[sortBy] || '';
 
-            // Handle numeric sort for ID
             if (sortBy === 'id') {
                 const aNum = Number(aValue);
                 const bNum = Number(bValue);
@@ -178,13 +188,14 @@ const AdminUsersPage = () => {
         }
     };
     
-    // Now opens the modal
+    // Opens the modal
     const handleDelete = (userId, userName) => {
         setUserToDelete({ id: userId, name: userName });
         setShowDeleteModal(true);
+        setError(null); // Clear any previous error
     };
 
-    // Function to handle deletion after confirmation
+    // UPDATED: Function to handle deletion after confirmation
     const confirmDelete = async () => {
         if (!userToDelete) return;
 
@@ -196,16 +207,30 @@ const AdminUsersPage = () => {
         setUserToDelete(null); 
 
         try {
-            // API call to the new endpoint (assuming 'http://localhost:5000/api/admin/users/:userId' is implemented)
             await axios.delete(`http://localhost:5000/api/admin/users/${userId}`);
 
             // Update local state: remove the deleted user
             setUsers(users.filter(user => user.id !== userId));
+            
+            // Set success message
+            const msg = `User '${userName}' (ID: ${userId}) has been permanently deleted.`;
+            setSuccessMessage(msg);
+
+            // Automatically clear the message after 5 seconds
+            setTimeout(() => {
+                setSuccessMessage(null);
+            }, 5000); 
+
             console.log(`[SUCCESS] User ${userName} (ID: ${userId}) deleted successfully.`);
         } catch (err) {
             console.error(`Error deleting user ${userId}:`, err);
             // Provide feedback to the admin if the deletion fails
-            setError(`Failed to delete user ${userName}. Check server logs.`);
+            const err_msg = `Failed to delete user ${userName}. Check server logs.`;
+            setError(err_msg);
+            // Clear error after 5 seconds if no new error occurs
+            setTimeout(() => {
+                setError(prev => (prev === err_msg ? null : prev));
+            }, 5000);
         }
     };
     
@@ -215,7 +240,6 @@ const AdminUsersPage = () => {
     };
     
     if (loading) return <div style={styles.center}><p style={{ color: '#2563eb', fontSize: '18px' }}>🚀 Loading User Data...</p></div>;
-    if (error) return <div style={styles.center}><p style={{ color: '#DC2626', fontSize: '18px' }}>❌ Error: {error}</p></div>;
 
 
     return (
@@ -226,6 +250,12 @@ const AdminUsersPage = () => {
                 Manage all registered users. Total: <strong style={{color: '#1F2937'}}>{users.length.toLocaleString()}</strong>
             </p>
             
+            {/* Display Error Message */}
+            {error && <div style={styles.errorAlert}><p style={{ margin: 0 }}>❌ Error: {error}</p></div>}
+            
+            {/* NEW: Display Success Message */}
+            <SuccessAlert message={successMessage} style={{marginTop: '15px'}} />
+
             <div style={{...styles.toolbar, marginTop: '25px'}}> 
                 <div style={styles.searchBox}>
                     <Search size={18} color="#6B7280" style={{ marginRight: '10px' }} />
@@ -246,7 +276,6 @@ const AdminUsersPage = () => {
                 <table style={styles.table}>
                     <thead style={styles.tableHead}>
                         <tr>
-                            {/* NEW: TableHeader for ID */}
                             <TableHeader onClick={() => handleSort('id')} sortBy={sortBy} sortKey='id' sortDirection={sortDirection}>ID</TableHeader>
                             <TableHeader onClick={() => handleSort('name')} sortBy={sortBy} sortKey='name' sortDirection={sortDirection}>Name</TableHeader>
                             <TableHeader onClick={() => handleSort('email')} sortBy={sortBy} sortKey='email' sortDirection={sortDirection}>Email</TableHeader>
@@ -258,7 +287,6 @@ const AdminUsersPage = () => {
                     <tbody>
                         {filteredAndSortedUsers.map(user => (
                             <tr key={user.id} style={styles.tr}>
-                                {/* NEW: Data cell for ID */}
                                 <td style={{...styles.td, fontWeight: '600', color: '#6B7280'}}>{user.id}</td>
                                 <td style={styles.td}>{user.name || 'N/A'}</td>
                                 <td style={{...styles.td, fontWeight: '500'}}>{user.email}</td>
@@ -314,7 +342,7 @@ const TableHeader = ({ children, onClick, sortBy, sortKey, sortDirection }) => (
     </th>
 );
 
-// --- Styles Object (Omitted for brevity, unchanged) ---
+// --- Styles Object (Updated: Added successAlert and errorAlert styles) ---
 const styles = {
     container: {
         padding: '30px', 
@@ -380,6 +408,7 @@ const styles = {
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
         backgroundColor: '#ffffff',
         border: '1px solid #E5E7EB',
+        marginTop: '20px', // Adjusted margin to accommodate alerts
     },
     table: {
         width: '100%',
@@ -465,6 +494,30 @@ const styles = {
         display: 'inline-flex',
         alignItems: 'center',
         gap: '4px',
+    },
+    // NEW: Success Alert Styles
+    successAlert: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '15px',
+        backgroundColor: '#D1FAE5', // Light green
+        color: '#047857', // Dark green text
+        border: '1px solid #6EE7B7',
+        borderRadius: '8px',
+        fontWeight: '600',
+        fontSize: '15px',
+        marginBottom: '15px',
+    },
+    // Existing Error Alert Style (copied from previous turn if available, or defined here)
+    errorAlert: {
+        padding: '15px',
+        marginBottom: '20px',
+        backgroundColor: '#f8d7da', 
+        color: '#842029', 
+        border: '1px solid #f5c2c7',
+        borderRadius: '8px',
+        fontWeight: 600,
+        textAlign: 'center',
     },
 };
 

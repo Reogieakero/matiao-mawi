@@ -2,8 +2,8 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
     LayoutDashboard, Users, MessageSquare, Settings, FileText, 
-    Briefcase, Bell, Newspaper, Phone, Mail 
-} from 'lucide-react'; // Removed LogOut
+    Briefcase, Bell, Newspaper, Phone, Mail, UserCheck // Added UserCheck icon
+} from 'lucide-react'; 
 
 // Removed onLogout prop from component definition
 const AdminSidebar = () => {
@@ -13,6 +13,8 @@ const AdminSidebar = () => {
     const adminNavItems = [
         { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
         { name: 'Manage Users', path: '/admin/users', icon: Users },
+        // NEW: Manage Officials link added here
+        { name: 'Manage Officials', path: '/admin/officials', icon: UserCheck },
         { name: 'Content Posts', path: '/admin/posts', icon: MessageSquare },
         { name: 'Job Listings', path: '/admin/jobs', icon: Briefcase },
     ];

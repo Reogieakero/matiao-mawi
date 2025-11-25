@@ -11,6 +11,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ProfilePage from './pages/ProfilePage'; 
 import DocumentsPage from './pages/DocumentsPage'; 
 import ServicesPage from './pages/ServicesPage'; 
+import HotlinesPage from './pages/HotlinesPage';
 import FindJobsPage from './pages/FindJobsPage'; 
 import AboutPage from './pages/AboutPage'; 
 import ContactPage from './pages/ContactPage'; 
@@ -20,6 +21,8 @@ import AdminUsersPage from './admin/AdminUsersPage';
 import AdminLayout from './admin/AdminLayout';
 import AdminLoginPage from './admin/AdminLoginPage';
 import AdminDashboardPage from './admin/AdminDashboardPage';
+// NEW: Import AdminOfficialsPage
+import AdminOfficialsPage from './admin/AdminOfficialsPage'; 
 
 const Placeholder = ({ title }) => (
     <div style={{ paddingTop: '80px', paddingLeft: '290px', padding: '100px 30px', minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
@@ -160,7 +163,10 @@ const App = () => {
                         element={<AboutPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
                     />
                     
-                    <Route path="/hotlines" element={<Placeholder title="Hotlines" />} />
+                    <Route 
+                        path="/hotlines" 
+                        element={<HotlinesPage userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />} 
+                    />
                     
                     {/* UPDATED: Route to the actual ContactPage component */}
                     <Route 
@@ -190,6 +196,8 @@ const App = () => {
                 
                 {/* Placeholder Routes for Admin */}
                 <Route path="/users" element={<AdminUsersPage />} />
+                {/* NEW: Route for Manage Officials - REPLACED Placeholder with AdminOfficialsPage */}
+                <Route path="/officials" element={<AdminOfficialsPage />} /> 
                 <Route path="/posts" element={<Placeholder title="Admin Content Posts" />} />
                 <Route path="/jobs" element={<Placeholder title="Admin Job Listings" />} />
                 <Route path="/news" element={<Placeholder title="Admin News Management" />} />
