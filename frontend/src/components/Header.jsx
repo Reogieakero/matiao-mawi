@@ -1,26 +1,41 @@
 import React, { useState } from 'react';
-import { FiSearch } from 'react-icons/fi';
-// ⭐ IMPORT useNavigate
+import { FiSearch, FiLogOut, FiUser } from 'react-icons/fi';
+// тнР IMPORT useNavigate
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-// ⭐ MODIFIED: Accept userName and profilePictureUrl props
-const Header = ({ userName, profilePictureUrl }) => { 
+// тнР MODIFIED: Accept userName, profilePictureUrl, and onLogout props
+const Header = ({ userName, profilePictureUrl, onLogout }) => { 
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredLink, setHoveredLink] = useState(null);
+    // NEW: Dropdown state
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
     const location = useLocation();
-    // ⭐ INITIALIZE useNavigate
+    // тнР INITIALIZE useNavigate
     const navigate = useNavigate(); 
 
     const handleSearch = () => {
         if (searchTerm.trim()) {
-            // ⭐ UPDATED: Use navigate to redirect to the search route
+            // тнР UPDATED: Use navigate to redirect to the search route
             navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
             setSearchTerm(''); // Clear search input after navigating
         }
     };
+    
+    // NEW: Handler to toggle dropdown
+    const toggleDropdown = (e) => {
+        e.preventDefault(); 
+        setIsDropdownOpen(prev => !prev);
+    };
+
+    // NEW: Handler for Log Out
+    const handleLogoutClick = () => {
+        onLogout(); // Call the logout handler passed from App.jsx
+        // Explicitly navigate to /login for immediate redirect after clearing user data
+        navigate('/login'); 
+        setIsDropdownOpen(false); // Close dropdown
+    };
 
     const navItems = [
-// ... (rest of navItems unchanged)
         { name: 'About', path: '/about' },
         { name: 'Hotlines', path: '/hotlines' },
         { name: 'Contact', path: '/contact' },
@@ -28,7 +43,7 @@ const Header = ({ userName, profilePictureUrl }) => {
 
     const sidebarPaths = ['/home', '/news', '/announcements', '/documents', '/services'];
 
-    // ⭐ NEW: Calculate initials for fallback
+    // тнР NEW: Calculate initials for fallback
     const initials = userName
         ? userName
             .split(' ')
@@ -37,7 +52,6 @@ const Header = ({ userName, profilePictureUrl }) => {
             .toUpperCase()
         : 'U';
 
-// ... (rest of getLinkStyle unchanged)
     const getLinkStyle = (path) => {
         const isSidebarPage = sidebarPaths.includes(location.pathname);
         const isActive = !isSidebarPage && location.pathname === path;
@@ -102,20 +116,49 @@ const Header = ({ userName, profilePictureUrl }) => {
                             </Link>
                         ))}
 
-                        {/* ⭐ MODIFIED: Profile Picture / Initials */}
-                        <Link to="/profile" style={styles.navLink}>
-                            {profilePictureUrl ? (
-                                <img 
-                                    src={profilePictureUrl}
-                                    alt="Profile"
-                                    style={styles.profilePicture}
-                                />
-                            ) : (
-                                <div style={styles.avatarCircleHeader}> 
-                                    {initials}
+                        {/* тнР MODIFIED: Profile Picture / Initials with Dropdown */}
+                        <div style={styles.profileDropdownContainer}> 
+                            <div 
+                                onClick={toggleDropdown} 
+                                style={styles.profileAvatarClickable}
+                            >
+                                {profilePictureUrl ? (
+                                    <img 
+                                        src={profilePictureUrl}
+                                        alt="Profile"
+                                        style={styles.profilePicture}
+                                    />
+                                ) : (
+                                    <div style={styles.avatarCircleHeader}> 
+                                        {initials}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Dropdown Menu */}
+                            {isDropdownOpen && (
+                                <div style={styles.dropdownMenu}>
+                                    <Link to="/profile" 
+                                        style={styles.dropdownItem}
+                                        onClick={() => setIsDropdownOpen(false)} 
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = styles.dropdownItemHover.backgroundColor}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                        <FiUser size={16} style={{ marginRight: '8px' }} />
+                                        Profile
+                                    </Link>
+                                    <div 
+                                        onClick={handleLogoutClick} 
+                                        style={{ ...styles.dropdownItem, ...styles.logoutItem }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = styles.dropdownItemHover.backgroundColor}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                        <FiLogOut size={16} style={{ marginRight: '8px' }} />
+                                        Log Out
+                                    </div>
                                 </div>
                             )}
-                        </Link>
+                        </div>
                     </nav>
                 </div>
             </div>
@@ -196,10 +239,54 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         gap: '30px',
+        position: 'relative', // IMPORTANT for dropdown positioning
     },
     navLink: {
         textDecoration: 'none',
     },
+    // NEW styles for dropdown
+    profileDropdownContainer: {
+        position: 'relative',
+        display: 'inline-block',
+        cursor: 'pointer',
+        marginLeft: '10px', 
+    },
+    profileAvatarClickable: {
+        display: 'block',
+        width: '34px', 
+        height: '34px',
+        borderRadius: '50%',
+    },
+    dropdownMenu: {
+        position: 'absolute',
+        top: '40px', 
+        right: '0',
+        backgroundColor: '#fff',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        width: '150px',
+        padding: '8px 0',
+        zIndex: 1010, 
+        border: '1px solid #e5e7eb',
+    },
+    dropdownItem: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 15px',
+        fontSize: '15px',
+        color: '#333',
+        textDecoration: 'none',
+        cursor: 'pointer',
+        transition: 'background-color 0.1s',
+        whiteSpace: 'nowrap',
+    },
+    logoutItem: {
+        color: '#dc2626',
+    },
+    dropdownItemHover: { 
+        backgroundColor: '#f3f4f6', 
+    },
+    // Existing avatar styles
     profilePicture: {
         width: '30px',
         height: '30px',

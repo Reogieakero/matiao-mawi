@@ -61,8 +61,14 @@ const App = () => {
         setUserName(user.name);
         setUserEmail(user.email);
         setUserId(user.id); 
-        // FIX: Ensure profilePictureUrl is set from user data or defaults to ""
-        setProfilePictureUrl(user.profilePictureUrl || "");
+        
+        // ✅ FIX for profile picture persistence: Only update if the login payload provides a new URL.
+        // This prevents overwriting a saved profile picture URL (loaded from localStorage on mount) 
+        // with an empty or default string if the login API doesn't return the picture URL.
+        if (user.profilePictureUrl) {
+            setProfilePictureUrl(user.profilePictureUrl);
+            localStorage.setItem("profilePictureUrl", user.profilePictureUrl); 
+        }
     };
 
     const handleLogout = () => {
@@ -71,7 +77,13 @@ const App = () => {
         setUserEmail('');
         setUserId(null); 
         setProfilePictureUrl(''); 
-        localStorage.clear();
+        
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("profilePictureUrl");
+        
     };
     
     // --- NEW HANDLERS FOR ADMIN ---
@@ -103,7 +115,7 @@ const App = () => {
             <Header 
                 userName={userName} 
                 profilePictureUrl={profilePictureUrl} 
-                onLogout={handleLogout} 
+                onLogout={handleLogout} // <--- ADDED: Pass the logout handler
             />
             {/* The Sidebar is kept here as a global component */}
             <Sidebar refetchTrigger={refetchTrigger} /> 

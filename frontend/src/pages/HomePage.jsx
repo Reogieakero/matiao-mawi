@@ -270,13 +270,14 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             return;
         }
 
-        // Validation for job post contact number
+        // Validation for job post contact number (Confirmed PH mobile format validation)
         if (postType === 'job') {
             if (!contactNumber.trim()) {
                 setErrorModalMessage('Contact number is required for job posts.');
                 setIsErrorModalOpen(true);
                 return;
             }
+            // Philippine mobile number regex: starts with 09 or +639, followed by 9 digits.
             const phNumberRegex = /^(09|\+639)\d{9}$/; 
             
             if (!phNumberRegex.test(contactNumber.trim())) {
@@ -618,7 +619,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             style={styles.postInput}
                             readOnly
                         />
-                        <FiPaperclip size={20} color="#3b82f6" style={{ cursor: 'pointer' }} />
+                        {/* ⭐ MODIFICATION: Replaced FiPaperclip with FiPlus icon */}
+                        <FiPlus size={20} color="#3b82f6" style={{ cursor: 'pointer' }} />
                     </div>
 
                     {/* Thread List */}
@@ -898,7 +900,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             {/* Custom Error Modal */}
             {isErrorModalOpen && (
                 <div style={styles.modalOverlay}>
-                    <div style={{ ...styles.modalContent, maxWidth: '350px' }}>
+                    {/* ⭐ MODIFICATION: Using styles.modalContent with explicit border radius for the error modal */}
+                    <div style={{ ...styles.modalContent, ...styles.errorModalOverride, maxWidth: '350px' }}> 
                         <div style={styles.modalHeader}>
                             <h3 style={{ color: '#dc2626' }}>Validation Error</h3>
                             <FiX 
@@ -1200,12 +1203,17 @@ const styles = {
         backgroundColor: '#fff',
         padding: '25px',
         // Consistent Radius
+        borderRadius: '16px', // ⭐ ADDED: Consistent border radius for modals
         width: '90%',
         maxWidth: '500px',
         // Added for Read Modal overflow
         maxHeight: '80vh',
         overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+    },
+    // Explicit override for the error modal to ensure border radius is applied
+    errorModalOverride: { 
+        borderRadius: '16px', 
     },
     modalHeader: { // For modals with a title (Post/Response/Error)
         display: 'flex',

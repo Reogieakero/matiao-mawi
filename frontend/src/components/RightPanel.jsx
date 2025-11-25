@@ -60,30 +60,24 @@ export default function RightPanel({ userName, userEmail, profilePictureUrl }) {
           {officialList.map(official => (
             <li key={official.id} style={styles.officialItem}>
               <div style={styles.officialInfo}>
-                <div style={{ ...styles.avatarSmall, backgroundColor: '#2563eb' }}>
-                  {official.name
-                    .split(' ')
-                    .map(n => n[0])
-                    .join('')
-                    .toUpperCase()}
+                <div 
+                    style={{ 
+                        ...styles.avatarSmall, 
+                        backgroundColor: official.status === 'On Duty' ? '#2563eb' : official.status === 'On Leave' ? '#f97316' : '#9ca3af' 
+                    }}
+                >
+                    {official.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </div>
-                {/* ⭐ MODIFIED: Added Committee Span */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={styles.officialName}>{official.name}</span>
-                  <span style={styles.officialPosition}>{official.position}</span>
-                  {official.committee && (
-                    <span style={styles.officialCommittee}>{official.committee}</span>
-                  )}
+                <div>
+                    <span style={styles.officialName}>{official.name}</span>
+                    <span style={styles.officialPosition}>{official.position}</span>
+                    {official.committee && official.committee !== "" && (
+                        <span style={styles.officialCommittee}>({official.committee})</span>
+                    )}
                 </div>
-                {/* END MODIFIED */}
-              </div>
+              </div> 
               <div style={styles.statusWrapper}>
-                <span
-                  style={{
-                    ...styles.statusDot,
-                    backgroundColor: statusColors[official.status] || '#ccc',
-                  }}
-                />
+                <span style={{ ...styles.statusDot, backgroundColor: statusColors[official.status] || '#ccc', }} />
                 <span style={styles.statusText}>{official.status}</span>
               </div>
             </li>
@@ -110,45 +104,41 @@ const styles = {
     color: 'inherit',
     cursor: 'pointer',
     display: 'block',
-    marginBottom: '20px', 
+    marginBottom: '20px',
   },
   sidebarBlock: {
     backgroundColor: '#fff',
     padding: '20px',
-    borderRadius: '14px',
-    boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
+    borderRadius: '12px',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    transition: 'transform 0.2s',
   },
   sidebarTitle: {
-    fontSize: '18px',
-    fontWeight: '700',
-    marginBottom: '15px',
+    fontSize: '16px',
+    fontWeight: '600',
     color: '#1e40af',
-    borderBottom: '1px solid #c7d2fe',
-    width: '100%',
-    textAlign: 'center',
-    paddingBottom: '5px',
+    marginBottom: '15px',
+    borderBottom: '2px solid #eff6ff',
+    paddingBottom: '10px',
   },
   accountOverview: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
+    gap: '15px',
   },
   profilePicture: {
     width: '80px',
     height: '80px',
     borderRadius: '50%',
     objectFit: 'cover',
-    border: '3px solid #3b82f6', 
+    border: '3px solid #3b82f6',
   },
   avatarCircle: {
     width: '80px',
     height: '80px',
     borderRadius: '50%',
-    backgroundColor: '#2563eb',
+    backgroundColor: '#3b82f6',
     color: '#fff',
     display: 'flex',
     alignItems: 'center',
@@ -170,18 +160,9 @@ const styles = {
   officialInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
   avatarSmall: { width: '36px', height: '36px', borderRadius: '50%', color: '#fff', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' },
   officialName: { fontWeight: '500' },
-  officialPosition: { fontSize: '12px', color: '#555', fontStyle: 'italic'  },
-  
-  // ⭐ NEW STYLE: Committee Style
-  officialCommittee: {
-    fontSize: '11px', 
-    color: '#059669', // A clear green color for distinction
-    fontStyle: 'normal',
-    marginTop: '2px', 
-    fontWeight: '500', 
-  },
-  
-  statusWrapper: { display: 'flex', alignItems: 'center', gap: '6px' },
-  statusDot: { width: '10px', height: '10px', borderRadius: '50%' },
+  officialPosition: { fontSize: '12px', color: '#555', fontStyle: 'italic' },
+  officialCommittee: { fontSize: '12px', color: '#333', marginLeft: '5px' },
+  statusWrapper: { display: 'flex', alignItems: 'center', gap: '5px' },
+  statusDot: { width: '8px', height: '8px', borderRadius: '50%' },
   statusText: { fontSize: '12px', color: '#555' },
 };
