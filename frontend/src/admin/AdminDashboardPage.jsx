@@ -1,14 +1,14 @@
 // frontend/src/admin/AdminDashboardPage.jsx
 
-import React, { useState, useEffect } from 'react'; // ADDED useEffect
+import React, { useState, useEffect } from 'react'; 
 import { useNavigate } from 'react-router-dom'; 
-import axios from 'axios'; // ADDED axios for API calls
+import axios from 'axios'; 
 import { 
     Users, FileText, BarChart, Briefcase, MessageSquare, 
     Newspaper, Bell, Settings, Phone, Mail 
 } from 'lucide-react';
 
-// --- StatCard Component (No functional changes, minor update for readability) ---
+// --- StatCard Component ---
 const StatCard = ({ icon: Icon, title, value, color, to }) => { 
     const [isHovered, setIsHovered] = useState(false);
     const navigate = useNavigate(); 
@@ -44,132 +44,100 @@ const StatCard = ({ icon: Icon, title, value, color, to }) => {
 
 // --- AdminDashboardPage Component ---
 const AdminDashboardPage = () => {
-    // NEW: State to hold fetched statistics. Initialize to 0.
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
-        totalResidents: 0,
+        totalUsers: 0,
         totalPosts: 0,
         totalJobs: 0,
-        totalNews: 0,
-        totalAnnouncements: 0,
-        pendingDocuments: 0,
-        totalServices: 0,
-        totalHotlines: 0,
+        totalApplications: 0,
         totalContacts: 0,
     });
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // NEW: useEffect to fetch data on component mount
+    // Fetch dashboard stats from the backend
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                // Fetch data from the new admin stats endpoint
-                // Adjust the base URL as necessary (e.g., http://localhost:5000)
-                const response = await axios.get('http://localhost:5000/api/admin/stats');
+                // Assuming your Express server runs on port 5000
+                const response = await axios.get('http://localhost:5000/api/admin/dashboard-stats');
                 setStats(response.data);
-            } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
-                // On error, the stats will remain at the initialized 0 values
+                setError(null);
+            } catch (err) {
+                console.error("Error fetching dashboard stats:", err);
+                setError('Failed to load dashboard statistics from the server.');
             } finally {
-                setIsLoading(false);
+                setLoading(false);
             }
         };
 
         fetchStats();
-    }, []); // Empty dependency array ensures this runs only once on mount
+    }, []);
 
-    if (isLoading) {
-        // Simple loading indicator while waiting for the API call
-        return <div style={styles.container}><h2 style={{color: '#64748B'}}>Loading Dashboard...</h2></div>;
+    if (loading) {
+        return <div style={{...styles.container, justifyContent: 'center', alignItems: 'center'}}><p style={{color: '#2563eb'}}>Loading Dashboard Stats...</p></div>;
     }
-    
+
+    if (error) {
+        return <div style={{...styles.container, justifyContent: 'center', alignItems: 'center'}}><p style={{color: '#DC2626'}}>Error: {error}</p></div>;
+    }
+
+
     return (
         <div style={styles.container}>
-            {/* 1. Statistics Grid - NOW USING FETCHED DATA */}
+            <h1 style={styles.pageTitle}>Admin Dashboard</h1>
+            <p style={styles.subtitle}>Welcome to the administration panel. Here's a quick overview of your application data.</p>
+            
             <div style={styles.statsGrid}>
-                
-                {/* ADMIN / USER MANAGEMENT */}
+                {/* USER MANAGEMENT */}
                 <StatCard 
                     icon={Users} 
-                    title="Total Registered Residents" 
-                    value={stats.totalResidents} // UPDATED to use state
-                    color="#3B82F6" 
+                    title="Total Users" 
+                    value={stats.totalUsers} 
+                    color="#059669" 
                     to="/admin/users" 
                 />
                 
-                {/* CONTENT MANAGEMENT - POSTS */}
+                {/* COMMUNITY CONTENT - Posts */}
                 <StatCard 
-                    icon={MessageSquare} 
-                    title="Total Posted Threads" 
-                    value={stats.totalPosts} // UPDATED to use state
-                    color="#F59E0B" 
+                    icon={FileText} 
+                    title="Total Community Posts" 
+                    value={stats.totalPosts} 
+                    color="#2563EB" 
                     to="/admin/posts" 
                 />
-
+                
                 {/* CONTENT MANAGEMENT - JOB LISTINGS */}
                 <StatCard 
                     icon={Briefcase} 
                     title="Active Job Postings" 
-                    value={stats.totalJobs} // UPDATED to use state
+                    value={stats.totalJobs} 
                     color="#6366F1" 
                     to="/admin/jobs" 
                 />
                 
-                {/* PUBLIC FACING CONTENT - News */}
-                <StatCard 
-                    icon={Newspaper} 
-                    title="Total News Posts" 
-                    value={stats.totalNews} // UPDATED to use state
-                    color="#10B981" 
-                    to="/admin/news" 
-                />
-                
-                {/* PUBLIC FACING CONTENT - Announcements */}
-                <StatCard 
-                    icon={Bell} 
-                    title="Total Announcements" 
-                    value={stats.totalAnnouncements} // UPDATED to use state
-                    color="#EF4444" 
-                    to="/admin/announcements" 
-                />
-                
-                {/* SERVICES - Document Requests */}
+                {/* DOCUMENT & SERVICES - Applications */}
                 <StatCard 
                     icon={FileText} 
-                    title="Pending Document Requests" 
-                    value={stats.pendingDocuments} // UPDATED to use state
-                    color="#9333EA"
+                    title="Document Applications" 
+                    value={stats.totalApplications} 
+                    color="#F59E0B" 
                     to="/admin/documents" 
                 />
-                
-                {/* SERVICES - Offered */}
-                <StatCard 
-                    icon={Settings} 
-                    title="Total Services Offered" 
-                    value={stats.totalServices} // UPDATED to use state
-                    color="#06B6D4"
-                    to="/admin/services" 
-                />
-                
-                {/* CONTACTS - Hotlines */}
-                <StatCard 
-                    icon={Phone} 
-                    title="Total Hotlines Listed" 
-                    value={stats.totalHotlines} // UPDATED to use state
-                    color="#F97316"
-                    to="/admin/hotlines" 
-                />
-                
-                {/* CONTACTS - General Contacts */}
+
+                {/* SUPPORT & CONTACTS - Messages */}
                 <StatCard 
                     icon={Mail} 
-                    title="Total Contacts Listed" 
-                    value={stats.totalContacts} // UPDATED to use state
-                    color="#65A30D"
+                    title="Contact Messages" 
+                    value={stats.totalContacts} 
+                    color="#DC2626" 
                     to="/admin/contacts" 
                 />
+                
+                {/* You can add more database-backed cards here */}
             </div>
 
-            {/* Main Content Blocks (Activity Log and Quick Actions) */}
+            {/* QUICK ACTIONS & RECENT ACTIVITY (Placeholder for other dashboard components) */}
             {/* ... other dashboard components if they exist ... */}
             
         </div>
@@ -184,6 +152,17 @@ const styles = {
         overflow: 'hidden', 
         display: 'flex', 
         flexDirection: 'column',
+    },
+    pageTitle: {
+        color: '#1F2937', 
+        marginBottom: '5px',
+    },
+    subtitle: {
+        color: '#6B7280', 
+        fontSize: '14px', 
+        marginBottom: '30px', 
+        paddingBottom: '10px',
+        borderBottom: '1px solid #E5E7EB'
     },
     statsGrid: {
         display: 'grid',
@@ -211,21 +190,19 @@ const styles = {
         marginBottom: '10px',
     },
     statLabel: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#64748B',
         margin: 0,
+        fontSize: '14px',
+        fontWeight: '500',
+        color: '#6B7280',
     },
     statNumber: {
+        margin: '0',
         fontSize: '32px',
-        fontWeight: '800',
-        color: '#1E293B',
-        margin: '0 0 10px 0',
+        fontWeight: '700',
+        color: '#1F2937',
     },
     statFooter: {
-        display: 'flex',
-        alignItems: 'center',
-        minHeight: '20px', 
+        marginTop: '15px',
     },
 };
 

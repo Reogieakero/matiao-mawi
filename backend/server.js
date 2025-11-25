@@ -1192,6 +1192,56 @@ app.post('/api/contact-message', (req, res) => {
     });
 });
 
+app.get('/api/admin/dashboard-stats', (req, res) => {
+    // Note: multipleStatements must be true in db.createConnection for this to work
+    const SQL_STATS = `
+        SELECT COUNT(*) AS totalUsers FROM users;
+        SELECT COUNT(*) AS totalPosts FROM posts;
+        SELECT COUNT(*) AS totalJobs FROM jobs;
+        SELECT COUNT(*) AS totalApplications FROM document_transactions;
+        SELECT COUNT(*) AS totalContacts FROM contact_messages;
+    `;
+
+    db.query(SQL_STATS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching dashboard stats:", err);
+            return res.status(500).json({ message: 'Failed to fetch dashboard statistics.' });
+        }
+
+        // results is an array of arrays when multipleStatements is true
+        // The structure is: [[{totalUsers: X}], [{totalPosts: Y}], ...]
+        const stats = {
+            totalUsers: results[0][0].totalUsers,
+            totalPosts: results[1][0].totalPosts,
+            totalJobs: results[2][0].totalJobs,
+            totalApplications: results[3][0].totalApplications,
+            totalContacts: results[4][0].totalContacts,
+        };
+
+        res.status(200).json(stats);
+    });
+});
+
+app.get('/api/admin/users', (req, res) => {
+    // Select essential user data, excluding sensitive fields like 'password' hash
+    const SQL_SELECT_USERS = `
+        SELECT 
+            name, 
+            email, 
+            role, 
+            created_at
+        FROM users
+    `;
+
+    db.query(SQL_SELECT_USERS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching all users:", err);
+            return res.status(500).json({ message: 'Failed to fetch user list.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

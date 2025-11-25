@@ -14,6 +14,7 @@ import ServicesPage from './pages/ServicesPage';
 import FindJobsPage from './pages/FindJobsPage'; 
 import AboutPage from './pages/AboutPage'; 
 import ContactPage from './pages/ContactPage'; 
+import AdminUsersPage from './admin/AdminUsersPage';
 
 // --- NEW IMPORTS FOR ADMIN ---
 import AdminLayout from './admin/AdminLayout';
@@ -188,7 +189,7 @@ const App = () => {
                 <Route path="/dashboard" element={<AdminDashboardPage />} />
                 
                 {/* Placeholder Routes for Admin */}
-                <Route path="/users" element={<Placeholder title="Admin Users Management" />} />
+                <Route path="/users" element={<AdminUsersPage />} />
                 <Route path="/posts" element={<Placeholder title="Admin Content Posts" />} />
                 <Route path="/jobs" element={<Placeholder title="Admin Job Listings" />} />
                 <Route path="/news" element={<Placeholder title="Admin News Management" />} />
