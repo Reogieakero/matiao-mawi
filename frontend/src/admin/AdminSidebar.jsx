@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
-    LayoutDashboard, Users, MessageSquare, Settings, LogOut, FileText, 
+    LayoutDashboard, Users, MessageSquare, Settings, FileText, 
     Briefcase, Bell, Newspaper, Phone, Mail 
-} from 'lucide-react'; // Added Newspaper, Bell, Phone, Mail
+} from 'lucide-react'; // Removed LogOut
 
-const AdminSidebar = ({ onLogout }) => {
+// Removed onLogout prop from component definition
+const AdminSidebar = () => {
     const location = useLocation();
 
     // UPDATED: Added new navigation items matching user-facing pages
@@ -66,12 +67,7 @@ const AdminSidebar = ({ onLogout }) => {
                 ))}
             </nav>
 
-            <div style={styles.footer}>
-                 <div style={styles.logoutBtn} onClick={onLogout}>
-                    <LogOut size={20} style={styles.logoutIcon} />
-                    Logout
-                </div>
-            </div>
+            {/* Removed the entire footer block which contained the logout button */}
         </div>
     );
 };
@@ -127,11 +123,7 @@ const styles = {
         transition: 'background-color 0.2s, color 0.2s',
     },
     navLinkHover: {
-        // NavLink requires a function for active styles, but we can't use pseudo-classes like :hover
-        // in inline styles easily without external libraries. We'll rely on the default hover style 
-        // which the original component was doing with a functional style property (which I'll skip 
-        // for simplicity, or just apply a minimal hover style to the parent container).
-        // For now, let's keep the active style clean.
+        // ... (styles remain as-is)
     },
     navLinkActive: {
         backgroundColor: '#4338CA', // Stronger Indigo for active
@@ -142,27 +134,7 @@ const styles = {
     navIcon: {
         marginRight: '12px',
     },
-    footer: {
-        padding: '20px 30px 10px 30px',
-        borderTop: '1px solid #334155',
-    },
-    logoutBtn: {
-        display: 'flex',
-        alignItems: 'center',
-        padding: '10px 15px',
-        color: '#F87171', // Red accent for logout
-        cursor: 'pointer',
-        fontSize: '15px',
-        fontWeight: '500',
-        borderRadius: '8px',
-        transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#334155',
-        }
-    },
-    logoutIcon: {
-        marginRight: '12px',
-    }
+    // Removed footer, logoutBtn, and logoutIcon styles
 };
 
 export default AdminSidebar;
