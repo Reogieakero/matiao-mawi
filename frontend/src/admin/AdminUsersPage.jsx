@@ -2,22 +2,126 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Search, ChevronDown, ChevronUp, Trash2, Edit } from 'lucide-react';
+// REMOVED: Edit import
+import { Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+
+// --- Modal Component (Inline Styles) ---
+const DeleteConfirmationModal = ({ show, user, onConfirm, onCancel }) => {
+    if (!show || !user) return null;
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={modalStyles.modal}>
+                <h3 style={modalStyles.header}>Confirm Deletion</h3>
+                <p style={modalStyles.body}>
+                    Are you sure you want to permanently delete the user: 
+                    <strong style={{ display: 'block', marginTop: '5px' }}>{user.name} (ID: {user.id})</strong>?
+                </p>
+                <p style={modalStyles.warning}>
+                    ⚠️ This action is irreversible and will delete ALL their posts, jobs, responses, and profile data.
+                </p>
+                <div style={modalStyles.footer}>
+                    <button onClick={onCancel} style={modalStyles.cancelButton}>
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm} style={modalStyles.deleteButton}>
+                        Yes, Delete User
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- Modal Styles (Omitted for brevity, unchanged) ---
+const modalStyles = {
+    backdrop: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    modal: {
+        backgroundColor: '#ffffff',
+        padding: '30px',
+        borderRadius: '12px',
+        maxWidth: '450px',
+        width: '90%',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
+    },
+    header: {
+        fontSize: '24px',
+        fontWeight: '700',
+        color: '#DC2626',
+        marginBottom: '10px',
+        borderBottom: '1px solid #FEE2E2',
+        paddingBottom: '10px',
+    },
+    body: {
+        fontSize: '16px',
+        color: '#4B5563',
+        marginBottom: '15px',
+        lineHeight: '1.4',
+    },
+    warning: {
+        fontSize: '14px',
+        color: '#991B1B',
+        backgroundColor: '#FEF2F2',
+        padding: '10px',
+        borderRadius: '8px',
+        marginBottom: '25px',
+        fontWeight: '500',
+    },
+    footer: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '10px',
+    },
+    cancelButton: {
+        padding: '10px 20px',
+        border: '1px solid #D1D5DB',
+        borderRadius: '8px',
+        backgroundColor: '#F9FAFB',
+        color: '#4B5563',
+        cursor: 'pointer',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
+        minWidth: '100px',
+    },
+    deleteButton: {
+        padding: '10px 20px',
+        border: 'none',
+        borderRadius: '8px',
+        backgroundColor: '#DC2626',
+        color: 'white',
+        cursor: 'pointer',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
+        minWidth: '150px',
+    }
+};
 
 const AdminUsersPage = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    // CHANGED: Default sort column from 'id' to 'name'
-    const [sortBy, setSortBy] = useState('name'); 
+    // UPDATED: Default sort column is now 'id'
+    const [sortBy, setSortBy] = useState('id'); 
     const [sortDirection, setSortDirection] = useState('asc');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null); // { id, name }
 
     // --- Data Fetching ---
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                // Assuming your Express server runs on port 5000
+                // Ensure your server.js is updated to return 'id'
                 const response = await axios.get('http://localhost:5000/api/admin/users');
                 setUsers(response.data);
             } catch (err) {
@@ -35,22 +139,29 @@ const AdminUsersPage = () => {
     const filteredAndSortedUsers = useMemo(() => {
         let currentUsers = [...users];
 
-        // 1. Filtering
         if (searchTerm) {
             currentUsers = currentUsers.filter(user =>
-                (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) || // Using 'name' based on last error
+                (user.id && String(user.id).includes(searchTerm)) || // Allow searching by ID
+                (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase()))
             );
         }
 
-        // 2. Sorting
         currentUsers.sort((a, b) => {
             const aValue = a[sortBy] || '';
             const bValue = b[sortBy] || '';
 
-            if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-            if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+            // Handle numeric sort for ID
+            if (sortBy === 'id') {
+                const aNum = Number(aValue);
+                const bNum = Number(bValue);
+                if (aNum < bNum) return sortDirection === 'asc' ? -1 : 1;
+                if (aNum > bNum) return sortDirection === 'asc' ? 1 : -1;
+            } else {
+                if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+            }
             return 0;
         });
 
@@ -66,13 +177,41 @@ const AdminUsersPage = () => {
             setSortDirection('asc');
         }
     };
-
+    
+    // Now opens the modal
     const handleDelete = (userId, userName) => {
-        if (window.confirm(`Are you sure you want to permanently delete user: ${userName} (ID: ${userId})?`)) {
-            // NOTE: You need to implement the DELETE /api/admin/users/:id endpoint in server.js
-            console.log(`[ACTION] Deleting user ${userId}... (API call needed)`);
-            // Add axios.delete() call here and update state on success
+        setUserToDelete({ id: userId, name: userName });
+        setShowDeleteModal(true);
+    };
+
+    // Function to handle deletion after confirmation
+    const confirmDelete = async () => {
+        if (!userToDelete) return;
+
+        const userId = userToDelete.id;
+        const userName = userToDelete.name;
+
+        // Close the modal and reset state immediately
+        setShowDeleteModal(false);
+        setUserToDelete(null); 
+
+        try {
+            // API call to the new endpoint (assuming 'http://localhost:5000/api/admin/users/:userId' is implemented)
+            await axios.delete(`http://localhost:5000/api/admin/users/${userId}`);
+
+            // Update local state: remove the deleted user
+            setUsers(users.filter(user => user.id !== userId));
+            console.log(`[SUCCESS] User ${userName} (ID: ${userId}) deleted successfully.`);
+        } catch (err) {
+            console.error(`Error deleting user ${userId}:`, err);
+            // Provide feedback to the admin if the deletion fails
+            setError(`Failed to delete user ${userName}. Check server logs.`);
         }
+    };
+    
+    const cancelDelete = () => {
+        setShowDeleteModal(false);
+        setUserToDelete(null);
     };
     
     if (loading) return <div style={styles.center}><p style={{ color: '#2563eb', fontSize: '18px' }}>🚀 Loading User Data...</p></div>;
@@ -92,7 +231,7 @@ const AdminUsersPage = () => {
                     <Search size={18} color="#6B7280" style={{ marginRight: '10px' }} />
                     <input
                         type="text"
-                        placeholder="Search by name, email, or role..."
+                        placeholder="Search by ID, name, email, or role..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         style={styles.searchInput}
@@ -107,17 +246,20 @@ const AdminUsersPage = () => {
                 <table style={styles.table}>
                     <thead style={styles.tableHead}>
                         <tr>
+                            {/* NEW: TableHeader for ID */}
+                            <TableHeader onClick={() => handleSort('id')} sortBy={sortBy} sortKey='id' sortDirection={sortDirection}>ID</TableHeader>
                             <TableHeader onClick={() => handleSort('name')} sortBy={sortBy} sortKey='name' sortDirection={sortDirection}>Name</TableHeader>
                             <TableHeader onClick={() => handleSort('email')} sortBy={sortBy} sortKey='email' sortDirection={sortDirection}>Email</TableHeader>
                             <TableHeader onClick={() => handleSort('role')} sortBy={sortBy} sortKey='role' sortDirection={sortDirection}>Role</TableHeader>
                             <TableHeader onClick={() => handleSort('created_at')} sortBy={sortBy} sortKey='created_at' sortDirection={sortDirection}>Registered</TableHeader>
-                            {/* REMOVED: TableHeader for Last Login */}
                             <th style={{...styles.th, cursor: 'default'}}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredAndSortedUsers.map(user => (
                             <tr key={user.id} style={styles.tr}>
+                                {/* NEW: Data cell for ID */}
+                                <td style={{...styles.td, fontWeight: '600', color: '#6B7280'}}>{user.id}</td>
                                 <td style={styles.td}>{user.name || 'N/A'}</td>
                                 <td style={{...styles.td, fontWeight: '500'}}>{user.email}</td>
                                 <td style={styles.td}>
@@ -126,11 +268,7 @@ const AdminUsersPage = () => {
                                     </span>
                                 </td>
                                 <td style={styles.td}>{new Date(user.created_at).toLocaleDateString()}</td>
-                                {/* REMOVED: Data cell for Last Login */}
                                 <td style={styles.tdActions}>
-                                    <button style={{...styles.actionButton, color: '#2563EB'}} title="Edit User">
-                                        <Edit size={16} />
-                                    </button>
                                     <button 
                                         style={{...styles.actionButton, color: '#DC2626'}} 
                                         onClick={() => handleDelete(user.id, user.name || user.email)} 
@@ -150,11 +288,19 @@ const AdminUsersPage = () => {
                     <p>No users found matching your criteria.</p>
                 </div>
             )}
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmationModal 
+                show={showDeleteModal}
+                user={userToDelete}
+                onConfirm={confirmDelete}
+                onCancel={cancelDelete}
+            />
         </div>
     );
 };
 
-// --- Sub-Component for Clean Table Header ---
+// --- Sub-Component for Clean Table Header (Omitted for brevity, unchanged) ---
 const TableHeader = ({ children, onClick, sortBy, sortKey, sortDirection }) => (
     <th style={styles.th} onClick={onClick}>
         <div style={styles.thContent}>
@@ -168,12 +314,12 @@ const TableHeader = ({ children, onClick, sortBy, sortKey, sortDirection }) => (
     </th>
 );
 
-// --- Styles Object (Updated: styles.tdDate is removed) ---
+// --- Styles Object (Omitted for brevity, unchanged) ---
 const styles = {
     container: {
         padding: '30px', 
         height: '100%', 
-        overflowY: 'auto', // Allows scrolling if content is too long
+        overflowY: 'auto', 
         backgroundColor: '#F9FAFB',
     },
     center: {
@@ -237,11 +383,11 @@ const styles = {
     },
     table: {
         width: '100%',
-        borderCollapse: 'separate', // Use separate for rounded corners on cells (more modern)
+        borderCollapse: 'separate', 
         borderSpacing: '0',
     },
     tableHead: {
-        backgroundColor: '#F3F4F6', // Light gray background for header
+        backgroundColor: '#F3F4F6', 
     },
     th: {
         padding: '14px 20px',
@@ -264,8 +410,6 @@ const styles = {
     tr: {
         borderTop: '1px solid #E5E7EB',
         transition: 'background-color 0.15s',
-        // Hover effect for table row (if using inline styles, would need a state)
-        // ':hover': { backgroundColor: '#F9FAFB' }
     },
     td: {
         padding: '14px 20px',
@@ -274,7 +418,6 @@ const styles = {
         verticalAlign: 'middle',
         whiteSpace: 'nowrap',
     },
-    // REMOVED: styles.tdDate
     tdActions: {
         padding: '14px 20px',
         display: 'flex',
@@ -303,16 +446,16 @@ const styles = {
         borderRadius: '0 0 12px 12px',
     },
     badgeUser: {
-        backgroundColor: '#EFF6FF', // Light blue
+        backgroundColor: '#EFF6FF', 
         color: '#1D4ED8',
         padding: '4px 10px',
-        borderRadius: '9999px', // Pill shape
+        borderRadius: '9999px', 
         fontSize: '12px',
         fontWeight: '600',
         textTransform: 'capitalize',
     },
     badgeAdmin: {
-        backgroundColor: '#FEF2F2', // Light red
+        backgroundColor: '#FEF2F2', 
         color: '#DC2626',
         padding: '4px 10px',
         borderRadius: '9999px',

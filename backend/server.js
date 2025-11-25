@@ -1226,6 +1226,7 @@ app.get('/api/admin/users', (req, res) => {
     // Select essential user data, excluding sensitive fields like 'password' hash
     const SQL_SELECT_USERS = `
         SELECT 
+            id,              /* <-- ADDED 'id' for front-end management */
             name, 
             email, 
             role, 
@@ -1239,6 +1240,73 @@ app.get('/api/admin/users', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch user list.' });
         }
         res.status(200).json(results);
+    });
+});
+
+app.delete('/api/admin/users/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
+    }
+
+    // Comprehensive SQL statements for cascading deletion
+    // Delete responses: either authored by the user OR attached to the user's posts/jobs
+    const SQL_DELETE_RESPONSES = `
+        DELETE FROM responses 
+        WHERE user_id = ? OR post_id IN (SELECT id FROM posts WHERE user_id = ?) OR job_id IN (SELECT id FROM jobs WHERE user_id = ?);
+    `;
+    // Delete bookmarks: either authored by the user OR attached to the user's posts/jobs
+    const SQL_DELETE_BOOKMARKS = `
+        DELETE FROM bookmarks 
+        WHERE user_id = ? OR post_id IN (SELECT id FROM posts WHERE user_id = ?) OR job_id IN (SELECT id FROM jobs WHERE user_id = ?);
+    `;
+    const SQL_DELETE_POSTS = `DELETE FROM posts WHERE user_id = ?`;
+    const SQL_DELETE_JOBS = `DELETE FROM jobs WHERE user_id = ?`;
+    const SQL_DELETE_PROFILE = `DELETE FROM user_profiles WHERE user_id = ?`;
+    const SQL_DELETE_USER = `DELETE FROM users WHERE id = ?`;
+
+    const executionPlan = [
+        { sql: SQL_DELETE_RESPONSES, params: [userId, userId, userId], errorMsg: 'Failed to delete user responses.' },
+        { sql: SQL_DELETE_BOOKMARKS, params: [userId, userId, userId], errorMsg: 'Failed to delete user bookmarks.' },
+        { sql: SQL_DELETE_POSTS, params: [userId], errorMsg: 'Failed to delete user posts.' },
+        { sql: SQL_DELETE_JOBS, params: [userId], errorMsg: 'Failed to delete user jobs.' },
+        { sql: SQL_DELETE_PROFILE, params: [userId], errorMsg: 'Failed to delete user profile.' },
+        { sql: SQL_DELETE_USER, params: [userId], errorMsg: 'Failed to delete user record.' },
+    ];
+
+    db.beginTransaction(err => {
+        if (err) {
+            console.error("Transaction Begin Error:", err);
+            return res.status(500).json({ message: 'Failed to start user deletion transaction.' });
+        }
+
+        const executeStep = (stepIndex) => {
+            if (stepIndex >= executionPlan.length) {
+                // All steps complete, commit the transaction
+                db.commit(commitErr => {
+                    if (commitErr) return db.rollback(() => {
+                        console.error("Transaction Commit Error:", commitErr);
+                        res.status(500).json({ message: 'Failed to complete user deletion.' });
+                    });
+                    res.status(200).json({ message: 'User and all associated data deleted successfully.' });
+                });
+                return;
+            }
+
+            const step = executionPlan[stepIndex];
+            db.query(step.sql, step.params, (err) => {
+                if (err) return db.rollback(() => {
+                    console.error(`Database error: ${step.errorMsg}:`, err);
+                    res.status(500).json({ message: step.errorMsg });
+                });
+
+                executeStep(stepIndex + 1);
+            });
+        };
+
+        // Start the execution
+        executeStep(0);
     });
 });
 
