@@ -946,37 +946,113 @@ app.post('/api/profile/upload-picture/:userId', (req, res) => {
     });
 });
 
-app.put('/api/profile/:userId', (req, res) => {
+app.get('/api/profile/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    const { name, contact, address } = req.body;
-
-    if (isNaN(userId) || !name) {
-        return res.status(400).json({ message: 'Invalid User ID or missing Name.' });
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
     }
 
-    const SQL_UPDATE_USER = 'UPDATE users SET name = ? WHERE id = ?';
-    db.query(SQL_UPDATE_USER, [name, userId], (userErr) => {
-        if (userErr) {
-            console.error("Database error updating user name:", userErr);
-            return res.status(500).json({ message: 'Failed to update user name.' });
+    const SQL_FETCH_PROFILE = `
+        SELECT 
+            u.name, 
+            u.email, 
+            up.contact, 
+            up.address, 
+            up.profile_picture_url
+        FROM users u
+        LEFT JOIN user_profiles up ON u.id = up.user_id
+        WHERE u.id = ?
+    `;
+
+    db.query(SQL_FETCH_PROFILE, [userId], (err, results) => {
+        if (err) {
+            console.error("Database error fetching user profile:", err);
+            return res.status(500).json({ message: 'Failed to fetch user profile.' });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
         }
 
-        const SQL_UPSERT_PROFILE = `
-            INSERT INTO user_profiles (user_id, contact, address)
-            VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE contact = ?, address = ?;
-        `;
-        
-        db.query(SQL_UPSERT_PROFILE, [userId, contact, address, contact, address], (err) => {
-            if (err) {
-                console.error("Database error upserting profile data:", err);
-                return res.status(500).json({ message: 'Failed to update profile details.' });
-            }
-            res.status(200).json({ message: 'Profile updated successfully.' });
+        const profileData = results[0];
+        res.status(200).json({
+            name: profileData.name,
+            email: profileData.email,
+            contact: profileData.contact,
+            address: profileData.address,
+            profilePictureUrl: profileData.profile_picture_url || '',
         });
     });
 });
 
+
+// --- API Endpoint: PUT Update Profile Details (The save function) ---
+app.put('/api/profile/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID.' });
+    }
+
+    const { editedName, editedContact, editedAddress, newProfilePictureUrl } = req.body;
+
+    // Validation
+    if (!editedName) {
+        return res.status(400).json({ message: 'Name is required.' });
+    }
+
+    // SQL to update user's name in the 'users' table
+    const SQL_UPDATE_USER = 'UPDATE users SET name = ? WHERE id = ?';
+    
+    // SQL to update or insert profile details in 'user_profiles' table (UPSERT)
+    // Assumes user_id is a primary or unique key in user_profiles
+    const SQL_UPSERT_PROFILE = `
+        INSERT INTO user_profiles (user_id, contact, address, profile_picture_url)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+            contact = VALUES(contact), 
+            address = VALUES(address), 
+            profile_picture_url = VALUES(profile_picture_url)
+    `;
+    
+    db.beginTransaction(err => {
+        if (err) return res.status(500).json({ message: 'Transaction start failed.' });
+
+        // 1. Update user's name
+        db.query(SQL_UPDATE_USER, [editedName, userId], (err) => {
+            if (err) {
+                return db.rollback(() => {
+                    console.error("Error updating user name:", err);
+                    res.status(500).json({ message: 'Failed to update user name.' });
+                });
+            }
+
+            // 2. Upsert profile details (contact, address, picture URL)
+            db.query(SQL_UPSERT_PROFILE, [userId, editedContact, editedAddress, newProfilePictureUrl], (err) => {
+                if (err) {
+                    return db.rollback(() => {
+                        console.error("Error upserting user profile:", err);
+                        res.status(500).json({ message: 'Failed to update profile details.' });
+                    });
+                }
+                
+                db.commit(commitErr => {
+                    if (commitErr) {
+                        return db.rollback(() => {
+                            console.error("Transaction commit error:", commitErr);
+                            res.status(500).json({ message: 'Failed to commit profile updates.' });
+                        });
+                    }
+
+                    // Return updated info to client to refresh local state
+                    res.status(200).json({ 
+                        message: 'Profile updated successfully.',
+                        updatedName: editedName,
+                        updatedPictureUrl: newProfilePictureUrl
+                    });
+                });
+            });
+        });
+    });
+});
 app.get('/api/jobs', (req, res) => {
     const { category } = req.query; 
     
@@ -1253,10 +1329,8 @@ app.delete('/api/officials/:id', (req, res) => {
         res.status(200).json({ message: 'Official deleted successfully.' });
     });
 });
-
 app.get('/api/documents', (req, res) => {
-    const SQL_GET_DOCUMENTS = 'SELECT id, document_name, description, fee, requirements FROM barangay_documents ORDER BY document_name';
-
+    const SQL_GET_DOCUMENTS = 'SELECT id, document_name, description, requirements, fee FROM barangay_documents ORDER BY document_name';
     db.query(SQL_GET_DOCUMENTS, (err, results) => {
         if (err) {
             console.error("Database error fetching documents:", err);
@@ -1266,13 +1340,10 @@ app.get('/api/documents', (req, res) => {
     });
 });
 
-// =========================================================
-// NEW ENDPOINT: GET /api/payment-details
-// Fetches active payment accounts for display in the modal
+// Endpoint to fetch payment accounts for display in the modal
 // =========================================================
 app.get('/api/payment-details', (req, res) => {
     const SQL_GET_PAYMENT_DETAILS = 'SELECT method_name, account_name, account_number FROM barangay_payment_details WHERE is_active = TRUE ORDER BY id';
-    
     db.query(SQL_GET_PAYMENT_DETAILS, (err, results) => {
         if (err) {
             console.error("Database error fetching payment details:", err);
@@ -1281,88 +1352,219 @@ app.get('/api/payment-details', (req, res) => {
         res.status(200).json(results);
     });
 });
-
 // =========================================================
-// UPDATED ENDPOINT: POST /api/documents/apply 
-// Now accepts payment_method and payment_reference_number via body
+
+// UPDATED ENDPOINT: POST /api/documents/apply
+// Now uses documentsApplicationUploader for file uploads
 // =========================================================
 app.post('/api/documents/apply', (req, res) => {
-    
-    // 1. Use the file uploader middleware for only requirements
-    documentsApplicationUploader(req, res, (err) => {
-        
-        if (err instanceof multer.MulterError) {
-            console.error("Multer Application Upload Error:", err.message);
-            // Delete uploaded requirements files if this error occurs
-            req.files.requirements.forEach(file => fs.unlink(file.path, (e) => e && console.error("Error deleting file:", e)));
-            return res.status(400).json({ message: `Application submission failed: ${err.message}` });
-        } else if (err) {
-            console.error("Unknown Upload Error:", err);
-            // Delete uploaded requirements files if this error occurs
-            req.files.requirements.forEach(file => fs.unlink(file.path, (e) => e && console.error("Error deleting file:", e)));
-            return res.status(500).json({ message: err.message || 'An unknown error occurred during application submission.' });
+    // 1. Use the dedicated uploader middleware
+    documentsApplicationUploader(req, res, (uploadErr) => {
+        if (uploadErr instanceof multer.MulterError) {
+            console.error("Multer Upload Error:", uploadErr.message);
+            return res.status(400).json({ message: `File upload failed: ${uploadErr.message}` });
+        } else if (uploadErr) {
+            console.error("Unknown Upload Error:", uploadErr);
+            return res.status(500).json({ message: uploadErr.message || 'An unknown error occurred during file upload.' });
         }
 
-        // 2. Extract Data (includes new payment fields from req.body)
-        const { 
-            document_id, 
-            user_email, 
-            full_name, 
-            purpose, 
-            requirements_details, 
-            payment_method,           // NEW
-            payment_reference_number  // NEW
-        } = req.body;
+        // 2. Extract text fields from req.body and file paths from req.files
+        const { document_id, user_email, full_name, purpose, requirements_details, payment_method, payment_reference_number } = req.body;
         
-        const requirementsFiles = req.files.requirements || [];
+        const uploadedRequirements = req.files && req.files['requirements'] ? req.files['requirements'] : [];
+        const requirementsFilePaths = uploadedRequirements.map(file => `http://localhost:${PORT}/media/${file.filename}`);
+        const requirementsFilePathsJson = requirementsFilePaths.length > 0 ? JSON.stringify(requirementsFilePaths) : null;
 
-        // 3. Process File Paths (for requirements only)
-        const requirementsPaths = requirementsFiles.map(file => 
-            `http://localhost:${PORT}/media/${file.filename}`
-        );
-        const requirementsPathsJson = requirementsPaths.length > 0 ? JSON.stringify(requirementsPaths) : null;
-        
-        // 4. Validate Required Fields 
-        if (!document_id || !user_email || !full_name || !purpose) {
-            // NOTE: In a real app, delete uploaded files if validation fails
-            return res.status(400).json({ message: 'Missing required application fields (Document ID, Email, Full Name, Purpose).' });
+        if (!document_id || !user_email || !full_name || !purpose || !requirements_details || uploadedRequirements.length === 0) {
+            return res.status(400).json({ message: 'Missing required fields or requirements files.' });
         }
 
-        if ( (payment_method && !payment_reference_number) || (!payment_method && payment_reference_number) ) {
-             return res.status(400).json({ message: 'Both payment method and reference number must be provided, or neither.' });
-        }
-
-        // 5. Execute DB Insert with all fields
-        const SQL_APPLY_DOCUMENT = `
-            INSERT INTO document_applications 
-            (user_email, applicant_name, purpose, requirements_details, requirements_file_paths, payment_method, payment_reference_number, document_id, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        const SQL_INSERT_APPLICATION = `
+            INSERT INTO document_applications (
+                document_id, user_email, applicant_name, purpose, 
+                requirements_details, requirements_file_paths, 
+                payment_method, payment_reference_number, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
         `;
-        
-        const values = [
-            user_email, 
-            full_name, 
-            purpose, 
-            requirements_details || null, 
-            requirementsPathsJson,          
-            payment_method || null,             // NEW
-            payment_reference_number || null,   // NEW
-            document_id, 
-            'Pending'
-        ];
 
-        db.query(SQL_APPLY_DOCUMENT, values, (dbErr, result) => {
-            if (dbErr) {
-                console.error("Database error submitting document application:", dbErr);
-                // NOTE: In a real app, delete uploaded files if DB insertion fails
-                return res.status(500).json({ message: 'Failed to submit application to database.' });
+        db.query(
+            SQL_INSERT_APPLICATION, 
+            [
+                document_id, user_email, full_name, purpose, 
+                requirements_details, requirementsFilePathsJson, 
+                payment_method || null, payment_reference_number || null
+            ], 
+            (err, result) => {
+            if (err) {
+                console.error("Database error inserting document application:", err);
+                return res.status(500).json({ message: 'Failed to submit document application.' });
             }
-            
+
             res.status(201).json({ 
-                message: 'Document application submitted successfully! Status: Pending',
+                message: 'Application submitted successfully!', 
                 applicationId: result.insertId 
             });
         });
+    });
+});
+// =========================================================
+
+// UPDATED ENDPOINT: GET /api/documents/history/:userEmail
+// Now includes requirements_file_paths
+// =========================================================
+app.get('/api/documents/history/:userEmail', (req, res) => {
+    const userEmail = req.params.userEmail;
+    if (!userEmail) {
+        return res.status(400).json({ message: 'User email is required.' });
+    }
+
+    const SQL_FETCH_HISTORY = `
+        SELECT 
+            da.id, 
+            da.applicant_name, 
+            da.purpose, 
+            da.requirements_details, 
+            da.requirements_file_paths, -- *** NEW FIELD: File paths of submitted requirements ***
+            da.payment_method, 
+            da.payment_reference_number, 
+            da.status, 
+            da.application_date, 
+            bd.document_name, 
+            bd.fee
+        FROM document_applications da
+        JOIN barangay_documents bd ON da.document_id = bd.id
+        WHERE da.user_email = ?
+        ORDER BY da.application_date DESC
+    `;
+
+    db.query(SQL_FETCH_HISTORY, [userEmail], (err, results) => {
+        if (err) {
+            console.error("Database error fetching application history:", err);
+            return res.status(500).json({ message: 'Failed to fetch application history.' });
+        }
+
+        // Parse requirements_file_paths from JSON string back to array if it exists
+        const history = results.map(row => ({
+            ...row,
+            requirements_file_paths: row.requirements_file_paths ? JSON.parse(row.requirements_file_paths) : []
+        }));
+
+        res.status(200).json(history);
+    });
+});
+// =========================================================
+
+
+// =========================================================
+// NEW ENDPOINT: PUT /api/documents/cancel/:applicationId
+// Updates the status of an application to 'Cancelled'
+// =========================================================
+// New Endpoint for application cancellation (updates status)
+// New Endpoint for application cancellation (updates status)
+app.put('/api/documents/cancel/:applicationId', (req, res) => {
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { userEmail } = req.body;
+
+    if (isNaN(applicationId) || !userEmail) {
+        return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
+    }
+
+    // Only allow cancellation if the current status is 'Pending'
+    const SQL_CANCEL_APPLICATION = `
+        UPDATE document_applications 
+        SET status = 'Cancelled', updated_at = NOW()
+        WHERE id = ? AND user_email = ? AND status = 'Pending'
+    `;
+
+    db.query(SQL_CANCEL_APPLICATION, [applicationId, userEmail], (err, result) => {
+        if (err) {
+            console.error("Database error cancelling application:", err);
+            return res.status(500).json({ message: 'Failed to cancel application.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(403).json({ message: 'Application cannot be cancelled or not found/unauthorized.' });
+        }
+
+        res.status(200).json({ message: 'Application successfully cancelled.' });
+    });
+});
+// =========================================================
+
+
+// Endpoint for deleting an application
+// Allows deletion if status is 'Pending' or 'Cancelled'
+app.delete('/api/documents/delete/:applicationId', (req, res) => {
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { userEmail } = req.body; // To verify the user owns the application
+
+    if (isNaN(applicationId) || !userEmail) {
+        return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
+    }
+    
+    // NOTE: In a real application, you would also delete the files associated with the application
+    // from the file system using the requirements_file_paths.
+
+    const SQL_DELETE_APPLICATION = `
+        DELETE FROM document_applications 
+        WHERE id = ? AND user_email = ? AND status IN ('Pending', 'Cancelled')
+    `;
+
+    db.query(SQL_DELETE_APPLICATION, [applicationId, userEmail], (err, result) => {
+        if (err) {
+            console.error("Database error deleting application:", err);
+            return res.status(500).json({ message: 'Failed to delete application.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(403).json({ message: 'Application cannot be deleted (status is Approved/Rejected/Completed) or not found/unauthorized.' });
+        }
+
+        res.status(200).json({ message: 'Application permanently deleted.' });
+    });
+});
+
+app.get('/api/user/profile/:email', (req, res) => {
+    const userEmail = req.params.email;
+
+    if (!userEmail) {
+        return res.status(400).json({ message: 'User email is required.' });
+    }
+
+    // --- CRITICAL CHANGE: USING LEFT JOIN to get profile_picture_url ---
+    const SQL_QUERY_PROFILE = `
+        SELECT 
+            u.id, 
+            u.name, 
+            u.email, 
+            up.profile_picture_url  /* Fetches the picture URL from user_profiles */
+        FROM users u
+        LEFT JOIN user_profiles up ON u.id = up.user_id /* JOIN on user_id */
+        WHERE u.email = ?
+    `;
+
+    db.query(SQL_QUERY_PROFILE, [userEmail], (err, results) => {
+        if (err) {
+            console.error("Database error fetching user profile:", err);
+            return res.status(500).json({ message: 'Failed to fetch user profile.' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Return the full user profile object
+        // Renaming 'full_name' to 'name' to match frontend convention
+        const userProfile = {
+            id: results[0].id,
+            name: results[0].full_name,
+            email: results[0].email,
+            // The profile picture URL is now correctly sourced via the JOIN
+            profilePictureUrl: results[0].profile_picture_url, 
+            // Note: If profile_picture_url is NULL in the database, it will be NULL here, triggering the initials fallback on the frontend.
+        };
+
+        res.status(200).json(userProfile);
     });
 });
 // =========================================================

@@ -1,7 +1,90 @@
 import React, { useState, useEffect } from 'react';
-// Added FiCreditCard for payment details
-import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard } from 'react-icons/fi';
+// Added FiClock for history section header
+import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard, FiClock, FiCalendar, FiUser } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+
+// New Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText, confirmStyle }) => {
+    if (!isOpen) return null;
+
+    const modalStyle = {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1001,
+    };
+
+    const contentStyle = {
+        backgroundColor: '#ffffff',
+        padding: '30px',
+        borderRadius: '10px',
+        width: '90%',
+        maxWidth: '450px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+        textAlign: 'center',
+    };
+
+    const headerStyle = {
+        fontSize: '1.5rem',
+        color: confirmStyle === 'delete' ? '#dc2626' : (confirmStyle === 'cancel' ? '#dc2626' : '#2563eb'),
+        marginBottom: '10px',
+    };
+
+    const messageStyle = {
+        color: '#4b5563',
+        marginBottom: '20px',
+    };
+
+    const buttonGroupStyle = {
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '15px',
+    };
+
+    // Modified button styles to match the page's new blue palette consistency
+    const confirmButtonStyle = {
+        backgroundColor: confirmStyle === 'delete' ? '#2563eb' : '#dc2626', // Primary blue for Delete, Amber for Cancel
+        color: 'white',
+        border: 'none',
+        padding: '10px 20px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: '600',
+    };
+
+    const cancelButtonStyle = {
+        backgroundColor: '#e5e7eb',
+        color: '#4b5563',
+        border: 'none',
+        padding: '10px 20px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: '600',
+    };
+
+    return (
+        <div style={modalStyle}>
+            <div style={contentStyle}>
+                <h3 style={headerStyle}>{title}</h3>
+                <p style={messageStyle}>{message}</p>
+                <div style={buttonGroupStyle}>
+                    <button onClick={onCancel} style={cancelButtonStyle}>
+                        Keep Application
+                    </button>
+                    <button onClick={onConfirm} style={confirmButtonStyle}>
+                        {confirmText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const [documents, setDocuments] = useState([]);
@@ -9,19 +92,26 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState('');
     
+    // State for application history
+    const [applicationHistory, setApplicationHistory] = useState([]);
+
     // State for the Application Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDocument, setCurrentDocument] = useState(null);
+
+    // State for the Confirmation Modal
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [confirmAction, setConfirmAction] = useState(null); // 'cancel' or 'delete'
+    const [targetApplication, setTargetApplication] = useState(null); // { id, name }
 
     // State for the Form Inputs
     const [fullName, setFullName] = useState(userName || '');
     const [purpose, setPurpose] = useState('');
     const [requirementsFiles, setRequirementsFiles] = useState([]); 
     
-    // NEW Payment States
-    const [paymentMethod, setPaymentMethod] = useState(''); // Selected payment method (e.g., 'GCash')
-    const [referenceNumber, setReferenceNumber] = useState(''); // Reference number input
-    // State for fetched Barangay payment accounts
+    // Payment States
+    const [paymentMethod, setPaymentMethod] = useState(''); 
+    const [referenceNumber, setReferenceNumber] = useState(''); 
     const [barangayPaymentDetails, setBarangayPaymentDetails] = useState([]); 
     
     const isLoggedIn = !!userEmail; 
@@ -29,8 +119,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
 
     useEffect(() => {
         fetchDocuments();
-        fetchPaymentDetails(); // NEW: Fetch payment details on load
-    }, []);
+        fetchPaymentDetails(); 
+        // Only fetch history if the user is logged in
+        if (isLoggedIn && userEmail) {
+            fetchApplicationHistory();
+        }
+    }, [isLoggedIn, userEmail]); // Depend on login status and email
 
     const fetchDocuments = async () => {
         try {
@@ -47,8 +141,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
     };
     
-    // Function to fetch Barangay payment details
     const fetchPaymentDetails = async () => {
+        // ... (Existing logic for fetching payment details) ...
         try {
             const response = await fetch('http://localhost:5000/api/payment-details');
             if (!response.ok) {
@@ -63,6 +157,94 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             console.error("Error fetching payment details:", err.message);
         }
     };
+
+    // Fetch user's application history
+    const fetchApplicationHistory = async () => {
+        if (!userEmail) return;
+        try {
+            // This endpoint is updated in server.js to include requirements_file_paths
+            const response = await fetch(`http://localhost:5000/api/documents/history/${userEmail}`); 
+            if (!response.ok) {
+                throw new Error('Failed to fetch application history.');
+            }
+            const data = await response.json();
+            setApplicationHistory(data);
+        } catch (err) {
+            console.error("Error fetching history:", err.message);
+        }
+    };
+    
+    // Confirmation Handler: Show Modal
+    const handleOpenConfirmation = (action, id, documentName) => {
+        setConfirmAction(action);
+        setTargetApplication({ id, name: documentName });
+        setIsConfirmModalOpen(true);
+    };
+
+    // Confirmation Handler: Close Modal
+    const handleCloseConfirmation = () => {
+        setIsConfirmModalOpen(false);
+        setConfirmAction(null);
+        setTargetApplication(null);
+    };
+
+    // Confirmation Handler: Execute Action
+    const handleConfirmAction = () => {
+        if (confirmAction === 'cancel') {
+            executeCancelApplication(targetApplication.id, targetApplication.name);
+        } else if (confirmAction === 'delete') {
+            executeDeleteApplication(targetApplication.id, targetApplication.name);
+        }
+        handleCloseConfirmation();
+    };
+
+    // Function: Execute Cancel Application
+    const executeCancelApplication = async (applicationId, documentName) => {
+        try {
+            const response = await fetch(`http://localhost:5000/api/documents/cancel/${applicationId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(`Cancellation Error: ${data.message || 'Failed to cancel application.'}`);
+            } else {
+                fetchApplicationHistory(); // Refresh history on success
+                setSuccessMessage(`Application ID ${applicationId} for ${documentName} has been CANCELLED.`);
+                setTimeout(() => setSuccessMessage(''), 7000); 
+            }
+
+        } catch (err) {
+            alert(`Network Error during cancellation: ${err.message}`);
+        }
+    };
+
+    // Function: Execute Delete Application
+    const executeDeleteApplication = async (applicationId, documentName) => {
+        try {
+            const response = await fetch(`http://localhost:5000/api/documents/delete/${applicationId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail }), // Send userEmail for security/verification
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(`Deletion Error: ${data.message || 'Failed to delete application.'}`);
+            } else {
+                fetchApplicationHistory(); // Refresh history on success
+                setSuccessMessage(`Application ID ${applicationId} for ${documentName} has been PERMANENTLY DELETED.`);
+                setTimeout(() => setSuccessMessage(''), 7000); 
+            }
+
+        } catch (err) {
+            alert(`Network Error during deletion: ${err.message}`);
+        }
+    };
     
     const openApplyModal = (doc) => {
         if (!isLoggedIn) {
@@ -74,7 +256,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         setFullName(userName || ''); 
         setPurpose('');
         setRequirementsFiles([]); // Reset files
-        // Reset new payment states
+        // Reset payment states
         setPaymentMethod(barangayPaymentDetails.length > 0 ? barangayPaymentDetails[0].method_name : '');
         setReferenceNumber(''); 
         setIsModalOpen(true);
@@ -93,6 +275,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const handleApply = async (e) => {
         e.preventDefault();
         
+        // ... (Existing form validation logic) ...
         if (!currentDocument || !fullName || !purpose || requirementsFiles.length === 0) {
             alert('Please fill out all required text fields and upload the necessary requirements.');
             return;
@@ -100,7 +283,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         
         const feeRequired = currentDocument.fee > 0;
         
-        // Conditional check for payment method/reference number
         if (feeRequired) {
              if (!paymentMethod || !referenceNumber) {
                  alert('This document requires a fee. Please select a payment method and provide a reference number.');
@@ -113,15 +295,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         formData.append('user_email', userEmail);
         formData.append('full_name', fullName);
         formData.append('purpose', purpose);
-        // requirementsDetails is optional, but still sent
         formData.append('requirements_details', currentDocument.requirements); 
         
-        // Append all requirements files
         requirementsFiles.forEach((file) => {
-            formData.append('requirements', file); // 'requirements' must match multer field name
+            formData.append('requirements', file); 
         });
         
-        // Append new payment details
         if (feeRequired) {
              formData.append('payment_method', paymentMethod); 
              formData.append('payment_reference_number', referenceNumber); 
@@ -130,7 +309,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         try {
             const response = await fetch('http://localhost:5000/api/documents/apply', {
                 method: 'POST',
-                // Content-Type is NOT set for FormData with files
                 body: formData, 
             });
 
@@ -141,8 +319,11 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             }
             
             closeModal();
+            // IMPORTANT: Refresh history after submitting a new application
+            fetchApplicationHistory(); 
+
             setSuccessMessage(
-                `Successfully applied for: ${currentDocument.document_name}.\nYour application is **Pending** review. Application ID: ${data.applicationId}`
+                `Successfully applied for: ${currentDocument.document_name}.\nYour application is Pending review. Application ID: ${data.applicationId}`
             );
             setTimeout(() => setSuccessMessage(''), 7000); 
 
@@ -171,7 +352,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             {!isLoggedIn && (
                 <div style={styles.loginAlert}>
                     <FiLogIn size={20} style={{marginRight: '10px'}}/>
-                    **Action Required:** You must be logged in to submit an application. Please log in or create an account.
+                    Action Required: You must be logged in to submit an application. Please log in or create an account.
                 </div>
             )}
 
@@ -186,10 +367,9 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                         
                         <div style={styles.details}>
                             <div style={styles.detailItem}>
-                                Fee: 
+                                <strong><FiCreditCard size={14} style={{marginRight: '5px'}} /> Fee:</strong> 
                                 <span>{doc.fee > 0 ? `₱${doc.fee.toFixed(2)}` : 'FREE'}</span>
                             </div>
-                            {/* Display requirements prominently in the card */}
                             <p style={styles.requirements}>
                                 <strong>Requirements:</strong> {doc.requirements || 'Varies based on purpose.'}
                             </p>
@@ -205,29 +385,106 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                     </div>
                 ))}
             </div>
+
+            {/* Application History Section - Professional Design */}
+            {isLoggedIn && (
+                <div style={styles.historySection}>
+                    <h2 style={styles.historyHeader}><FiClock size={20} style={{marginRight: '10px'}} /> Application History</h2>
+                    
+                    {applicationHistory.length === 0 ? (
+                        <p style={styles.noHistory}>No document applications found. Start your first application above!</p>
+                    ) : (
+                        <div style={styles.historyGrid}>
+                            {applicationHistory.map(app => (
+                                <div key={app.id} style={styles.proHistoryItem}> {/* Applied new style */}
+                                    {/* ADDED CANCELLED WATERMARK */}
+                                    {app.status === 'Cancelled' && (
+                                        <div style={styles.cancelledWatermark}>CANCELLED</div>
+                                    )}
+                                    <div style={styles.historyItemHeader}>
+                                        <h3 style={styles.historyDocumentName}>{app.document_name}</h3>
+                                        <span style={styles.statusBadge(app.status)}>{app.status}</span>
+                                    </div>
+                                    <p style={styles.proHistoryDetail}>
+                                        <FiUser size={14} style={styles.proIcon} /> 
+                                        <strong>Applicant:</strong> {app.applicant_name}
+                                    </p>
+                                    <p style={styles.proHistoryDetail}>
+                                        <FiFileText size={14} style={styles.proIcon} /> 
+                                        <strong>Purpose:</strong> {app.purpose}
+                                    </p>
+                                    <p style={styles.proHistoryDetail}>
+                                        <FiCalendar size={14} style={styles.proIcon} /> 
+                                        <strong>Date Applied:</strong> {new Date(app.application_date).toLocaleDateString()}
+                                    </p>
+                                    <p style={styles.proHistoryDetail}>
+                                        <FiDollarSign size={14} style={styles.proIcon} /> 
+                                        <strong>Fee:</strong> {app.fee > 0 ? `₱${app.fee.toFixed(2)}` : 'FREE'}
+                                    </p>
+                                    {app.fee > 0 && app.payment_method && (
+                                        <p style={styles.proHistoryDetailSmall}>
+                                            <FiCreditCard size={12} style={styles.proIconSmall} /> 
+                                            <span style={{fontStyle: 'italic'}}>Payment: {app.payment_method} (Ref: {app.payment_reference_number})</span>
+                                        </p>
+                                    )}
+
+                                    {/* Display Submitted Files */}
+                                    {app.requirements_file_paths && app.requirements_file_paths.length > 0 && (
+                                        <div style={styles.fileList}>
+                                            <strong><FiPaperclip size={14} style={{marginRight: '5px'}} /> Submitted Files ({app.requirements_file_paths.length}):</strong>
+                                            <div style={styles.fileLinks}>
+                                                {app.requirements_file_paths.map((fileUrl, index) => (
+                                                    <a 
+                                                        key={index} 
+                                                        href={fileUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        style={styles.fileLink}
+                                                    >
+                                                        File {index + 1}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div style={styles.historyActions}>
+                                        {(app.status === 'Pending' || app.status === 'Cancelled') && (
+                                            <button 
+                                                style={styles.actionButton('delete')} 
+                                                onClick={() => handleOpenConfirmation('delete', app.id, app.document_name)}
+                                            >
+                                                Delete
+                                            </button>
+                                        )}
+                                        {app.status === 'Pending' && (
+                                            <button 
+                                                style={styles.actionButton('cancel')} 
+                                                onClick={() => handleOpenConfirmation('cancel', app.id, app.document_name)}
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
+                                        {/* REMOVED VIEW BUTTON */}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
             
-            {/* ========================================================= */}
-            {/* APPLICATION MODAL */}
-            {/* ========================================================= */}
+            {/* Application Modal */}
             {isModalOpen && currentDocument && (
                 <div style={modalStyles.backdrop}>
                     <div style={modalStyles.modal}>
                         <div style={modalStyles.modalHeader}>
-                            <h2>Application for: {currentDocument.document_name}</h2>
+                            <h2>Apply for {currentDocument.document_name}</h2>
                             <button onClick={closeModal} style={modalStyles.closeButton}><FiX size={20} /></button>
                         </div>
-                        <form onSubmit={handleApply} style={modalStyles.form}>
-                            
-                            {/* Document Requirements Display (Updated Style) */}
-                            <div style={modalStyles.requirementsBox}>
-                                <h3 style={modalStyles.requirementsHeader}><FiPaperclip /> Official Requirements</h3>
-                                <p style={modalStyles.requirementsContent}>
-                                    {currentDocument.requirements || "No specific requirements listed. Please provide all necessary supporting documents."}
-                                </p>
-                            </div>
-
+                        <form onSubmit={handleApply}>
                             <div style={modalStyles.formGroup}>
-                                <label style={modalStyles.label}>Full Name of Applicant *</label>
+                                <label style={modalStyles.label}>Applicant Full Name *</label>
                                 <input 
                                     type="text" 
                                     value={fullName} 
@@ -236,43 +493,48 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                     required 
                                 />
                             </div>
-
                             <div style={modalStyles.formGroup}>
                                 <label style={modalStyles.label}>Purpose of Application *</label>
                                 <textarea 
                                     value={purpose} 
                                     onChange={(e) => setPurpose(e.target.value)} 
                                     style={modalStyles.textarea} 
+                                    placeholder="e.g., Job application, School registration, Business permit renewal"
                                     required 
                                 />
-                                <small style={modalStyles.hint}>e.g., Job application, School requirement, Financial assistance.</small>
                             </div>
-                            
-                            {/* Requirements File Upload */}
-                            <div style={modalStyles.formGroup}>
-                                <label style={modalStyles.label}>Upload Requirements (Max 5 files) *</label>
-                                <input 
-                                    type="file" 
-                                    accept="image/*,application/pdf" 
-                                    onChange={handleRequirementsChange} 
-                                    style={modalStyles.fileInput} 
-                                    multiple // Allows multiple file selection
-                                    required 
-                                />
-                                {requirementsFiles.length > 0 && 
-                                    <small style={modalStyles.hint}>Files ready: {requirementsFiles.length} uploaded.</small>
-                                }
-                                <small style={modalStyles.hint}>Accepted formats: Image (PNG, JPG) or PDF. Max 5 files.</small>
+
+                            {/* Requirements Section */}
+                            <div style={modalStyles.requirementsBox}>
+                                <h3 style={modalStyles.requirementsHeader}><FiPaperclip /> Required Documents</h3>
+                                <p style={modalStyles.requirementsList}>
+                                    {currentDocument.requirements}
+                                </p>
+                                
+                                <div style={modalStyles.formGroup}>
+                                    <label style={modalStyles.label}>Upload Requirements *</label>
+                                    <input 
+                                        type="file" 
+                                        onChange={handleRequirementsChange} 
+                                        style={modalStyles.fileInput} 
+                                        multiple 
+                                        accept="image/*,application/pdf"
+                                        required={requirementsFiles.length === 0}
+                                    />
+                                    {requirementsFiles.length > 0 && <small style={modalStyles.hint}>Files ready: {requirementsFiles.length} uploaded.</small> }
+                                    <small style={modalStyles.hint}>Accepted formats: Image (PNG, JPG) or PDF. Max 5 files.</small>
+                                </div>
                             </div>
-                            
+
                             {/* Payment Section (if fee is required) */}
                             {currentDocument.fee > 0 && (
                                 <div style={modalStyles.paymentBox}>
                                     <h3 style={modalStyles.requirementsHeader}><FiDollarSign /> Payment Details</h3>
                                     <p style={modalStyles.paymentFee}>
-                                        **Required Fee: ₱{currentDocument.fee.toFixed(2)}** </p>
+                                        Required Fee: ₱{currentDocument.fee.toFixed(2)}
+                                    </p>
                                     
-                                    {/* Barangay Payment Accounts (NEW) */}
+                                    {/* Barangay Payment Accounts */}
                                     {barangayPaymentDetails.length > 0 && (
                                         <div style={modalStyles.paymentAccountList}>
                                             <h4 style={modalStyles.accountHeader}><FiCreditCard size={16} /> Pay to:</h4>
@@ -284,15 +546,15 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                             <small style={modalStyles.hint}>Please pay the fee to one of the accounts above before submitting.</small>
                                         </div>
                                     )}
-
-                                    {/* User Payment Method and Reference Number Input (NEW) */}
+                                    
+                                    {/* User Payment Method and Reference Number Input */}
                                     <div style={modalStyles.paymentInputGroup}>
                                         <div style={{...modalStyles.formGroup, flex: 1}}>
                                             <label style={modalStyles.label}>Payment Method Used *</label>
-                                            <select
-                                                value={paymentMethod}
-                                                onChange={(e) => setPaymentMethod(e.target.value)}
-                                                style={modalStyles.input}
+                                            <select 
+                                                value={paymentMethod} 
+                                                onChange={(e) => setPaymentMethod(e.target.value)} 
+                                                style={modalStyles.input} 
                                                 required={currentDocument.fee > 0}
                                             >
                                                 <option value="" disabled>Select Method</option>
@@ -307,51 +569,105 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                                 type="text" 
                                                 placeholder="Enter reference number (e.g., 1234567890)"
                                                 value={referenceNumber}
-                                                onChange={(e) => setReferenceNumber(e.target.value)} 
-                                                style={modalStyles.input} 
+                                                onChange={(e) => setReferenceNumber(e.target.value)}
+                                                style={modalStyles.input}
                                                 required={currentDocument.fee > 0}
                                             />
                                         </div>
                                     </div>
-                                    <small style={modalStyles.hint}>Providing the correct reference number is crucial for verification.</small>
                                 </div>
                             )}
 
-                            <div style={modalStyles.formActions}>
-                                <button type="submit" style={modalStyles.submitButton}>
-                                    Submit Application
-                                </button>
-                            </div>
+                            <button type="submit" style={modalStyles.submitButton} disabled={!isLoggedIn}>
+                                Submit Application
+                            </button>
                         </form>
                     </div>
                 </div>
             )}
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal 
+                isOpen={isConfirmModalOpen}
+                title={confirmAction === 'delete' ? 'Confirm Permanent Deletion' : 'Confirm Cancellation'}
+                message={
+                    confirmAction === 'delete' 
+                        ? `WARNING: This will permanently DELETE your application for ${targetApplication?.name} (ID: ${targetApplication?.id}). This action cannot be undone.`
+                        : `Are you sure you want to CANCEL your application for ${targetApplication?.name} (ID: ${targetApplication?.id})? You can delete it later if needed.`
+                }
+                onConfirm={handleConfirmAction}
+                onCancel={handleCloseConfirmation}
+                confirmText={confirmAction === 'delete' ? 'Permanently Delete' : 'Yes, Cancel Application'}
+                confirmStyle={confirmAction}
+            />
+            
+            {/* Styles Definition (Must be included last or in a separate file/style-block) */}
+            <style jsx>{`
+                /* Global Styles */
+                button {
+                    transition: background-color 0.2s;
+                }
+                button:hover:not(:disabled) {
+                    opacity: 0.9;
+                }
+                button:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.6;
+                }
+            `}</style>
         </div>
     );
 };
 
+// Styles object for DocumentsPage
 const styles = {
     container: {
+        padding: '20px',
         maxWidth: '1200px',
         margin: '0 auto',
-        padding: '20px',
-        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
     },
     header: {
-        color: '#2563eb',
-        marginBottom: '10px',
+        fontSize: '2rem',
+        color: '#1f2937',
         borderBottom: '2px solid #eff6ff',
         paddingBottom: '10px',
+        display: 'flex', 
+        alignItems: 'center',
     },
     subheader: {
         color: '#4b5563',
         marginBottom: '30px',
         fontSize: '16px',
     },
+    successBox: {
+        backgroundColor: '#d1fae5',
+        color: '#065f46',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontWeight: '600',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        border: '1px solid #10b981',
+    },
+    loginAlert: {
+        backgroundColor: '#fffbeb',
+        color: '#92400e',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontWeight: '600',
+        display: 'flex',
+        alignItems: 'center',
+        border: '1px solid #f59e0b',
+    },
     documentGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: '20px',
+        marginBottom: '40px',
     },
     card: {
         backgroundColor: '#ffffff',
@@ -399,7 +715,6 @@ const styles = {
         fontSize: '0.85rem',
         color: '#4b5563',
         marginTop: '10px',
-        lineHeight: '1.4',
     },
     applyButton: {
         backgroundColor: '#2563eb',
@@ -410,53 +725,210 @@ const styles = {
         cursor: 'pointer',
         fontSize: '1rem',
         fontWeight: '600',
-        transition: 'background-color 0.3s',
-        marginTop: 'auto',
+        marginTop: 'auto', 
     },
     disabledButton: {
         backgroundColor: '#9ca3af',
-        color: '#f3f4f6',
+        color: 'white',
         border: 'none',
         padding: '10px 15px',
         borderRadius: '8px',
+        cursor: 'not-allowed',
         fontSize: '1rem',
         fontWeight: '600',
-        cursor: 'not-allowed',
         marginTop: 'auto',
     },
-    successBox: {
-        backgroundColor: '#d1fae5',
-        color: '#065f46',
-        padding: '15px',
-        borderRadius: '8px',
+    
+    // History Section Styles
+    historySection: {
+        marginTop: '40px',
+        paddingTop: '20px',
+        borderTop: '1px solid #e5e7eb',
+    },
+    historyHeader: {
+        fontSize: '1.8rem',
+        color: '#1f2937',
         marginBottom: '20px',
-        fontSize: '1rem',
-        fontWeight: '600',
         display: 'flex',
         alignItems: 'center',
+    },
+    historyGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '20px',
+    },
+    // * NEW PROFESSIONAL HISTORY ITEM STYLE *
+    proHistoryItem: {
+        backgroundColor: '#ffffff',
+        border: '1px solid #d1d5db',
+        borderRadius: '12px',
+        padding: '20px',
+        boxShadow: '0 4px 10px -2px rgba(0, 0, 0, 0.05)',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'box-shadow 0.3s',
+        position: 'relative', // ADDED: Required for watermark positioning
+        overflow: 'hidden', // ADDED: To contain the rotated watermark
+    },
+    historyItemHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px',
+        borderBottom: '1px solid #f3f4f6',
+        paddingBottom: '10px',
+        zIndex: 2, // Ensure header is above watermark
+    },
+    historyDocumentName: {
+        fontSize: '1.3rem',
+        color: '#1f2937',
+        margin: '0',
+        fontWeight: '700',
+    },
+    proHistoryDetail: {
+        fontSize: '0.95rem',
+        color: '#4b5563',
+        margin: '5px 0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        zIndex: 2,
+    },
+    proHistoryDetailSmall: {
+        fontSize: '0.85rem',
+        color: '#6b7280',
+        margin: '3px 0 0 0',
+        paddingLeft: '5px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        borderLeft: '2px solid #e5e7eb',
+        zIndex: 2,
+    },
+    proIcon: {
+        color: '#2563eb',
+    },
+    proIconSmall: {
+        color: '#6b7280',
+    },
+    // * END NEW PROFESSIONAL HISTORY ITEM STYLE *
+    
+    // NEW Styles for File List (MODIFIED FOR HORIZONTAL ALIGNMENT)
+    fileList: {
+        marginTop: '15px',
+        padding: '10px 0',
+        borderTop: '1px dashed #e5e7eb',
+        fontSize: '0.9rem',
+        color: '#1f2937',
+        zIndex: 2,
+    },
+    fileLinks: {
+        marginTop: '5px',
+        display: 'flex',
+        flexDirection: 'row', // MODIFIED for horizontal alignment
+        flexWrap: 'wrap',    // ADDED to allow wrapping if too many files
+        gap: '8px',          // MODIFIED: Increased gap for better horizontal spacing
+    },
+    fileLink: {
+        color: '#2563eb',
+        textDecoration: 'none',
+        fontSize: '0.85rem',
+        display: 'inline-flex',
+        alignItems: 'center',
+        transition: 'color 0.2s',
+    },
+    // End NEW Styles
+    historyActions: {
+        marginTop: '20px',
+        paddingTop: '15px',
+        borderTop: '1px solid #f3f4f6',
+        display: 'flex',
         gap: '10px',
-        whiteSpace: 'pre-wrap',
-    },
-    loginAlert: {
-        backgroundColor: '#fffae6',
-        color: '#92400e',
-        padding: '15px',
-        borderRadius: '8px',
-        marginBottom: '20px',
-        fontSize: '1rem',
-        fontWeight: '500',
-        display: 'flex',
+        justifyContent: 'flex-end',
         alignItems: 'center',
+        zIndex: 2,
     },
-    noDocuments: {
+    statusBadge: (status) => {
+        let color = '#374151'; 
+        let backgroundColor = '#f3f4f6';
+        if (status === 'Pending') {
+            color = '#92400e'; 
+            backgroundColor = '#fffbeb';
+        } else if (status === 'Approved') {
+            color = '#065f46'; 
+            backgroundColor = '#d1fae5';
+        } else if (status === 'Rejected') {
+            color = '#991b1b'; 
+            backgroundColor = '#fee2e2';
+        } else if (status === 'Cancelled' || status === 'Completed') {
+            color = '#4b5563'; 
+            backgroundColor = '#e5e7eb';
+        }
+        return {
+            color,
+            backgroundColor,
+            padding: '5px 10px',
+            borderRadius: '15px',
+            fontWeight: '600',
+            textAlign: 'center',
+            fontSize: '0.8rem', // Slightly smaller for professional look
+            zIndex: 2,
+        };
+    },
+    // UPDATED: Blue Palette Consistency
+    actionButton: (type) => {
+        let common = {
+            border: 'none',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: '600',
+            transition: 'background-color 0.2s, color 0.2s',
+        };
+
+        if (type === 'delete') {
+            // Primary Blue (#2563eb) as requested for consistency
+            return {
+                ...common,
+                backgroundColor: '#2563eb', 
+                color: 'white',
+            };
+        } else if (type === 'cancel') {
+            // Secondary action: Muted blue background, blue text for theme consistency
+            return {
+                ...common,
+                backgroundColor: '#eff6ff', // Very light blue
+                color: '#2563eb', // Primary Blue text
+                border: '1px solid #bfdbfe', // Light Blue border
+            };
+        }
+        return common; 
+    },
+    cancelledWatermark: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%) rotate(-30deg)',
+        fontSize: '3.5rem',
+        fontWeight: '900',
+        color: 'rgba(239, 68, 68, 0.12)', // Red/Pink tint, semi-transparent
+        pointerEvents: 'none',
+        zIndex: 1,
+        whiteSpace: 'nowrap',
+    },
+    noHistory: {
+        color: '#6b7280',
+        fontStyle: 'italic',
         textAlign: 'center',
-        marginTop: '50px',
-        color: '#9ca3af',
+        padding: '20px',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb',
     }
 };
 
-
-// Styles for the Modal Popup
+// Styles object for Modal
 const modalStyles = {
     backdrop: {
         position: 'fixed',
@@ -464,21 +936,21 @@ const modalStyles = {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1000,
     },
     modal: {
-        backgroundColor: 'white',
+        backgroundColor: '#ffffff',
         padding: '30px',
         borderRadius: '10px',
         width: '90%',
-        maxWidth: '600px',
+        maxWidth: '700px',
         maxHeight: '90vh',
         overflowY: 'auto',
-        boxShadow: '0 10px 20px rgba(0, 0, 0, 0.2)',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
     },
     modalHeader: {
         display: 'flex',
@@ -494,12 +966,8 @@ const modalStyles = {
         cursor: 'pointer',
         color: '#6b7280',
     },
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '15px',
-    },
     formGroup: {
+        marginBottom: '15px',
         display: 'flex',
         flexDirection: 'column',
     },
@@ -530,11 +998,34 @@ const modalStyles = {
     fileInput: {
         padding: '10px 0',
     },
-    paymentBox: {
-        border: '2px dashed #34d399', // Changed color to green/success color
-        backgroundColor: '#ecfdf5', // Light green background
+    requirementsBox: {
+        border: '2px dashed #f59e0b',
+        backgroundColor: '#fffbeb',
         padding: '15px',
         borderRadius: '8px',
+        marginBottom: '20px',
+    },
+    requirementsHeader: {
+        fontSize: '1.2rem',
+        color: '#92400e',
+        marginBottom: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+    },
+    requirementsList: {
+        fontSize: '0.9rem',
+        color: '#4b5563',
+        marginBottom: '10px',
+        paddingLeft: '10px',
+        borderLeft: '3px solid #f59e0b',
+    },
+    paymentBox: {
+        border: '2px dashed #34d399',
+        backgroundColor: '#ecfdf5',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '20px',
     },
     paymentFee: {
         color: '#065f46',
@@ -542,37 +1033,32 @@ const modalStyles = {
         marginBottom: '10px',
         fontSize: '1.1rem',
     },
-    paymentInputGroup: {
-        display: 'flex',
-        gap: '15px',
-        marginTop: '15px',
-    },
     paymentAccountList: {
-        backgroundColor: '#fff',
-        border: '1px solid #d1d5db',
+        backgroundColor: '#ffffff',
+        border: '1px solid #a7f3d0',
         padding: '10px',
         borderRadius: '6px',
-        marginTop: '10px',
-        marginBottom: '15px',
+        marginBottom: '10px',
     },
     accountHeader: {
         fontSize: '1rem',
-        color: '#1f2937',
-        margin: '0 0 5px 0',
-        fontWeight: '600',
+        color: '#047857',
+        borderBottom: '1px dashed #d1fae5',
+        paddingBottom: '5px',
+        marginBottom: '5px',
         display: 'flex',
         alignItems: 'center',
         gap: '5px',
     },
     accountDetail: {
         fontSize: '0.9rem',
-        margin: '5px 0',
-        color: '#4b5563',
+        color: '#10b981',
+        margin: '3px 0',
     },
-    formActions: {
-        marginTop: '20px',
+    paymentInputGroup: {
         display: 'flex',
-        justifyContent: 'flex-end',
+        gap: '15px',
+        marginTop: '15px',
     },
     submitButton: {
         backgroundColor: '#10b981',
@@ -583,32 +1069,8 @@ const modalStyles = {
         cursor: 'pointer',
         fontSize: '1.1rem',
         fontWeight: '700',
-        transition: 'background-color 0.3s',
-    },
-    // UPDATED STYLE: Removed color bar and used a neutral border
-    requirementsBox: { 
-        backgroundColor: '#f9f9f9',
-        border: '1px solid #e0e0e0',
-        padding: '15px',
-        borderRadius: '8px',
-        marginBottom: '15px',
-    },
-    // UPDATED STYLE: Neutralized color
-    requirementsHeader: {
-        margin: '0 0 10px 0',
-        color: '#1f2937', 
-        fontSize: '1.1rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        borderBottom: '1px solid #e5e7eb', // Added a subtle separator
-        paddingBottom: '5px',
-    },
-    requirementsContent: {
-        margin: 0,
-        color: '#4b5563',
-        fontSize: '0.9rem',
-        whiteSpace: 'pre-wrap', 
+        width: '100%',
+        marginTop: '20px',
     }
 };
 

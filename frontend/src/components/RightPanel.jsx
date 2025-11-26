@@ -1,17 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom'; 
+import { Link } from 'react-router-dom';
 
-// ⭐ MODIFIED: Accept profilePictureUrl prop
+// NOTE: userName, userEmail, and profilePictureUrl are still accepted
+// as props but are no longer used in the component's render output.
 export default function RightPanel({ userName, userEmail, profilePictureUrl }) {
-  const initials = userName
-    ? userName
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-    : 'U';
-
-  // ⭐ MODIFIED: Added the 'committee' field to the mock data list
+  // Mock data RETAINED
   const officialList = [
     { id: 1, name: "John Doe", position: "Barangay Captain", committee: "Peace & Order", profileLink: "/profile", status: "On Duty" },
     { id: 2, name: "Jane Smith", position: "Council Member", committee: "Health & Sanitation", profileLink: "/profile", status: "On Leave" },
@@ -32,29 +25,11 @@ export default function RightPanel({ userName, userEmail, profilePictureUrl }) {
   };
 
   return (
-    <div style={styles.rightSidebar}>
+    // 💡 POLISH: Adjusted top and height to occupy the full sidebar space elegantly.
+    <div style={{ ...styles.rightSidebar, top: '20px', height: 'calc(100vh - 40px)' }}>
       
-      {/* Account Overview (Wrapped in Link for navigation) */}
-      <Link to="/profile" style={styles.accountLinkWrapper}>
-        <div style={styles.sidebarBlock}>
-          <h3 style={styles.sidebarTitle}>Account Overview</h3>
-          <div style={styles.accountOverview}>
-            {/* Display profile picture or initials */}
-            {profilePictureUrl ? (
-                <img src={profilePictureUrl} alt="Profile" style={styles.profilePicture} />
-            ) : (
-                <div style={styles.avatarCircle}>{initials}</div>
-            )}
-            <div style={styles.accountDetails}>
-              <span style={styles.accountName}>{userName}</span>
-              <span style={styles.accountEmail}>{userEmail}</span>
-            </div>
-          </div>
-        </div>
-      </Link>
-      
-      {/* Official List */}
-      <div style={{ ...styles.sidebarBlock, flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      {/* Official List (Adjusted styles for full height of the sidebar) */}
+      <div style={{ ...styles.sidebarBlock, flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', marginBottom: '0px' }}>
         <h3 style={styles.sidebarTitle}>Officials & Friends</h3>
         <ul style={styles.officialList}>
           {officialList.map(official => (
@@ -92,23 +67,19 @@ const styles = {
   rightSidebar: {
     width: '320px',
     position: 'fixed',
-    top: '70px',
+    // 💡 POLISH: Adjusted top to '20px' (instead of '70px')
     right: '20px',
-    height: 'calc(100vh - 80px)',
+    // 💡 POLISH: Adjusted height to 'calc(100vh - 40px)' to fill the space above and below
+    height: 'calc(100vh - 40px)',
     display: 'flex',
     flexDirection: 'column',
     fontFamily: 'Arial, sans-serif',
   },
-  accountLinkWrapper: {
-    textDecoration: 'none',
-    color: 'inherit',
-    cursor: 'pointer',
-    display: 'block',
-    marginBottom: '20px',
-  },
+  // accountLinkWrapper removed
   sidebarBlock: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffffff',
     padding: '20px',
+    paddingTop: '50px',
     borderRadius: '12px',
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
     transition: 'transform 0.2s',
@@ -121,40 +92,7 @@ const styles = {
     borderBottom: '2px solid #eff6ff',
     paddingBottom: '10px',
   },
-  accountOverview: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '15px',
-  },
-  profilePicture: {
-    width: '80px',
-    height: '80px',
-    borderRadius: '50%',
-    objectFit: 'cover',
-    border: '3px solid #3b82f6',
-  },
-  avatarCircle: {
-    width: '80px',
-    height: '80px',
-    borderRadius: '50%',
-    backgroundColor: '#3b82f6',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '28px',
-    fontWeight: '700',
-  },
-  accountDetails: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '4px',
-  },
-  accountName: { fontWeight: '700', fontSize: '16px', color: '#1e40af', textAlign: 'center' },
-  accountEmail: { fontSize: '14px', color: '#555', textAlign: 'center' },
-
+  // account overview styles removed
   officialList: { listStyle: 'none', padding: 0, margin: 0, width: '100%' },
   officialItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #e5e7eb', fontSize: '14px', color: '#333' },
   officialInfo: { display: 'flex', alignItems: 'center', gap: '10px' },

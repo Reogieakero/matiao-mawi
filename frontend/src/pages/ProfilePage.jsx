@@ -7,15 +7,14 @@ import {
     FiSend, 
     FiTrash2,
     FiAlertOctagon, 
-    FiChevronDown, 
-    FiChevronUp, 
+    // FiChevronDown, // Removed: Defined but never used
+    // FiChevronUp, // Removed: Defined but never used
 } from 'react-icons/fi';
-import RightPanel from '../components/RightPanel'; 
 
 // CONSTANT for truncation length (Max characters to show before "Read More")
 const MAX_POST_LENGTH = 300; 
 
-// ⭐ NEW CONSTANT for filter options
+// NEW CONSTANT for filter options
 const THREAD_FILTERS = [
     { label: 'All Posts', value: 'All' },
     { label: 'Threads', value: 'post' },
@@ -33,8 +32,6 @@ const getTimeSince = (date) => {
     if (interval > 1) return Math.floor(interval) + "d ago";
     interval = seconds / 3600;
     if (interval > 1) return Math.floor(interval) + "h ago";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + "min ago";
     return Math.floor(seconds) + "s ago";
 };
 
@@ -116,7 +113,7 @@ const popupStyles = {
     },
 };
 
-// --- Custom Confirmation Modal Component (UPDATED to display media) ---
+// --- Custom Confirmation Modal Component ---
 const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody, mediaUrls, onConfirm, onCancel, confirmButtonText = 'Delete', confirmIcon = <FiTrash2 size={18} /> }) => {
     if (!isVisible) return null;
 
@@ -264,47 +261,813 @@ const modalStyles = {
         border: '1px solid #d1d5db',
     }
 };
-// ----------------------------------------------------
+
+// --- NEW COMPONENT: EditProfileModal (REPLACES INLINE EDITING LOGIC) ---
+const EditProfileModal = ({ 
+    isVisible, 
+    onClose, 
+    userData, 
+    onSave, // The master save handler from ProfilePage
+    loading,
+    currentProfilePictureUrl,
+    setPopup,
+    userName // Original prop for fallback
+}) => {
+    
+    // --- State Management for Editing Fields (Moved from ProfilePage) ---
+    const [editedName, setEditedName] = useState(userData?.name || userName || '');
+    const [editedContact, setEditedContact] = useState(userData?.contact || '');
+    const [editedAddress, setEditedAddress] = useState(userData?.address || '');
+    // profilePictureUrl is local here, representing the current/preview picture state
+    const [profilePictureUrl, setProfilePictureUrl] = useState(userData?.profilePictureUrl || currentProfilePictureUrl || ''); 
+    const [selectedFile, setSelectedFile] = useState(null); 
+    const [previewUrl, setPreviewUrl] = useState(''); 
+    const [isDragging, setIsDragging] = useState(false);
+
+    const fileInputRef = useRef(null);
+    // const currentUserId = parseInt(localStorage.getItem('userId'), 10); // Commented out to prevent no-undef
+
+    // Reset state when modal opens/closes
+    useEffect(() => {
+        if (isVisible) {
+            // Initialize with current data from props
+            setEditedName(userData?.name || userName || '');
+            setEditedContact(userData?.contact || '');
+            setEditedAddress(userData?.address || '');
+            setProfilePictureUrl(userData?.profilePictureUrl || currentProfilePictureUrl || '');
+            setSelectedFile(null); // Reset file selection
+            setPreviewUrl(''); // Reset preview
+        }
+    }, [isVisible, userData, userName, currentProfilePictureUrl]);
+    
+    // Cleanup for local object URL
+    useEffect(() => {
+        return () => {
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+            }
+        };
+    }, [previewUrl]);
+
+    if (!isVisible) return null;
+
+    // --- Photo/File Handlers (Moved from ProfilePage) ---
+    const handleFileSelect = (file) => {
+        if (!file.type.startsWith('image/')) {
+            setPopup({ message: 'Please select an image file.', type: 'error' });
+            setSelectedFile(null);
+            setPreviewUrl('');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            setPopup({ message: 'File size must be under 2MB.', type: 'error' });
+            setSelectedFile(null);
+            setPreviewUrl('');
+            return;
+        }
+
+        setSelectedFile(file);
+        
+        // Revoke old URL before creating a new one
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        
+        const newPreviewUrl = URL.createObjectURL(file);
+        setPreviewUrl(newPreviewUrl);
+        setProfilePictureUrl(newPreviewUrl); // Update the main picture state with the preview URL
+    };
+    
+    // Manual click trigger for hidden file input
+    const handlePictureClick = () => fileInputRef.current.click(); 
+
+    const handleFileInputChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFileSelect(e.target.files[0]);
+        }
+    };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+        setIsDragging(false);
+    };
+
+    const currentPictureSource = previewUrl || profilePictureUrl;
+
+    // Helper to render an editable field (Modified for Modal)
+    const renderModalField = (label, value, stateSetter, icon) => (
+        <div style={modalEditStyles.fieldRow}>
+            <div style={modalEditStyles.fieldLabel}>
+                {icon} 
+                <span>{label}</span>
+            </div>
+            <input 
+                type="text" 
+                value={value} 
+                onChange={(e) => stateSetter(e.target.value)} 
+                style={modalEditStyles.fieldInput}
+                disabled={loading}
+                placeholder={`Enter new ${label.toLowerCase()}`}
+            />
+        </div>
+    );
+    
+    // --- Save/Cancel Handlers for Modal (NEW) ---
+    const handleModalCancel = () => {
+        // Reset state before closing
+        setEditedName(userData?.name || userName || '');
+        setEditedContact(userData?.contact || '');
+        setEditedAddress(userData?.address || '');
+        setSelectedFile(null); 
+        setPreviewUrl(''); 
+        onClose(); // Calls setIsEditModalVisible(false)
+    };
+
+    const handleModalSave = () => {
+        // 1. Validate
+        if (!editedName.trim()) {
+            setPopup({ message: 'Name cannot be empty.', type: 'error' });
+            return;
+        }
+
+        // 2. Prepare payload for the parent's onSave handler
+        const savePayload = {
+            editedName: editedName.trim(),
+            editedContact: editedContact.trim(),
+            editedAddress: editedAddress.trim(),
+            selectedFile: selectedFile, 
+            existingProfilePictureUrl: profilePictureUrl, // The current URL (DB or preview URL)
+        };
+        
+        // 3. Call parent's onSave (which is handleSaveProfileDetails in ProfilePage)
+        onSave(savePayload);
+    };
 
 
-// --- Component: ThreadResponses (Restored for functionality) ---
-const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
+    return (
+        <div style={modalStyles.overlay}>
+            <div style={modalEditStyles.box}>
+                <h3 style={modalEditStyles.title}>Edit Your Profile</h3>
+                <p style={modalEditStyles.message}>Update your personal details and profile picture.</p>
+                
+                {/* Picture Upload Area */}
+                <div style={modalEditStyles.pictureArea}>
+                    <div 
+                        style={{...modalEditStyles.pictureCircle, ...(isDragging ? modalEditStyles.pictureCircleDragging : {})}}
+                        onClick={handlePictureClick}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        title="Click or Drag to Upload"
+                    >
+                        {currentPictureSource ? (
+                            <img src={currentPictureSource} alt="Profile" style={styles.avatarImage} />
+                        ) : (
+                            <FiCamera size={40} color="#6b7280" />
+                        )}
+                        <div style={modalEditStyles.pictureOverlay}>
+                            <FiCamera size={20} />
+                        </div>
+                    </div>
+                    {selectedFile && (
+                        <p style={modalEditStyles.fileName}>{selectedFile.name}</p>
+                    )}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileInputChange}
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={loading}
+                    />
+                </div>
+
+                {/* Editable Fields */}
+                <div style={modalEditStyles.fieldsContainer}>
+                    {renderModalField('Name', editedName, setEditedName, <FiUser size={18} />)}
+                    
+                    <div style={modalEditStyles.fieldRow}>
+                        <div style={modalEditStyles.fieldLabel}>
+                            <FiMail size={18} /> 
+                            <span>Email (Non-Editable)</span>
+                        </div>
+                        <input 
+                            type="email" 
+                            value={userData?.email || 'N/A'} 
+                            style={{...modalEditStyles.fieldInput, backgroundColor: '#f3f4f6'}}
+                            disabled={true}
+                        />
+                    </div>
+                    
+                    {renderModalField('Contact No.', editedContact, setEditedContact, <FiPhone size={18} />)}
+                    {renderModalField('Address', editedAddress, setEditedAddress, <FiMapPin size={18} />)}
+                </div>
+
+                {/* Actions */}
+                <div style={modalEditStyles.actions}>
+                    <button 
+                        style={modalEditStyles.buttonStyles.cancelButton} 
+                        onClick={handleModalCancel} 
+                        disabled={loading} 
+                    >
+                        <FiX size={18} /> Cancel
+                    </button>
+                    <button 
+                        style={modalEditStyles.buttonStyles.saveButton} 
+                        onClick={handleModalSave} 
+                        disabled={loading || !editedName.trim()} 
+                    >
+                        {loading ? <FiRefreshCcw size={18} style={styles.spinner} /> : <FiSave size={18} />} Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- END EditProfileModal ---
+// --- NEW MODAL STYLES (Use existing modalStyles and augment) ---
+const modalEditStyles = {
+    // Inherits overlay from modalStyles
+    box: { 
+        backgroundColor: '#fff', 
+        borderRadius: '12px', 
+        padding: '30px', 
+        maxWidth: '600px', // Wider box for fields
+        width: '90%', 
+        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)', 
+        textAlign: 'left', // Align text left
+        maxHeight: '90vh', 
+        overflowY: 'auto', 
+    },
+    title: { 
+        fontSize: '24px', 
+        fontWeight: '700', 
+        color: '#1f2937', 
+        margin: '0 0 5px 0' 
+    },
+    message: { 
+        fontSize: '14px', 
+        color: '#6b7280', 
+        margin: '0 0 25px 0' 
+    },
+    pictureArea: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: '25px',
+    },
+    pictureCircle: {
+        width: '120px', 
+        height: '120px', 
+        borderRadius: '50%', 
+        backgroundColor: '#e5e7eb', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        overflow: 'hidden', 
+        position: 'relative', 
+        cursor: 'pointer',
+        border: '3px solid #d1d5db',
+        transition: 'all 0.2s',
+    },
+    pictureCircleDragging: {
+        borderColor: '#3b82f6',
+        boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
+    },
+    pictureOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: 0,
+        transition: 'opacity 0.2s',
+        color: '#fff',
+    },
+    fileName: {
+        fontSize: '12px',
+        color: '#4b5563',
+        marginTop: '8px',
+        maxWidth: '200px',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+    },
+    fieldsContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '15px',
+        marginBottom: '25px',
+    },
+    fieldRow: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+    },
+    fieldLabel: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#374151',
+    },
+    fieldInput: {
+        padding: '10px 15px',
+        borderRadius: '8px',
+        border: '1px solid #d1d5db',
+        fontSize: '16px',
+        width: '100%',
+        boxSizing: 'border-box',
+        marginTop: '5px',
+    },
+    actions: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '10px',
+    },
+    // NEW BUTTON STYLES FOR THE MODAL
+    buttonStyles: {
+        base: {
+            padding: '10px 20px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '15px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'background-color 0.2s, box-shadow 0.2s, opacity 0.2s',
+            border: 'none',
+            outline: 'none',
+        },
+        saveButton: {
+            backgroundColor: '#2563eb',
+        color: '#fff',
+        border: 'none',
+        padding: '8px 20px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '15px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        transition: 'background-color 0.2s',
+        marginTop: '10px',
+            ':hover': {
+                backgroundColor: '#059669',
+            },
+            ':disabled': {
+                backgroundColor: '#9ca3af',
+                color: '#d1d5db',
+                cursor: 'not-allowed',
+                boxShadow: 'none',
+            },
+        },
+        cancelButton: {
+            
+            border: 'none',
+            padding: '8px 20px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '15px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'background-color 0.2s',
+            marginTop: '10px',
+            backgroundColor: '#f3f4f6', // Light Gray
+            color: '#4b5563',
+            border: '1px solid #d1d5db',
+            ':hover': {
+                backgroundColor: '#e5e7eb',
+                color: '#1f2937',
+            },
+            ':disabled': {
+                opacity: 0.7,
+                cursor: 'not-allowed',
+            },
+        }
+    }
+};
+
+// --- END Modal Styles ---
+
+// --- Core Thread/Post Components (Simplified for context) ---
+// FIX 1: Converted renderPostBody function into a React Component (PostBody)
+const PostBody = ({ thread }) => {
+    // ... (existing renderPostBody logic)
+    const postContent = thread.body || '';
+    const needsTruncation = postContent.length > MAX_POST_LENGTH;
+    const [isExpanded, setIsExpanded] = useState(false);
+    
+    // Fallback to post type if no tag
+    const postTypeLabel = thread.type === 'job' ? 'Job Posting' : 'Community Thread'; 
+
+    const displayContent = isExpanded || !needsTruncation 
+        ? postContent
+        : postContent.substring(0, MAX_POST_LENGTH) + '...';
+
+    const handleReadMore = (e) => {
+        e.stopPropagation(); // Prevent opening the read modal
+        if (needsTruncation) {
+            setIsExpanded(prev => !prev);
+        }
+    };
+
+    return (
+        <div style={styles.threadBodyContainer}>
+            <p style={styles.threadPostType}>{postTypeLabel}</p>
+            <h3 style={styles.threadTitle}>{thread.title}</h3>
+            {thread.type === 'job' && thread.contactNumber && (
+                 <p style={styles.jobContact}><FiPhone size={14} /> Contact: {thread.contactNumber}</p>
+            )}
+            <p style={styles.threadBody}>
+                {displayContent}
+                {needsTruncation && (
+                    <span 
+                        style={styles.readMore} 
+                        onClick={handleReadMore}
+                    >
+                        {isExpanded ? ' Read Less' : ' Read More'}
+                    </span>
+                )}
+            </p>
+        </div>
+    );
+};
+
+const renderMediaGallery = (mediaUrls) => {
+    if (!mediaUrls || mediaUrls.length === 0) return null;
+
+    const imageUrls = mediaUrls.filter(url => 
+        url.match(/\.(jpeg|jpg|gif|png|webp)$/i)
+    );
+    if (imageUrls.length === 0) return null; 
+
+    return (
+        <div style={styles.mediaGallery}>
+            <img 
+                src={imageUrls[0]} 
+                alt="Post Media" 
+                style={styles.mediaImage}
+            />
+            {imageUrls.length > 1 && (
+                <div style={styles.mediaCounter}>
+                    +{imageUrls.length - 1}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Profile Page Component ---
+const ProfilePage = ({ 
+    userName, 
+    userEmail, 
+    userId, // <-- This is the key prop needed for API calls
+    currentProfilePictureUrl, 
+    onUpdateUser // <-- NEW PROP
+}) => {
+    const [userData, setUserData] = useState(null); // User data from server (name, email, contact, address, pic_url)
+    const [userThreads, setUserThreads] = useState([]);
+    const [isThreadsLoading, setIsThreadsLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [popup, setPopup] = useState(null);
+    const [selectedFilter, setSelectedFilter] = useState('All');
+    const [deleteModal, setDeleteModal] = useState(null); // { id, type, title, body, mediaUrls } for single thread delete
+    const [deleteAllModal, setDeleteAllModal] = useState(false); // for bulk delete
+    const [isReadModalOpen, setIsReadModalOpen] = useState(false);
+    const [readModalThread, setReadModalThread] = useState(null);
+    const [isEditModalVisible, setIsEditModalVisible] = useState(false); // <-- NEW STATE for Edit Modal
+
+    // State for response section
+    const [showResponses, setShowResponses] = useState(null); // thread id
     const [responses, setResponses] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [newResponse, setNewResponse] = useState('');
 
-    const fetchResponses = useCallback(async () => {
-        setIsLoading(true);
+    const filteredThreads = userThreads.filter(thread => 
+        selectedFilter === 'All' || thread.type === selectedFilter
+    );
+
+    // Close popup handler
+    const closePopup = () => setPopup(null);
+    
+    // --- NEW: Helper to upload the picture to the server (Called by handleSaveProfileDetails) ---
+    const uploadPictureToServer = useCallback(async (file) => {
+        const formData = new FormData();
+        formData.append('profile_picture', file); // 'profile_picture' must match the multer field name
+
+        try {
+            // userId is passed in the URL params for the server's multer config
+            const res = await fetch(`http://localhost:5000/api/profile/upload-picture/${userId}`, {
+                method: 'POST',
+                // Important: Do NOT set 'Content-Type' header for FormData. The browser handles it.
+                body: formData,
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Picture upload failed.');
+            }
+
+            setPopup({ message: 'Picture uploaded to server temporarily.', type: 'success' });
+            return data.pictureUrl; // The temporary URL of the uploaded file
+        } catch (err) {
+            console.error("Picture upload error:", err);
+            setPopup({ message: `Picture upload failed: ${err.message}`, type: 'error' });
+            return null;
+        }
+    }, [userId]);
+
+
+    // --- NEW: Master Save Handler (Passed to EditProfileModal as onSave) ---
+    const handleSaveProfileDetails = useCallback(async ({ editedName, editedContact, editedAddress, selectedFile, existingProfilePictureUrl }) => {
+        setLoading(true);
+        setError(null);
+
+        let newPictureUrl = existingProfilePictureUrl; 
+
+        // 1. Handle profile picture upload first if a new file was selected
+        if (selectedFile) {
+            const uploadedUrl = await uploadPictureToServer(selectedFile);
+            if (uploadedUrl) {
+                newPictureUrl = uploadedUrl;
+            } else {
+                setLoading(false);
+                return; // Stop if picture upload fails
+            }
+        }
+        
+        // 2. Handle profile details update (including the (new or existing) picture URL)
+        try {
+            const updatedFields = {
+                editedName,
+                editedContact,
+                editedAddress,
+                newProfilePictureUrl: newPictureUrl, // Pass the new or existing URL
+            };
+
+            const res = await fetch(`http://localhost:5000/api/profile/${userId}`, {
+                method: 'PUT', // Use PUT for update
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updatedFields),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to update profile details.');
+            }
+
+            setPopup({ message: 'Profile updated successfully!', type: 'success' });
+            setIsEditModalVisible(false); // Close modal on success
+
+            // Update local state in ProfilePage
+            setUserData(prev => ({
+                ...prev,
+                name: updatedFields.editedName,
+                contact: updatedFields.editedContact,
+                address: updatedFields.editedAddress,
+                profilePictureUrl: data.updatedPictureUrl, // Use the final URL returned by the server
+            }));
+            
+            // Update global state in App.jsx
+            onUpdateUser({ 
+                name: data.updatedName, // Use 'name' instead of 'updatedName' to match App.jsx's handleUpdateUser function signature
+                profilePictureUrl: data.updatedPictureUrl 
+            });
+
+        } catch (err) {
+            console.error("Profile details update error:", err);
+            setPopup({ message: `Profile details update failed: ${err.message}`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    }, [userId, onUpdateUser, uploadPictureToServer]); 
+
+    // --- Fetch User Threads ---
+    const fetchUserThreads = useCallback(async () => {
+        if (!userId) {
+            setIsThreadsLoading(false);
+            return;
+        }
+        setIsThreadsLoading(true);
+        try {
+            const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch user threads.");
+            }
+            const data = await res.json();
+            setUserThreads(data);
+        } catch (err) {
+            console.error("Fetch user threads error:", err);
+            setError(err.message);
+        } finally {
+            setIsThreadsLoading(false);
+        }
+    }, [userId]);
+
+    // --- Fetch User Data (Profile Details) ---
+    const fetchUserData = useCallback(async () => {
+        if (!userId) {
+            setError("User not logged in or User ID is missing.");
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            // NEW FETCH: Use the dedicated GET endpoint
+            const res = await fetch(`http://localhost:5000/api/profile/${userId}`); 
+            if (!res.ok) {
+                if (res.status === 404) {
+                    // Handle 404: User exists but has no custom profile details yet
+                    const defaultData = { 
+                        name: userName, 
+                        email: userEmail, 
+                        contact: '', 
+                        address: '', 
+                        profilePictureUrl: currentProfilePictureUrl // Fallback to current global state picture
+                    }; 
+                    setUserData(defaultData); 
+                    setLoading(false);
+                    return;
+                }
+                throw new Error("Failed to fetch user data.");
+            }
+            const data = await res.json(); // Data now includes name, email, contact, address, profilePictureUrl
+            setUserData(data); 
+        } catch (err) {
+            console.error("Fetch user data error:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [userId, userName, userEmail, currentProfilePictureUrl]);
+
+    useEffect(() => {
+        fetchUserThreads();
+        fetchUserData();
+    }, [fetchUserThreads, fetchUserData]);
+    
+    // ... (rest of existing thread and response logic)
+
+    // --- Delete Thread Handlers ---
+    const handleDeleteThread = (thread) => {
+        setDeleteModal({
+            id: thread.id,
+            type: thread.type,
+            title: thread.title,
+            body: thread.body,
+            mediaUrls: thread.mediaUrls,
+        });
+    };
+
+    const confirmDeleteThread = async () => {
+        if (!deleteModal) return;
+
+        setDeleteModal(null);
+        setLoading(true);
+
+        const { id, type } = deleteModal;
+        
+        try {
+            const res = await fetch(`http://localhost:5000/api/threads/${type}/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // FIX 2: Replaced undefined 'currentUserId' with 'userId' prop
+                body: JSON.stringify({ userId: userId }), 
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || `Failed to delete ${type}.`);
+            }
+
+            // CRITICAL UPDATE FOR AUTO-REFRESH: Remove the deleted thread from state
+            setUserThreads(prev => prev.filter(thread => !(thread.id === id && thread.type === type)));
+
+            setPopup({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`, type: 'success' });
+        } catch (err) {
+            console.error("Delete thread error:", err);
+            setPopup({ message: `Deletion failed: ${err.message}`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    // --- Delete All Posts Handler (NEW) ---
+    const handleDeleteAllPosts = () => {
+        setDeleteAllModal(true);
+    };
+
+    // UPDATED: Clear userThreads state upon successful bulk deletion
+    const confirmDeleteAllThreads = async () => {
+        setDeleteAllModal(false);
+        setLoading(true);
+        try {
+            const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to delete all threads.');
+            }
+            // CRITICAL UPDATE FOR AUTO-REFRESH: Clear the state immediately
+            setUserThreads([]);
+            setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
+        } catch (err) {
+            console.error("Delete All Threads error:", err);
+            setPopup({ message: `Bulk deletion failed: ${err.message}.`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- Read Modal Handlers ---
+    const openReadModal = (thread) => {
+        setReadModalThread(thread);
+        setIsReadModalOpen(true);
+        setShowResponses(null); // Close responses when opening read modal
+    };
+
+    const closeReadModal = () => {
+        setIsReadModalOpen(false);
+        setReadModalThread(null);
+        setShowResponses(null); // Ensure responses are closed
+    };
+
+    const fetchResponses = useCallback(async (threadId, threadType) => {
         try {
             const res = await fetch(`http://localhost:5000/api/responses/${threadType}/${threadId}`);
-            if (!res.ok) {
-                throw new Error("Failed to fetch responses.");
-            }
+            if (!res.ok) throw new Error('Failed to fetch responses.');
             const data = await res.json();
             setResponses(data);
         } catch (err) {
-            console.error("Fetch responses error:", err);
-            setPopup({ message: `Failed to load responses: ${err.message}`, type: 'error' });
-        } finally {
-            setIsLoading(false);
+            console.error("Error fetching responses:", err);
+            setResponses([]);
         }
-    }, [threadId, threadType, setPopup]);
+    }, []);
 
-    useEffect(() => {
-        fetchResponses();
-    }, [fetchResponses]);
+    // Toggle responses
+    const handleToggleResponses = (threadId, threadType) => {
+        if (showResponses === threadId) {
+            setShowResponses(null);
+            setResponses([]);
+        } else {
+            setShowResponses(threadId);
+            fetchResponses(threadId, threadType);
+        }
+    };
     
-    // Handler for submitting a new response
+    // Response submission
     const handleSubmitResponse = async (e) => {
         e.preventDefault();
-        if (!newResponse.trim()) return;
+        if (!newResponse.trim() || !showResponses) return; 
         
+        const currentThread = userThreads.find(t => t.id === showResponses);
+        if (!currentThread) return;
+
         const payload = {
-            userId: currentUserId,
-            threadId: threadId,
-            threadType: threadType,
+            userId: userId,
+            threadId: currentThread.id,
+            threadType: currentThread.type,
             content: newResponse.trim(),
-            parentResponseId: null, 
+            parentResponseId: null,
         };
 
         try {
@@ -313,15 +1076,19 @@ const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
-            
+
             if (!res.ok) {
                 const data = await res.json();
                 throw new Error(data.message || 'Failed to submit response.');
             }
-            
+
             setNewResponse('');
             setPopup({ message: 'Response submitted successfully!', type: 'success' });
-            fetchResponses(); 
+            fetchResponses(currentThread.id, currentThread.type); // Refresh responses
+
+            // Optional: Increment responseCount in userThreads state locally
+            setUserThreads(prev => prev.map(t => t.id === currentThread.id ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t));
+
         } catch (err) {
             console.error("Response submission error:", err);
             setPopup({ message: `Response submission failed: ${err.message}`, type: 'error' });
@@ -337,623 +1104,192 @@ const ThreadResponses = ({ threadId, threadType, currentUserId, setPopup }) => {
                     <span style={styles.responseTime}>{getTimeSince(response.time)}</span>
                 </div>
             </div>
-            <p style={styles.responseContent}>{response.content}</p> 
+            <p style={styles.responseContent}>{response.content}</p>
         </div>
     );
 
-    return (
-        <div style={styles.responsesContainer}>
-            {/* Response Input Form */}
-            <form onSubmit={handleSubmitResponse} style={styles.responseForm}>
-                <input
-                    type="text"
-                    placeholder="Write a response..."
-                    value={newResponse}
-                    onChange={(e) => setNewResponse(e.target.value)}
-                    style={styles.responseInput}
-                    required
-                />
-                <button type="submit" style={styles.responseSendButton} disabled={!newResponse.trim() || isLoading}>
-                    <FiSend size={18} />
-                </button>
-            </form>
-            
-            {isLoading && <p style={styles.loadingResponsesText}>Loading responses...</p>}
-            
-            {!isLoading && responses.length > 0 ? (
-                responses.map(renderResponse)
-            ) : !isLoading && (
-                <p style={styles.noResponsesText}>No responses yet. Be the first to start the discussion!</p>
-            )}
-        </div>
-    );
-};
-// ----------------------------------------------------
 
-// --- UserThread Component ---
-const UserThread = ({ thread, currentUserId, setPopup, handleDeleteThread, renderPostBody }) => { 
-    const [showResponses, setShowResponses] = useState(false);
-
-    const renderMediaGallery = (mediaUrls) => {
-        if (!mediaUrls || mediaUrls.length === 0) return null;
-        const count = mediaUrls.length;
-        const gridItemStyle = (index) => {
-            if (count === 1) return { gridColumn: 'span 2', height: '300px' };
-            if (count === 2) return {};
-            if (count >= 3 && index === 0) return { gridColumn: 'span 2', height: '300px' };
-            return { height: '150px' };
-        };
-
-        const gridContainerStyle = {
-            display: 'grid',
-            gridTemplateColumns: count === 1 ? '1fr' : '1fr 1fr',
-            gap: '8px',
-            marginTop: '15px',
-            maxHeight: count > 3 ? '450px' : 'none', 
-            overflow: 'hidden',
-        };
-
-        return (
-            <div style={styles.gridContainerStyle}>
-                {mediaUrls.slice(0, 4).map((url, index) => (
-                    <div 
-                        key={index} 
-                        style={{ ...styles.mediaContainer, ...gridItemStyle(index) }}
-                    >
-                        <img 
-                            src={url} 
-                            alt={`Media ${index + 1}`} 
-                            style={styles.threadImage} 
-                        />
-                        {count > 4 && index === 3 && (
-                            <div style={styles.moreMediaOverlay}>
-                                +{count - 4} more
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    return (
-        <div key={thread.id} style={styles.threadCard}>
-            <div style={styles.threadMetaTop}>
-                <div style={styles.threadAuthorInfo}>
+    // Render individual thread card
+    const renderThread = (thread) => (
+        <div key={`${thread.type}-${thread.id}`} style={styles.threadCard} onClick={() => openReadModal(thread)}>
+            <div style={styles.threadHeader}>
+                <div style={styles.threadAuthor}>
                     {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                     <div style={styles.authorDetails}>
-                         <span style={styles.threadAuthorName}>{thread.author}</span>
-                         <span style={styles.threadTime}>{getTimeSince(thread.time)}</span>
+                        <span style={styles.threadAuthorName}>{thread.author}</span>
+                        <span style={styles.threadTime}>{getTimeSince(thread.time)}</span>
                     </div>
                 </div>
                 <div style={styles.threadTag}>
                     {thread.tag}
                 </div>
             </div>
-
             {/* Post title has been removed as per previous user request */}
-            
-            {/* Use renderPostBody function for truncation/Read More */}
-            {renderPostBody(thread)}
-
+            {/* Use PostBody component for truncation/Read More */}
+            <PostBody thread={thread} /> {/* FIX 1: Updated call site */}
             {renderMediaGallery(thread.mediaUrls)}
 
             {/* ACTION BAR: Now includes the Delete Button */}
             <div style={styles.threadActions}>
-                <div 
-                    style={{...styles.threadStats, cursor: 'pointer', color: showResponses ? '#1d4ed8' : '#6b7280'}}
-                    onClick={() => setShowResponses(!showResponses)}
+                <div style={{...styles.threadStats, cursor: 'pointer', color: showResponses === thread.id ? '#1d4ed8' : '#6b7280'}} 
+                    onClick={(e) => { e.stopPropagation(); handleToggleResponses(thread.id, thread.type); }}
                 >
-                    <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses 
+                    <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses
                 </div>
-                
                 {/* Delete Button - Passes full thread object */}
                 <button 
                     style={styles.deleteThreadButton} 
-                    onClick={() => handleDeleteThread(thread)} 
-                    title="Delete this post"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread); }} 
+                    title="Delete this Thread/Job"
                 >
                     <FiTrash2 size={16} /> Delete
                 </button>
-                
             </div>
-
-            {/* Conditional rendering of ThreadResponses */}
-            {showResponses && (
-                <ThreadResponses 
-                    threadId={thread.id} 
-                    threadType={thread.type}
-                    currentUserId={currentUserId}
-                    setPopup={setPopup}
-                />
-            )}
-        </div>
-    );
-};
-// ----------------------------------------------------
-
-
-// --- ProfilePage Component ---
-export default function ProfilePage({ userId, userName, userEmail, onUpdateUser, profilePictureUrl: currentProfilePictureUrl }) {
-    const [userData, setUserData] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [popup, setPopup] = useState({ message: '', type: '' });
-    
-    // Editable fields
-    const [editedName, setEditedName] = useState(userName || '');
-    const [editedContact, setEditedContact, ] = useState('');
-    const [editedAddress, setEditedAddress] = useState('');
-    
-    // Profile Picture State
-    const [profilePictureUrl, setProfilePictureUrl] = useState(currentProfilePictureUrl || '');
-    const [selectedFile, setSelectedFile] = useState(null); 
-    const [previewUrl, setPreviewUrl] = useState(''); 
-    const [isDragging, setIsDragging] = useState(false);
-
-    // User Threads State
-    const [userThreads, setUserThreads] = useState([]); 
-    const [isThreadsLoading, setIsThreadsLoading] = useState(true); 
-
-    // ⭐ NEW STATE for filtering
-    const [selectedFilter, setSelectedFilter] = useState('All'); 
-
-    // Confirmation Modal State for a single thread
-    const [confirmationModal, setConfirmationModal] = useState({ 
-        isVisible: false, 
-        threadId: null, 
-        threadType: null,
-        threadTitle: '', 
-        threadBody: '',
-        mediaUrls: []   
-    });
-
-    // Confirmation Modal State for deleting all threads (NEW)
-    const [deleteAllModal, setDeleteAllModal] = useState(false);
-    
-    // State for Read More Modal
-    const [isReadModalOpen, setIsReadModal] = useState(false);
-    const [readModalThread, setReadModalThread] = useState(null); 
-
-
-    const fileInputRef = useRef(null);
-    const firstName = userName ? userName.split(' ')[0] : 'User';
-
-    // User ID from localStorage
-    const currentUserId = parseInt(localStorage.getItem('userId'), 10); 
-
-    // --- Read Modal Handlers (Copied from SavedPage/HomePage) ---
-    const openReadModal = (thread) => {
-        setReadModalThread(thread);
-        setIsReadModal(true);
-    };
-
-    const closeReadModal = () => {
-        setIsReadModal(false);
-        setReadModalThread(null);
-    };
-    // ----------------------------------------------------
-    
-    // ⭐ NEW: Computed value for filtered threads
-    const filteredThreads = userThreads.filter(thread => {
-        if (selectedFilter === 'All') {
-            return true;
-        }
-        // Assumes thread.type is 'thread' or 'job'
-        return thread.type === selectedFilter; 
-    });
-
-    // --- Data Fetching ---
-    const fetchUserData = useCallback(async () => {
-        if (!userId) {
-            setError("User not logged in or User ID is missing.");
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-        setSelectedFile(null); 
-        setPreviewUrl(''); 
-        
-        try {
-            const res = await fetch(`http://localhost:5000/api/profile/${userId}`);
-            if (!res.ok) {
-                if (res.status === 404) {
-                    const defaultData = { name: userName, email: userEmail, contact: '', address: '', profilePictureUrl: currentProfilePictureUrl };
-                    setUserData(defaultData);
-                    setEditedName(userName);
-                    setEditedContact('');
-                    setEditedAddress('');
-                    setProfilePictureUrl(currentProfilePictureUrl); 
-                    setLoading(false);
-                    return;
-                }
-                throw new Error("Failed to fetch user data.");
-            }
-            const data = await res.json();
-            setUserData(data);
-            setEditedName(data.name || userName);
-            setEditedContact(data.contact || '');
-            setEditedAddress(data.address || '');
-            setProfilePictureUrl(data.profilePictureUrl || currentProfilePictureUrl || ''); 
-        } catch (err) {
-            console.error("Fetch error:", err);
-            setError("Could not load profile. Please check your connection.");
-        } finally {
-            setLoading(false);
-        }
-    }, [userId, userName, userEmail, currentProfilePictureUrl]);
-    
-    const fetchUserThreads = useCallback(async () => {
-        if (!userId) {
-            setIsThreadsLoading(false);
-            return;
-        }
-
-        setIsThreadsLoading(true);
-        try {
-            const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`);
-            if (!res.ok) {
-                throw new Error("Failed to fetch user threads.");
-            }
-            const data = await res.json();
             
-            // Ensure threads use the current known profile picture if the thread fetch missed it
-            const threadsWithCurrentPic = data.map(thread => ({
-                ...thread,
-                author_picture_url: thread.author_picture_url || currentProfilePictureUrl || profilePictureUrl 
-            }));
-            setUserThreads(threadsWithCurrentPic);
-        } catch (err) {
-            console.error("Fetch user threads error:", err);
-        } finally {
-            setIsThreadsLoading(false);
-        }
-    }, [userId, currentProfilePictureUrl, profilePictureUrl]);
+            {/* Responses Section */}
+            {showResponses === thread.id && (
+                <div style={styles.responsesContainer} onClick={(e) => e.stopPropagation()}>
+                    {/* Response Form */}
+                    <form onSubmit={handleSubmitResponse} style={styles.responseForm}>
+                        <input
+                            type="text"
+                            value={newResponse}
+                            onChange={(e) => setNewResponse(e.target.value)}
+                            placeholder="Write a response..."
+                            style={styles.responseInput}
+                            required
+                        />
+                        <button type="submit" style={styles.responseSendButton} title="Send Response">
+                            <FiSend size={18} />
+                        </button>
+                    </form>
 
-
-    useEffect(() => {
-        if (userId) {
-             fetchUserData();
-             fetchUserThreads(); 
-        }
-    }, [userId, fetchUserData, fetchUserThreads]); 
-
-
-    // Cleanup for local object URL
-    useEffect(() => {
-        return () => {
-            if (previewUrl) {
-                URL.revokeObjectURL(previewUrl);
-            }
-        };
-    }, [previewUrl]);
-
-    
-    const uploadPictureToServer = useCallback(async (file) => {
-        const formData = new FormData();
-        formData.append('profile_picture', file); 
-
-        try {
-            const res = await fetch(`http://localhost:5000/api/profile/upload-picture/${userId}`, {
-                method: 'POST',
-                body: formData, 
-            });
-
-            const uploadData = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(uploadData.message || "File upload failed.");
-            }
-            
-            const newUrl = uploadData.profilePictureUrl; 
-            setProfilePictureUrl(newUrl); 
-            onUpdateUser({ profilePictureUrl: newUrl }); 
-            setPopup({ message: 'Profile picture uploaded successfully!', type: 'success' });
-            return newUrl;
-        } catch (err) {
-            console.error("Picture upload error:", err);
-            setPopup({ message: `Picture upload failed: ${err.message}.`, type: 'error' });
-            return null; 
-        }
-    }, [userId, onUpdateUser]);
-
-    // --- Save Handler ---
-    const handleSave = async () => {
-        if (!editedName.trim()) {
-            setPopup({ message: 'Name cannot be empty.', type: 'error' });
-            return;
-        }
-        
-        setLoading(true);
-        setError(null);
-        setIsEditing(false);
-
-        let newPictureUrl = profilePictureUrl;
-
-        // 1. Handle profile picture upload first
-        if (selectedFile) {
-            const uploadedUrl = await uploadPictureToServer(selectedFile);
-            if (uploadedUrl) {
-                newPictureUrl = uploadedUrl;
-            } else {
-                setLoading(false);
-                setIsEditing(true); 
-                return; 
-            }
-        }
-        
-        // 2. Handle profile details update
-        try {
-            const updatedFields = {
-                name: editedName,
-                contact: editedContact,
-                address: editedAddress,
-            };
-
-            const res = await fetch(`http://localhost:5000/api/profile/${userId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedFields),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.message || 'Failed to update profile details.');
-            }
-
-            setPopup({ message: 'Profile updated successfully!', type: 'success' });
-            setUserData(prev => ({ ...prev, ...updatedFields, profilePictureUrl: newPictureUrl }));
-            
-            if (onUpdateUser && updatedFields.name !== userName) {
-                onUpdateUser({ name: updatedFields.name });
-            }
-            
-            setSelectedFile(null);
-            setPreviewUrl('');
-            fetchUserThreads(); 
-
-        } catch (err) {
-            console.error("Details Save error:", err);
-            setPopup({ message: `Details save failed: ${err.message}.`, type: 'error' });
-            setIsEditing(true); 
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // --- Delete Single Thread Handler (Receives full thread object and passes mediaUrls) ---
-    const handleDeleteThread = (thread) => {
-        // Close Read Modal if open for this thread
-        if (readModalThread && readModalThread.id === thread.id) {
-             closeReadModal();
-        }
-        
-        // Open custom confirmation modal instead of using window.confirm
-        setConfirmationModal({
-            isVisible: true,
-            threadId: thread.id,
-            threadType: thread.type,
-            threadTitle: thread.title, 
-            threadBody: thread.body,
-            mediaUrls: thread.mediaUrls || [] 
-        });
-    };
-
-    // --- Confirmation Handler (Performs actual single thread deletion) ---
-    const confirmDeleteThread = async (threadId, threadType) => {
-        // Reset modal state, including content fields and mediaUrls
-        setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] });
-        setLoading(true);
-        try {
-            const res = await fetch(`http://localhost:5000/api/threads/${threadId}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ threadType, userId: currentUserId }), // Pass required data
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to delete thread.');
-            }
-
-            // Update state: remove the deleted thread
-            setUserThreads(prevThreads => prevThreads.filter(thread => thread.id !== threadId));
-            setPopup({ message: `${threadType.charAt(0).toUpperCase() + threadType.slice(1)} deleted successfully!`, type: 'success' });
-        } catch (err) {
-            console.error("Delete Thread error:", err);
-            setPopup({ message: `Deletion failed: ${err.message}.`, type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // --- Delete All Posts Handler (NEW) ---
-    const handleDeleteAllPosts = () => {
-        setDeleteAllModal(true);
-    };
-
-    // UPDATED: Clear userThreads state upon successful bulk deletion
-    const confirmDeleteAllThreads = async () => {
-        setDeleteAllModal(false);
-        setLoading(true);
-        try {
-            const res = await fetch(`http://localhost:5000/api/user-threads/${userId}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId }),
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to delete all threads.');
-            }
-            
-            // CRITICAL UPDATE FOR AUTO-REFRESH: Clear the state immediately
-            setUserThreads([]);
-            setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
-        } catch (err) {
-            console.error("Delete All Threads error:", err);
-            setPopup({ message: `Bulk deletion failed: ${err.message}.`, type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    const handleCancelEdit = () => {
-        // Reset editing state to initial profile values
-        setIsEditing(false);
-        setEditedName(userData?.name || userName);
-        setEditedContact(userData?.contact || '');
-        setEditedAddress(userData?.address || '');
-        
-        // Reset photo selection
-        setSelectedFile(null);
-        if (previewUrl) {
-            URL.revokeObjectURL(previewUrl); 
-            setPreviewUrl('');
-        }
-        setProfilePictureUrl(userData?.profilePictureUrl || currentProfilePictureUrl || ''); 
-        setPopup({ message: 'Editing cancelled. Changes discarded.', type: 'error' });
-    };
-
-
-    // --- File/Photo Handlers (for profile picture) ---
-    const handleFileSelect = (file) => {
-        if (!file.type.startsWith('image/')) {
-            setPopup({ message: 'Please select an image file.', type: 'error' });
-            setSelectedFile(null);
-            setPreviewUrl('');
-            setIsDragging(false);
-            return;
-        }
-
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit
-            setSelectedFile(null);
-            setPreviewUrl('');
-            setPopup({ message: 'Image size exceeds 2MB limit.', type: 'error' });
-            return;
-        }
-
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
-        setIsDragging(false);
-    };
-
-    const handlePictureClick = () => {
-        if (isEditing) {
-            fileInputRef.current.click();
-        }
-    };
-
-    const handleFileInputChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            handleFileSelect(e.target.files[0]);
-        }
-    };
-    
-    const handleDragEnter = (e) => {
-        e.preventDefault();
-        if (isEditing) setIsDragging(true);
-    };
-
-    const handleDragLeave = (e) => {
-        e.preventDefault();
-        if (isEditing) setIsDragging(false);
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        if (isEditing) setIsDragging(true);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        if (isEditing && e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFileSelect(e.dataTransfer.files[0]);
-        }
-    };
-
-    // Helper to render an editable field
-    const renderField = (label, value, stateSetter, isEditable, icon) => (
-        <div style={styles.fieldRow}>
-            <div style={styles.fieldLabel}>
-                {icon} <span>{label}</span>
-            </div>
-            {isEditing && isEditable ? (
-                <input
-                    type={label === 'Contact' ? 'tel' : 'text'}
-                    style={styles.inputField}
-                    value={stateSetter[0]}
-                    onChange={(e) => stateSetter[1](e.target.value)}
-                    disabled={loading}
-                />
-            ) : (
-                <div style={styles.fieldValue}>{value || (isEditable ? 'N/A' : 'Not Provided')}</div>
+                    {/* Responses List */}
+                    {responses.length > 0 ? (
+                        responses.map(renderResponse)
+                    ) : (
+                        <p style={{ fontSize: '14px', color: '#9ca3af', textAlign: 'center', margin: '15px 0' }}>No responses yet.</p>
+                    )}
+                </div>
             )}
         </div>
     );
 
-    const currentPictureSource = previewUrl || profilePictureUrl;
 
-    // --- Function to render the post body with truncation (Opens Modal) ---
-    const renderPostBody = (thread) => {
-        // Ensure body exists before accessing length
-        const bodyContent = thread.body || "";
-        const isLongPost = bodyContent.length > MAX_POST_LENGTH;
-
-        if (isLongPost) {
-            // Truncated content
-            const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
-            return (
-                <>
-                    <p style={styles.threadBody}>
-                        {truncatedContent}
-                    </p>
-                    <div 
-                        style={styles.readMoreButton} 
-                        onClick={() => openReadModal(thread)} // <--- CALLS MODAL
-                    >
-                        <FiChevronDown size={14} /> Read More
-                    </div>
-                </>
-            );
-        }
-
-        // Full content if not long
-        return (
-            <p style={styles.threadBody}>
-                {bodyContent}
-            </p>
-        );
-    };
-    // ----------------------------------------------------
-
+    if (error) return <div style={{...styles.container, color: '#dc2626'}}>{error}</div>;
 
     return (
-        <div style={styles.pageContainer}>
-            <AlertPopup message={popup.message} type={popup.type} onClose={() => setPopup({ message: '', type: '' })} />
-            
-            {/* Single Thread Delete Confirmation Modal */}
-            <ConfirmationModal
-                isVisible={confirmationModal.isVisible}
-                title="Confirm Thread Deletion"
-                message="Are you sure you want to permanently delete this post? This action is irreversible."
-                threadTitle={confirmationModal.threadTitle}
-                threadBody={confirmationModal.threadBody}
-                mediaUrls={confirmationModal.mediaUrls}
-                onConfirm={() => confirmDeleteThread(confirmationModal.threadId, confirmationModal.threadType)}
-                onCancel={() => setConfirmationModal({ isVisible: false, threadId: null, threadType: null, threadTitle: '', threadBody: '', mediaUrls: [] })}
+        <main style={styles.container}>
+            {/* Alert Popup */}
+            <AlertPopup 
+                message={popup?.message} 
+                type={popup?.type} 
+                onClose={closePopup} 
             />
-            
-            {/* Delete All Threads Confirmation Modal */}
+
+            {/* Profile Card */}
+            <div style={styles.profileCard}>
+                <div style={styles.profileHeader}>
+                    {/* Use userData?.profilePictureUrl if fetched, otherwise fallback */}
+                    {renderAvatar(userData?.profilePictureUrl || currentProfilePictureUrl, userData?.name || userName, 'large')}
+                    <h1 style={styles.profileName}>{userData?.name || userName}</h1>
+                    <p style={styles.profileEmail}>{userData?.email || userEmail}</p>
+                    
+                    {/* EDIT BUTTON: Updated onClick to show modal */}
+                    <button style={styles.editButton} onClick={() => setIsEditModalVisible(true)} disabled={loading}>
+                        <FiEdit size={18} /> Edit Profile
+                    </button>
+                </div>
+                <div style={styles.profileDetails}>
+                    <h2 style={styles.detailsTitle}>Contact Information</h2>
+                    <div style={styles.profileMeta}>
+                        <div style={styles.fieldRow}>
+                            <div style={styles.fieldLabel}>
+                                <FiPhone size={16} /> <span>Contact No.</span>
+                            </div>
+                            {/* Use fetched userData (or N/A) */}
+                            <div style={styles.fieldValue}>{userData?.contact || 'N/A'}</div>
+                        </div>
+                        <div style={styles.fieldRow}>
+                            <div style={styles.fieldLabel}>
+                                <FiMapPin size={16} /> <span>Address</span>
+                            </div>
+                            {/* Use fetched userData (or N/A) */}
+                            <div style={styles.fieldValue}>{userData?.address || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* User Posts Section */}
+            <div style={styles.postsSectionContainer}>
+                <div style={styles.postsSectionHeader}>
+                    {/* Updated title to show filtered count */}
+                    <h2 style={styles.postsSectionTitle}>Your Community Posts ({filteredThreads.length})</h2>
+                    {userThreads.length > 0 && (
+                        <button style={styles.deleteAllButton} onClick={handleDeleteAllPosts} disabled={isThreadsLoading || loading} >
+                            <FiTrash2 size={16} /> Delete All Posts
+                        </button>
+                    )}
+                </div>
+                {/* NEW: Filter Buttons */}
+                <div style={styles.filterBar}>
+                    {THREAD_FILTERS.map(filter => (
+                        <button 
+                            key={filter.value} 
+                            style={filter.value === selectedFilter ? styles.filterButtonActive : styles.filterButton} 
+                            onClick={() => setSelectedFilter(filter.value)}
+                        >
+                            {filter.label}
+                        </button>
+                    ))}
+                </div>
+
+                {isThreadsLoading ? (
+                    <div style={styles.loadingContainer}>
+                        <FiRefreshCcw size={24} style={styles.spinner} />
+                        <p>Loading your posts...</p>
+                    </div>
+                ) : filteredThreads.length > 0 ? (
+                    <div style={styles.threadsList}>
+                        {filteredThreads.map(renderThread)}
+                    </div>
+                ) : (
+                    <p style={styles.noPostsMessage}>You haven't created any {selectedFilter === 'All' ? 'posts or jobs' : selectedFilter} yet.</p>
+                )}
+            </div>
+
+            {/* NEW: Edit Profile Modal */}
+            <EditProfileModal
+                isVisible={isEditModalVisible}
+                onClose={() => setIsEditModalVisible(false)}
+                userData={userData}
+                onSave={handleSaveProfileDetails} // Pass the master save handler
+                loading={loading}
+                currentProfilePictureUrl={currentProfilePictureUrl} 
+                setPopup={setPopup}
+                userName={userName}
+            />
+
+            {/* Single Delete Confirmation Modal */}
+            {deleteModal && (
+                <ConfirmationModal
+                    isVisible={!!deleteModal}
+                    title={`Delete ${deleteModal.type === 'job' ? 'Job Posting' : 'Community Thread'}?`}
+                    message={`Are you sure you want to delete your ${deleteModal.type === 'job' ? 'job posting' : 'thread'}? This action is permanent.`}
+                    threadTitle={deleteModal.title}
+                    threadBody={deleteModal.body}
+                    mediaUrls={deleteModal.mediaUrls}
+                    onConfirm={confirmDeleteThread}
+                    onCancel={() => setDeleteModal(null)}
+                />
+            )}
+
+            {/* Delete ALL Confirmation Modal */}
             <ConfirmationModal
                 isVisible={deleteAllModal}
-                title="WARNING: Delete All Posts"
-                message={`You are about to permanently delete ALL ${userThreads.length} posts you have ever created. This action is irreversible and cannot be recovered.`}
+                title="Delete ALL Your Posts & Jobs"
+                message={`You are about to delete all ${userThreads.length} posts and jobs you have ever created. This action is irreversible and cannot be recovered.`}
                 threadTitle={null} // Important: Hide thread preview
                 threadBody={null}
                 mediaUrls={[]}
@@ -971,374 +1307,115 @@ export default function ProfilePage({ userId, userName, userEmail, onUpdateUser,
                     <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
                         {/* Header without title/border */}
                         <div style={styles.modalHeaderNoBorder}>
-                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
                         </div>
                         <div style={styles.modalUserSection}>
                             {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')}
                             <span style={styles.modalUserName}>{readModalThread.author}</span>
                             <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
-                            <span style={styles.threadTag}>{readModalThread.tag}</span>
                         </div>
-
-                        {/* Full Content */}
-                        <p style={styles.modalThreadBody}>
-                            {readModalThread.body}
-                        </p>
                         
-                        {/* Media */}
-                        {readModalThread.mediaUrls && readModalThread.mediaUrls.length > 0 && (
-                            <div style={{height: '300px', margin: '15px 0', borderRadius: '10px', overflow: 'hidden'}}>
-                                <img src={readModalThread.mediaUrls[0]} alt="Post media" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-                            </div>
-                        )}
-
-                        <button onClick={closeReadModal} style={styles.modalCloseButton}>
-                            <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
-                        </button>
+                        {/* Thread Content */}
+                        <div style={styles.modalBody}>
+                            <h3 style={styles.modalTitle}>{readModalThread.title}</h3>
+                            <p style={styles.modalText}>{readModalThread.body}</p>
+                            {readModalThread.type === 'job' && readModalThread.contactNumber && (
+                                <p style={styles.modalJobContact}>
+                                    <FiPhone size={18} /> Contact: <strong>{readModalThread.contactNumber}</strong>
+                                </p>
+                            )}
+                            
+                            {/* Media Gallery */}
+                            {readModalThread.mediaUrls && readModalThread.mediaUrls.length > 0 && (
+                                <div style={styles.modalMediaGallery}>
+                                    {readModalThread.mediaUrls.map((url, index) => (
+                                        url.match(/\.(jpeg|jpg|gif|png|webp)$/i) && (
+                                            <img key={index} src={url} alt={`Media ${index}`} style={styles.modalMediaImage} />
+                                        )
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
-            {/* End Read Modal */}
-
-            {/* Page Title - Now part of the main page flow */}
-            <h1 style={styles.pageTitle}>Welcome to your Profile, {firstName}!</h1>
-
-            {error && <div style={styles.errorBox}>{error}</div>}
-
-            <div style={styles.mainContentLayout}>
-                {/* Left/Center Column for Profile & Posts */}
-                <div style={styles.centerContent}>
-                    {/* Profile Card Content (Account Editing) */}
-                    <div style={styles.profileCard}>
-                         {/* BUTTONS MOVED INSIDE PROFILE CARD */}
-                        <div style={styles.cardActions}>
-                             {loading ? (
-                                <FiRefreshCcw size={20} style={styles.loadingIcon} />
-                            ) : isEditing ? (
-                                <>
-                                    <button 
-                                        style={{...styles.button, ...styles.cancelButton}}
-                                        onClick={handleCancelEdit}
-                                        disabled={loading}
-                                    >
-                                        <FiX size={18} /> Cancel
-                                    </button>
-                                    <button 
-                                        style={{...styles.button, ...styles.saveButton}}
-                                        onClick={handleSave}
-                                        disabled={loading || !editedName.trim()}
-                                    >
-                                        <FiSave size={18} /> Save
-                                    </button>
-                                </>
-                            ) : (
-                                <button 
-                                    style={{...styles.button, ...styles.editButton}} 
-                                    onClick={() => setIsEditing(true)}
-                                >
-                                    <FiEdit size={18} /> Edit Profile
-                                </button>
-                            )}
-                        </div>
-                        
-                        <div style={styles.profileHeader}>
-                            <div 
-                                style={{ ...styles.avatarCircleLarge, cursor: isEditing ? 'pointer' : 'default' }}
-                                onClick={handlePictureClick}
-                                onDragEnter={handleDragEnter}
-                                onDragLeave={handleDragLeave}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                            >
-                                <img 
-                                    src={currentPictureSource} 
-                                    alt={`${userName}`} 
-                                    style={styles.avatarImage} 
-                                    onError={(e) => { e.target.onerror = null; e.target.src = '' }} 
-                                />
-                                {isEditing && (
-                                    <div style={{ ...styles.editOverlay, opacity: isDragging ? 1 : 0.8 }}>
-                                        <FiCamera size={24} />
-                                        <span style={{fontSize: '14px', fontWeight: 600}}>{isDragging ? 'Drop Image' : 'Change Photo'}</span>
-                                    </div>
-                                )}
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    style={{ display: 'none' }}
-                                    accept="image/*"
-                                    onChange={handleFileInputChange}
-                                    disabled={!isEditing}
-                                />
-                            </div>
-                            <div style={styles.headerText}>
-                                {renderField('Name', userData?.name, [editedName, setEditedName], true, <FiUser size={18} />)}
-                                <p style={styles.userEmail}><FiMail size={16} style={{marginRight: '8px'}} />{userData?.email || userEmail}</p>
-                            </div>
-                        </div>
-
-                        <div style={styles.fieldGroup}>
-                            <h2 style={styles.sectionTitle}>Contact Information</h2>
-                            {renderField('Contact', userData?.contact, [editedContact, setEditedContact], true, <FiPhone size={16} />)}
-                            {renderField('Address', userData?.address, [editedAddress, setEditedAddress], true, <FiMapPin size={16} />)}
-                        </div>
-
-                    </div>
-
-                    {/* User Posts Section */}
-                    <div style={styles.postsSectionContainer}>
-                        <div style={styles.postsSectionHeader}>
-                            {/* Updated title to show filtered count */}
-                            <h2 style={styles.postsSectionTitle}>Your Community Posts ({filteredThreads.length})</h2>
-                            {userThreads.length > 0 && (
-                                <button 
-                                    style={styles.deleteAllButton} 
-                                    onClick={handleDeleteAllPosts} 
-                                    disabled={isThreadsLoading || loading} 
-                                >
-                                    <FiTrash2 size={16} /> Delete All Posts
-                                </button>
-                            )}
-                        </div>
-
-                        {/* ⭐ NEW: Filter Buttons */}
-                        <div style={styles.filterBar}>
-                            {THREAD_FILTERS.map(filter => (
-                                <button
-                                    key={filter.value}
-                                    style={filter.value === selectedFilter ? styles.filterButtonActive : styles.filterButton}
-                                    onClick={() => setSelectedFilter(filter.value)}
-                                    disabled={isThreadsLoading}
-                                >
-                                    {filter.label}
-                                </button>
-                            ))}
-                        </div>
-                        {/* ⭐ END: Filter Buttons */}
-
-
-                        {isThreadsLoading ? (
-                            <p style={styles.loadingResponsesText}>Loading your posts and jobs...</p>
-                        ) : filteredThreads.length > 0 ? ( // Use filteredThreads
-                            filteredThreads.map(thread => (
-                                <UserThread 
-                                    key={thread.id}
-                                    thread={thread}
-                                    currentUserId={currentUserId}
-                                    setPopup={setPopup}
-                                    handleDeleteThread={handleDeleteThread}
-                                    renderPostBody={renderPostBody} 
-                                />
-                            ))
-                        ) : (
-                            <p style={styles.noResponsesText}>
-                                {selectedFilter === 'All' 
-                                    ? "You haven't posted any community threads or jobs yet."
-                                    : `You have no ${selectedFilter === 'thread' ? 'threads' : 'jobs'} to display.`
-                                }
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                {/* Right Panel */}
-                <div style={styles.rightPanelContainer}>
-                    <RightPanel userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />
-                </div>
-            </div>
-        </div>
+            
+        </main>
     );
-}
+};
 
-// --- Styles ---
+// --- STYLES (Existing) ---
 const styles = {
-    // Layout Styles
-    pageContainer: {
+    // ... (rest of existing styles)
+    container: {
+        padding: '20px 20px 20px 15px', // Adjusted for sidebar
         minHeight: '100vh',
-        paddingLeft:'10px',
-        paddingRight:'50px',
     },
-    pageTitle: {
+    spinner: {
+        animation: 'spin 1s linear infinite',
+    },
+    '@keyframes spin': {
+        from: { transform: 'rotate(0deg)' },
+        to: { transform: 'rotate(360deg)' },
+    },
+    // ... (rest of existing styles)
+    profileCard: {
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+        marginBottom: '25px',
+        padding: '30px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+    },
+    profileHeader: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        borderBottom: '1px solid #e5e7eb',
+        paddingBottom: '25px',
+        width: '100%',
+    },
+    profileName: {
         fontSize: '28px',
         fontWeight: '700',
         color: '#1f2937',
-        marginBottom: '20px',
-        paddingLeft: '5px', // Alignment
+        margin: '15px 0 5px 0',
     },
-    mainContentLayout: {
-        display: 'flex',
-        gap: '20px',
-        maxWidth: '1200px',
-        margin: '0 auto',
-    },
-    centerContent: {
-        flex: '3',
-        minWidth: 0,
-    },
-    rightPanelContainer: {
-        flex: '1',
-        minWidth: '280px',
-        position: 'sticky',
-        top: '20px', 
-        alignSelf: 'flex-start',
-    },
-    errorBox: {
-        backgroundColor: '#fee2e2',
-        color: '#dc2626',
-        padding: '15px',
-        borderRadius: '8px',
-        border: '1px solid #f87171',
-        marginBottom: '20px',
+    profileEmail: {
         fontSize: '16px',
-        fontWeight: '600',
-    },
-    loadingIcon: {
-        animation: 'spin 1s linear infinite',
-        color: '#3b82f6',
-    },
-    // Card Styles
-    profileCard: {
-        backgroundColor: '#fff',
-        borderRadius: '16px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-        padding: '30px',
-        marginBottom: '25px',
-        position: 'relative',
-    },
-    cardActions: {
-        position: 'absolute',
-        top: '25px',
-        right: '25px',
-        display: 'flex',
-        gap: '10px',
-    },
-    button: {
-        padding: '10px 18px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontWeight: '600',
-        fontSize: '14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        transition: 'background-color 0.2s',
-        border: '1px solid #d1d5db',
+        color: '#6b7280',
+        margin: '0 0 20px 0',
     },
     editButton: {
-        backgroundColor: '#eff6ff',
-        color: '#1e40af',
-        border: '1px solid #bfdbfe',
-    },
-    saveButton: {
-        backgroundColor: '#10b981',
+        backgroundColor: '#2563eb',
         color: '#fff',
         border: 'none',
-    },
-    cancelButton: {
-        backgroundColor: '#f3f4f6',
-        color: '#4b5563',
-    },
-    // Avatar Styles
-    avatarCircleLarge: {
-        width: '100px',
-        height: '100px',
-        borderRadius: '50%',
-        backgroundColor: '#e5e7eb',
-        color: '#6b7280',
-        fontSize: '40px',
-        fontWeight: '700',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        position: 'relative',
-        flexShrink: 0,
-    },
-    avatarCircleSmall: {
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        backgroundColor: '#e5e7eb',
-        color: '#6b7280',
-        fontSize: '14px',
-        fontWeight: '600',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        flexShrink: 0,
-    },
-    avatarCircleTiny: {
-        width: '24px',
-        height: '24px',
-        borderRadius: '50%',
-        backgroundColor: '#e5e7eb',
-        color: '#6b7280',
-        fontSize: '10px',
-        fontWeight: '600',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        flexShrink: 0,
-    },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-    },
-    editOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
+        padding: '8px 20px',
+        borderRadius: '8px',
         cursor: 'pointer',
-        transition: 'background-color 0.2s',
-        gap: '2px',
-    },
-    // Profile Info Styles
-    profileHeader: {
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '20px',
-        marginBottom: '30px',
-        paddingBottom: '20px',
-        borderBottom: '1px solid #f3f4f6',
-    },
-    headerText: {
-        display: 'flex',
-        flexDirection: 'column',
-        flexGrow: 1,
-    },
-    userName: {
-        margin: 0,
-        fontSize: '22px',
-        fontWeight: '700',
-        color: '#1f2937'
-    },
-    userEmail: {
-        margin: 0,
+        fontWeight: '600',
         fontSize: '15px',
-        color: '#6b7280',
         display: 'flex',
         alignItems: 'center',
+        gap: '6px',
+        transition: 'background-color 0.2s',
+        marginTop: '10px',
     },
-    sectionTitle: {
-        fontSize: '18px',
+    profileDetails: {
+        width: '100%',
+        paddingTop: '25px',
+    },
+    detailsTitle: {
+        fontSize: '20px',
         fontWeight: '700',
         color: '#1f2937',
-        marginBottom: '10px',
-        paddingBottom: '5px',
-        borderBottom: '2px solid #e5e7eb',
+        borderBottom: '2px solid #3b82f6',
+        paddingBottom: '10px',
+        marginBottom: '15px',
     },
-    fieldGroup: {
+    profileMeta: {
         display: 'flex',
         flexDirection: 'column',
         gap: '15px',
@@ -1347,57 +1424,49 @@ const styles = {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '0 5px',
+        padding: '10px 0',
+        borderBottom: '1px dotted #e5e7eb',
     },
     fieldLabel: {
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
-        fontSize: '15px',
+        gap: '8px',
+        fontSize: '16px',
         fontWeight: '600',
         color: '#4b5563',
-        minWidth: '100px',
+        flexShrink: 0,
     },
     fieldValue: {
-        fontSize: '15px',
+        fontSize: '16px',
         color: '#1f2937',
-        fontWeight: '500',
         textAlign: 'right',
-        flexGrow: 1,
+        wordBreak: 'break-word',
     },
-    inputField: {
-        padding: '8px 12px',
-        border: '1px solid #d1d5db',
-        borderRadius: '8px',
-        fontSize: '15px',
-        flexGrow: 1,
-        maxWidth: '60%', 
-        textAlign: 'right',
-        transition: 'border-color 0.2s',
-    },
-    // Posts Section Styles
     postsSectionContainer: {
         backgroundColor: '#fff',
-        borderRadius: '16px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
         padding: '30px',
     },
     postsSectionHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        borderBottom: '1px solid #e5e7eb',
         paddingBottom: '15px',
+        marginBottom: '20px',
     },
     postsSectionTitle: {
-        margin: 0,
         fontSize: '20px',
         fontWeight: '700',
         color: '#1f2937',
+        margin: 0,
     },
     deleteAllButton: {
         backgroundColor: '#fecaca',
         color: '#dc2626',
-        border: '1px solid #fca5a5',
+        border: '1px solid #f87171',
         padding: '8px 15px',
         borderRadius: '8px',
         cursor: 'pointer',
@@ -1405,10 +1474,9 @@ const styles = {
         fontSize: '14px',
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
-        transition: 'background-color 0.2s',
+        gap: '5px',
+        transition: 'all 0.2s',
     },
-    // ⭐ NEW: Filter Bar Styles
     filterBar: {
         display: 'flex',
         gap: '10px',
@@ -1438,22 +1506,46 @@ const styles = {
         fontWeight: '600',
         fontSize: '14px',
     },
+    threadsList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+    },
+    noPostsMessage: {
+        textAlign: 'center',
+        color: '#6b7280',
+        padding: '40px 0',
+        fontSize: '16px',
+    },
+    loadingContainer: {
+        textAlign: 'center',
+        padding: '40px 0',
+        color: '#4f46e5',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px',
+    },
     // Thread Card Styles
     threadCard: {
-        backgroundColor: '#fff',
-        padding: '20px',
+        backgroundColor: '#f9fafb',
         border: '1px solid #e5e7eb',
-        borderRadius: '12px',
-        marginBottom: '20px',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+        borderRadius: '10px',
+        padding: '20px',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.2s, border-color 0.2s',
+        ':hover': {
+            boxShadow: '0 5px 15px rgba(0, 0, 0, 0.08)',
+            borderColor: '#bfdbfe',
+        },
     },
-    threadMetaTop: {
+    threadHeader: {
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: '10px',
     },
-    threadAuthorInfo: {
+    threadAuthor: {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
@@ -1463,204 +1555,137 @@ const styles = {
         flexDirection: 'column',
     },
     threadAuthorName: {
-        fontWeight: '600',
-        fontSize: '15px',
+        fontWeight: '700',
         color: '#1f2937',
+        fontSize: '15px',
     },
     threadTime: {
         fontSize: '12px',
         color: '#9ca3af',
     },
     threadTag: {
-        padding: '4px 8px',
-        borderRadius: '4px',
-        backgroundColor: '#eff6ff',
-        color: '#1d4ed8',
+        backgroundColor: '#e0f2f1',
+        color: '#047857',
+        padding: '4px 10px',
+        borderRadius: '15px',
         fontSize: '12px',
         fontWeight: '600',
+        flexShrink: 0,
+    },
+    threadBodyContainer: {
+        marginBottom: '10px',
+    },
+    threadPostType: {
+        fontSize: '12px',
+        fontWeight: '500',
+        color: '#9ca3af',
+        margin: '0 0 5px 0',
     },
     threadTitle: {
         fontSize: '18px',
         fontWeight: '700',
-        color: '#1f2937',
-        margin: '5px 0 10px 0',
+        color: '#111827',
+        margin: '0 0 5px 0',
     },
     threadBody: {
-        fontSize: '15px',
+        fontSize: '14px',
         color: '#374151',
-        margin: 0,
-        lineHeight: '1.6',
-        wordWrap: 'break-word',
-        overflowWrap: 'break-word',
+        margin: '5px 0',
+        lineHeight: 1.5,
+        overflow: 'hidden',
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        // Max lines before truncation (set high if relying on MAX_POST_LENGTH)
+        // WebkitLineClamp: 3, 
     },
-    // Read More Button Style
-    readMoreButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
+    jobContact: {
         fontSize: '14px',
         fontWeight: '600',
-        color: '#3b82f6',
+        color: '#10b981',
+        margin: '0 0 10px 0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+    },
+    readMore: {
+        color: '#2563eb',
+        fontWeight: '600',
         cursor: 'pointer',
-        marginTop: '10px',
-        marginBottom: '15px',
-        width: 'fit-content',
+        marginLeft: '5px',
+    },
+    mediaGallery: {
+        position: 'relative',
+        height: '150px',
+        overflow: 'hidden',
+        borderRadius: '8px',
+        marginBottom: '10px',
+        backgroundColor: '#f3f4f6',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    mediaImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+    },
+    mediaCounter: {
+        position: 'absolute',
+        bottom: '8px',
+        right: '8px',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        color: '#fff',
+        padding: '3px 8px',
+        borderRadius: '4px',
+        fontSize: '12px',
     },
     threadActions: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: '15px',
         paddingTop: '10px',
-        borderTop: '1px solid #f3f4f6',
+        borderTop: '1px solid #e5e7eb',
     },
     threadStats: {
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
+        gap: '5px',
         fontSize: '14px',
         color: '#6b7280',
         fontWeight: '500',
     },
     deleteThreadButton: {
-        backgroundColor: '#fef2f2',
-        color: '#ef4444',
-        border: '1px solid #fca5a5',
-        padding: '8px 12px',
-        borderRadius: '8px',
+        backgroundColor: '#fee2e2',
+        color: '#dc2626',
+        border: 'none',
+        padding: '6px 12px',
+        borderRadius: '6px',
         cursor: 'pointer',
         fontWeight: '600',
         fontSize: '13px',
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
+        gap: '4px',
         transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#fca5a5',
+        },
     },
-    // Media Gallery Styles
-    gridContainerStyle: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '8px',
-        marginTop: '15px',
-        maxHeight: '450px', 
-        overflow: 'hidden',
-        borderRadius: '10px',
-    },
-    mediaContainer: {
-        position: 'relative',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        transition: 'transform 0.2s',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    threadImage: {
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        display: 'block',
-    },
-    moreMediaOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        color: '#fff',
-        fontSize: '20px',
-        fontWeight: '700',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    // Modal Styles (for Read More)
-    modalOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        zIndex: 1500,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderRadius: '12px',
-        padding: '30px',
-        width: '90%',
-        maxWidth: '500px',
-        maxHeight: '80vh', 
-        overflowY: 'auto', 
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
-    },
-    modalHeaderNoBorder: { 
-        display: 'flex', 
-        justifyContent: 'flex-end', 
-        alignItems: 'center', 
-        paddingBottom: '10px', 
-        paddingTop: '5px',
-        marginBottom: '5px',
-    },
-    modalUserSection: { 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '12px', 
-        marginTop: '0px', 
-        borderBottom: '1px solid #e5e7eb', 
-        paddingBottom: '15px' 
-    }, 
-    modalUserName: { 
-        fontWeight: 600, 
-        fontSize: '16px', 
-        color: '#1e3a8a' 
-    }, 
-    modalTime: { 
-        fontSize: '13px',
-        color: '#9ca3af',
-        marginLeft: '10px',
-    },
-    modalThreadBody: {
-        fontSize: '15px',
-        color: '#4b5563',
-        margin: '15px 0',
-        lineHeight: '1.6',
-    },
-    modalCloseButton: {
-        width: '100%',
-        padding: '10px',
-        marginTop: '15px',
-        borderRadius: '8px',
-        border: '1px solid #d1d5db',
-        backgroundColor: '#f9fafb',
-        color: '#4b5563',
-        fontWeight: '600',
-        fontSize: '14px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'background-color 0.2s',
-    },
-    // Response Section Styles
+    // Response Styles
     responsesContainer: {
         marginTop: '15px',
-        paddingTop: '15px',
-        borderTop: '1px solid #f3f4f6',
+        padding: '10px 0',
+        borderTop: '1px dashed #d1d5db',
     },
     responseItem: {
-        padding: '10px 0',
-        borderBottom: '1px solid #f9fafb',
+        backgroundColor: '#f3f4f6',
+        borderRadius: '8px',
+        padding: '10px 15px',
+        marginBottom: '10px',
     },
     responseMeta: {
         display: 'flex',
-        alignItems: 'flex-start', 
+        alignItems: 'center',
         gap: '8px', 
         marginBottom: '4px',
     },
@@ -1707,20 +1732,141 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        transition: 'opacity 0.2s',
-        opacity: 0.9,
+        flexShrink: 0,
     },
-    loadingResponsesText: {
-        fontSize: '14px',
-        color: '#6b7280',
-        textAlign: 'center',
-        padding: '10px 0',
+    // Avatar Styles
+    avatarCircleLarge: { 
+        width: '100px', 
+        height: '100px', 
+        borderRadius: '50%', 
+        backgroundColor: '#e5e7eb', 
+        color: '#6b7280', 
+        fontSize: '40px', 
+        fontWeight: '700', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        overflow: 'hidden', 
+        position: 'relative', 
+        flexShrink: 0, 
     },
-    noResponsesText: {
+    avatarCircleSmall: { 
+        width: '32px', 
+        height: '32px', 
+        borderRadius: '50%', 
+        backgroundColor: '#e5e7eb', 
+        color: '#6b7280', 
+        fontSize: '14px', 
+        fontWeight: '600', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        overflow: 'hidden', 
+        flexShrink: 0, 
+    },
+    avatarCircleTiny: { 
+        width: '24px', 
+        height: '24px', 
+        borderRadius: '50%', 
+        backgroundColor: '#e5e7eb', 
+        color: '#6b7280', 
+        fontSize: '12px', 
+        fontWeight: '600', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        overflow: 'hidden', 
+        flexShrink: 0, 
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+    },
+    // Read Modal Styles
+    modalOverlay: {
+        position: 'fixed',
+        top: 0, right: 0, bottom: 0, left: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        zIndex: 1500,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        width: '90%',
+        maxWidth: '700px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    modalHeaderNoBorder: {
+        padding: '15px 20px 0',
+        textAlign: 'right',
+    },
+    modalUserSection: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+        padding: '0 20px 20px',
+        borderBottom: '1px solid #e5e7eb',
+    },
+    modalUserName: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1f2937',
+    },
+    modalTime: {
         fontSize: '14px',
         color: '#9ca3af',
-        textAlign: 'center',
-        padding: '10px 0',
-        margin: 0,
+        marginLeft: 'auto',
     },
+    modalBody: {
+        padding: '20px',
+    },
+    modalTitle: {
+        fontSize: '24px',
+        fontWeight: '800',
+        color: '#111827',
+        margin: '0 0 10px 0',
+    },
+    modalText: {
+        fontSize: '16px',
+        color: '#374151',
+        lineHeight: 1.6,
+        whiteSpace: 'pre-wrap',
+        marginBottom: '20px',
+    },
+    modalJobContact: {
+        fontSize: '16px',
+        color: '#059669',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        margin: '10px 0 20px 0',
+        padding: '10px',
+        backgroundColor: '#ecfdf5',
+        borderRadius: '8px',
+        borderLeft: '4px solid #10b981',
+    },
+    modalMediaGallery: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '10px',
+        marginTop: '10px',
+        marginBottom: '20px',
+    },
+    modalMediaImage: {
+        width: '100%',
+        height: '200px',
+        objectFit: 'cover',
+        borderRadius: '8px',
+    }
 };
+
+export default ProfilePage;

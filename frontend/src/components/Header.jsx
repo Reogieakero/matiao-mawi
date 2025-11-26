@@ -1,38 +1,37 @@
 import React, { useState } from 'react';
 import { FiSearch, FiLogOut, FiUser } from 'react-icons/fi';
-// тнР IMPORT useNavigate
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-// тнР MODIFIED: Accept userName, profilePictureUrl, and onLogout props
-const Header = ({ userName, profilePictureUrl, onLogout }) => { 
+// CRITICAL FIX: Header now accepts the single 'currentUser' object
+const Header = ({ currentUser, onLogout }) => { 
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredLink, setHoveredLink] = useState(null);
-    // NEW: Dropdown state
     const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
     const location = useLocation();
-    // тнР INITIALIZE useNavigate
     const navigate = useNavigate(); 
+    
+    // NEW: Extract profile details from the currentUser object
+    const userName = currentUser?.name || 'Guest';
+    const profilePictureUrl = currentUser?.profilePictureUrl || null;
+
 
     const handleSearch = () => {
         if (searchTerm.trim()) {
-            // тнР UPDATED: Use navigate to redirect to the search route
             navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
-            setSearchTerm(''); // Clear search input after navigating
+            setSearchTerm(''); 
         }
     };
     
-    // NEW: Handler to toggle dropdown
     const toggleDropdown = (e) => {
         e.preventDefault(); 
         setIsDropdownOpen(prev => !prev);
     };
 
-    // NEW: Handler for Log Out
     const handleLogoutClick = () => {
-        onLogout(); // Call the logout handler passed from App.jsx
-        // Explicitly navigate to /login for immediate redirect after clearing user data
+        // Pass 'true' to ensure local storage is cleared
+        onLogout(true); 
         navigate('/login'); 
-        setIsDropdownOpen(false); // Close dropdown
+        setIsDropdownOpen(false); 
     };
 
     const navItems = [
@@ -43,7 +42,7 @@ const Header = ({ userName, profilePictureUrl, onLogout }) => {
 
     const sidebarPaths = ['/home', '/news', '/announcements', '/documents', '/services'];
 
-    // тнР NEW: Calculate initials for fallback
+    // LOGIC FOR INITIALS (Fallback only, if profilePictureUrl is null)
     const initials = userName
         ? userName
             .split(' ')
@@ -116,12 +115,13 @@ const Header = ({ userName, profilePictureUrl, onLogout }) => {
                             </Link>
                         ))}
 
-                        {/* тнР MODIFIED: Profile Picture / Initials with Dropdown */}
+                        {/* Profile Picture / Initials with Dropdown */}
                         <div style={styles.profileDropdownContainer}> 
                             <div 
                                 onClick={toggleDropdown} 
                                 style={styles.profileAvatarClickable}
                             >
+                                {/* CRITICAL: Use profilePictureUrl from the fetched user object */}
                                 {profilePictureUrl ? (
                                     <img 
                                         src={profilePictureUrl}
@@ -129,6 +129,7 @@ const Header = ({ userName, profilePictureUrl, onLogout }) => {
                                         style={styles.profilePicture}
                                     />
                                 ) : (
+                                    // FALLBACK: Display initials only if no picture is available
                                     <div style={styles.avatarCircleHeader}> 
                                         {initials}
                                     </div>
@@ -138,6 +139,11 @@ const Header = ({ userName, profilePictureUrl, onLogout }) => {
                             {/* Dropdown Menu */}
                             {isDropdownOpen && (
                                 <div style={styles.dropdownMenu}>
+                                    {/* Display User Name */}
+                                    <div style={styles.profileNameDisplay}>
+                                        {userName}
+                                    </div>
+
                                     <Link to="/profile" 
                                         style={styles.dropdownItem}
                                         onClick={() => setIsDropdownOpen(false)} 
@@ -264,10 +270,22 @@ const styles = {
         backgroundColor: '#fff',
         borderRadius: '8px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        width: '150px',
+        width: '180px', // Adjusted width for name display
         padding: '8px 0',
         zIndex: 1010, 
         border: '1px solid #e5e7eb',
+    },
+    // NEW style for displaying the name inside the dropdown
+    profileNameDisplay: {
+        padding: '10px 15px',
+        fontSize: '15px',
+        fontWeight: 'bold',
+        color: '#1f2937',
+        borderBottom: '1px solid #e5e7eb',
+        marginBottom: '8px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
     },
     dropdownItem: {
         display: 'flex',
