@@ -41,13 +41,23 @@ const App = () => {
     // --- NEW STATE FOR ADMIN LOGIN ---
     const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => sessionStorage.getItem("isAdminLoggedIn") === "true");
 
-    // Persist login info in localStorage 
+    // 💥 FIX: Persist login info conditionally and handle cleanup here
     useEffect(() => {
-        localStorage.setItem("isLoggedIn", isLoggedIn);
-        localStorage.setItem("userName", userName);
-        localStorage.setItem("userEmail", userEmail);
-        localStorage.setItem("userId", userId);
-        localStorage.setItem("profilePictureUrl", profilePictureUrl); 
+        if (isLoggedIn) {
+            // Persist user data only when logged in
+            localStorage.setItem("isLoggedIn", "true"); // Must be 'true' string here
+            localStorage.setItem("userName", userName);
+            localStorage.setItem("userEmail", userEmail);
+            localStorage.setItem("userId", userId);
+            localStorage.setItem("profilePictureUrl", profilePictureUrl); 
+        } else {
+            // Cleanup: Remove all user-specific data from localStorage when logged out
+            localStorage.removeItem("isLoggedIn");
+            localStorage.removeItem("userName");
+            localStorage.removeItem("userEmail");
+            localStorage.removeItem("userId");
+            localStorage.removeItem("profilePictureUrl");
+        }
         
         // Persist admin login state in sessionStorage (safer for short-lived sessions)
         sessionStorage.setItem("isAdminLoggedIn", isAdminLoggedIn); 
@@ -62,28 +72,22 @@ const App = () => {
         setUserEmail(user.email);
         setUserId(user.id); 
         
-        // ✅ FIX for profile picture persistence: Only update if the login payload provides a new URL.
-        // This prevents overwriting a saved profile picture URL (loaded from localStorage on mount) 
-        // with an empty or default string if the login API doesn't return the picture URL.
+        // Ensure profile picture URL is set from the server response
         if (user.profilePictureUrl) {
             setProfilePictureUrl(user.profilePictureUrl);
-            localStorage.setItem("profilePictureUrl", user.profilePictureUrl); 
+            // Persistence is handled by the useEffect above
         }
     };
 
     const handleLogout = () => {
-        setIsLoggedIn(false);
+        // 💥 FIX: Simply clear the state. The useEffect will handle the localStorage cleanup.
+        setIsLoggedIn(false); 
         setUserName('');
         setUserEmail('');
         setUserId(null); 
         setProfilePictureUrl(''); 
         
-        localStorage.removeItem("isLoggedIn");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("profilePictureUrl");
-        
+        // Removed explicit localStorage.removeItem() calls here.
     };
     
     // --- NEW HANDLERS FOR ADMIN ---
@@ -101,11 +105,11 @@ const App = () => {
     const handleUpdateUser = ({ name, profilePictureUrl }) => {
         if (name !== undefined) {
             setUserName(name);
-            localStorage.setItem("userName", name);
+            // Persistence is handled by the useEffect above
         }
         if (profilePictureUrl !== undefined) { 
             setProfilePictureUrl(profilePictureUrl);
-            localStorage.setItem("profilePictureUrl", profilePictureUrl);
+            // Persistence is handled by the useEffect above
         }
     };
 
@@ -115,7 +119,7 @@ const App = () => {
             <Header 
                 userName={userName} 
                 profilePictureUrl={profilePictureUrl} 
-                onLogout={handleLogout} // <--- ADDED: Pass the logout handler
+                onLogout={handleLogout} // <--- Pass the logout handler
             />
             {/* The Sidebar is kept here as a global component */}
             <Sidebar refetchTrigger={refetchTrigger} /> 

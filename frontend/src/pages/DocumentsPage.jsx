@@ -1,1035 +1,366 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-    FiFileText, 
-    FiDownload, 
-    FiInfo, 
-    FiSend, 
-    FiUploadCloud, 
-    FiTrash2, 
-    FiClock, 
-    FiCheckSquare, // New Icon for Select All
-    FiSquare,      // New Icon for Select Mode Toggle
-    FiXCircle      // New Icon for Bulk Cancel
-} from 'react-icons/fi'; 
-import RightPanel from '../components/RightPanel';
+import React, { useState, useEffect } from 'react';
+// Added FiCreditCard for payment details
+import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 
-// Define the available documents
-const documentTypes = [
-    {
-        id: 1,
-        name: "Barangay Clearance",
-        description: "Required for employment, school, or business permit applications.",
-        fee: 50.00,
-        requirements: ["Valid ID (e.g., Driver's License, Passport, or Voter's ID)", "Proof of Residency (e.g., latest utility bill)", "Community Tax Certificate (Cedula)"],
-    },
-    {
-        id: 2,
-        name: "Certificate of Indigency",
-        description: "For free legal aid, medical assistance, or scholarship applications.",
-        fee: 0.00,
-        requirements: ["Valid ID (with barangay address)", "Proof of Income Status (e.g., No Income Certification from the Barangay Captain)"],
-    },
-    {
-        id: 3,
-        name: "Certificate of Residency",
-        description: "Proof that you are a bonafide resident of the barangay.",
-        fee: 20.00,
-        requirements: ["Valid ID", "Proof of Residency for at least 6 months (e.g., utility bill or land title)"],
-    },
-    {
-        id: 4,
-        name: "Business Permit Recommendation",
-        description: "Endorsement for starting or renewing a small business.",
-        fee: 100.00,
-        requirements: ["DTI or SEC Registration (for new business)", "Previous Business Permit (for renewal)", "Sketch of Business Location"],
-    },
-];
-
-// Define the available downloadable documents
-const availableDownloads = [
-    { id: 'u1', name: "Volunteer Program Form.pdf", file: "/forms/Volunteer.pdf" }, 
-    { id: 'u2', name: "Blotter Intake Form.pdf", file: "/forms/Blotter.pdf" }, 
-];
-
-// ⭐ Reusable Modal Components -------------------------------------------------------------------
-
-// Single Cancellation Confirmation Modal Component (Kept for individual action)
-const CancellationConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
-    // ... (content is the same as before)
-    return (
-        <div style={documentStyles.modalBackdrop}>
-            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
-                <h2 style={{ ...documentStyles.modalHeader, color: '#ef4444' }}>
-                    <FiInfo size={24} style={{ marginRight: '8px' }} />
-                    Confirm Cancellation
-                </h2>
-                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
-
-                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
-                    Are you sure you want to cancel the application for {documentName} (ID: {transactionId})?
-                </p>
-                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
-                    This action updates the status to 'Cancelled' and cannot be reverted to 'Pending'.
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                    <button onClick={onClose} style={documentStyles.cancelButtonSecondary}>
-                        No, Keep Application
-                    </button>
-                    <button
-                        onClick={() => onConfirm(transactionId)}
-                        style={documentStyles.cancelButtonPrimary}
-                    >
-                        Yes, Cancel Application
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Single Deletion Confirmation Modal Component (Kept for individual action)
-const DeletionConfirmationModal = ({ transactionId, documentName, onConfirm, onClose }) => {
-    // ... (content is the same as before)
-    return (
-        <div style={documentStyles.modalBackdrop}>
-            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
-                <h2 style={{ ...documentStyles.modalHeader, color: '#b91c1c' }}>
-                    <FiTrash2 size={24} style={{ marginRight: '8px' }} />
-                    Confirm Deletion
-                </h2>
-                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
-
-                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
-                    Are you sure you want to permanently delete the record for {documentName} (ID: {transactionId})?
-                </p>
-                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
-                    This will remove the transaction from your history. This action cannot be undone.
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                    <button onClick={onClose} style={documentStyles.cancelButtonSecondary}>
-                        No, Keep Record
-                    </button>
-                    <button
-                        onClick={() => onConfirm(transactionId)}
-                        style={documentStyles.deleteButtonPrimary} 
-                    >
-                        Yes, Delete Permanently
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ⭐ NEW: Bulk Cancellation Confirmation Modal Component
-const BulkCancellationConfirmationModal = ({ ids, onConfirm, onClose }) => {
-    return (
-        <div style={documentStyles.modalBackdrop}>
-            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
-                <h2 style={{ ...documentStyles.modalHeader, color: '#ef4444' }}>
-                    <FiXCircle size={24} style={{ marginRight: '8px' }} />
-                    Confirm Bulk Cancellation
-                </h2>
-                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
-
-                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
-                    Are you sure you want to cancel **{ids.length} pending application(s)**?
-                </p>
-                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
-                    Only applications with 'Pending' status will be updated to 'Cancelled'.
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                    <button onClick={onClose} style={documentStyles.cancelButtonSecondary}>
-                        No, Go Back
-                    </button>
-                    <button
-                        onClick={() => onConfirm(ids)}
-                        style={documentStyles.cancelButtonPrimary}
-                    >
-                        Yes, Cancel All ({ids.length})
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ⭐ NEW: Bulk Deletion Confirmation Modal Component
-const BulkDeletionConfirmationModal = ({ ids, onConfirm, onClose }) => {
-    return (
-        <div style={documentStyles.modalBackdrop}>
-            <div style={{ ...documentStyles.modalContent, maxWidth: '400px', textAlign: 'center' }}>
-                <h2 style={{ ...documentStyles.modalHeader, color: '#b91c1c' }}>
-                    <FiTrash2 size={24} style={{ marginRight: '8px' }} />
-                    Confirm Bulk Deletion
-                </h2>
-                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
-
-                <p style={{ fontSize: '16px', color: '#4b5563', marginBottom: '20px' }}>
-                    Are you sure you want to permanently delete **{ids.length} cancelled record(s)**?
-                </p>
-                <p style={{ color: '#b91c1c', fontWeight: 'bold', marginBottom: '30px' }}>
-                    Only records with 'Cancelled' status will be permanently removed from history. This action cannot be undone.
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                    <button onClick={onClose} style={documentStyles.cancelButtonSecondary}>
-                        No, Go Back
-                    </button>
-                    <button
-                        onClick={() => onConfirm(ids)}
-                        style={documentStyles.deleteButtonPrimary} 
-                    >
-                        Yes, Delete All ({ids.length})
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-// -------------------------------------------------------------------
-
-// Transaction History Component
-const TransactionHistory = ({ currentUserId, refreshKey }) => { 
-    const [transactions, setTransactions] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
+    const [documents, setDocuments] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [successMessage, setSuccessMessage] = useState(null);
+    const [successMessage, setSuccessMessage] = useState('');
     
-    // --- New States for Selection and Bulk Actions ---
-    const [selectedTransactions, setSelectedTransactions] = useState([]);
-    const [isSelectMode, setIsSelectMode] = useState(false);
-    const [cancellationTarget, setCancellationTarget] = useState(null); // Single target
-    const [deletionTarget, setDeletionTarget] = useState(null); // Single target
-    const [bulkCancellationTarget, setBulkCancellationTarget] = useState(null); // Bulk target
-    const [bulkDeletionTarget, setBulkDeletionTarget] = useState(null); // Bulk target
-    // ---------------------------------------------------
+    // State for the Application Modal
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentDocument, setCurrentDocument] = useState(null);
 
-    const fetchTransactions = useCallback(async (idToFetch) => {
-        // ... (fetch logic remains the same)
-        if (!idToFetch) {
-            setError("User ID is required to fetch transactions.");
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-        setError(null);
-        setSuccessMessage(null);
-        try {
-            const response = await fetch(`http://localhost:5000/api/document-applications/${idToFetch}`);
-            const data = await response.json();
-
-            if (response.ok) {
-                setTransactions(data.map(t => ({
-                    ...t,
-                    requirementsMediaUrl: t.requirementsMediaUrl || [] 
-                })));
-            } else {
-                setError(data.message || 'Failed to fetch transaction history.');
-            }
-        } catch (err) {
-            console.error("Fetch transaction error:", err);
-            setError('Network error. Could not connect to the server.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+    // State for the Form Inputs
+    const [fullName, setFullName] = useState(userName || '');
+    const [purpose, setPurpose] = useState('');
+    const [requirementsFiles, setRequirementsFiles] = useState([]); 
+    
+    // NEW Payment States
+    const [paymentMethod, setPaymentMethod] = useState(''); // Selected payment method (e.g., 'GCash')
+    const [referenceNumber, setReferenceNumber] = useState(''); // Reference number input
+    // State for fetched Barangay payment accounts
+    const [barangayPaymentDetails, setBarangayPaymentDetails] = useState([]); 
+    
+    const isLoggedIn = !!userEmail; 
+    const navigate = useNavigate();
 
     useEffect(() => {
-        const idToFetch = currentUserId || 1;
-        fetchTransactions(idToFetch);
-        // Clear selection and turn off select mode on refresh
-        setSelectedTransactions([]);
-        setIsSelectMode(false);
-    }, [currentUserId, fetchTransactions, refreshKey]); 
+        fetchDocuments();
+        fetchPaymentDetails(); // NEW: Fetch payment details on load
+    }, []);
 
-    // --- New Selection Handlers ---
-    const handleToggleSelect = () => {
-        setIsSelectMode(prev => !prev);
-        setSelectedTransactions([]); // Clear selection when toggling mode
-    };
-    
-    const handleTransactionSelect = (transactionId) => {
-        setSelectedTransactions(prevSelected => {
-            if (prevSelected.includes(transactionId)) {
-                return prevSelected.filter(id => id !== transactionId);
-            } else {
-                return [...prevSelected, transactionId];
-            }
-        });
-    };
-
-    // Derived lists for eligible bulk actions
-    const pendingTransactions = transactions.filter(t => t.status === 'Pending');
-    const cancelledTransactions = transactions.filter(t => t.status === 'Cancelled');
-
-    const pendingSelectedIds = selectedTransactions.filter(id => 
-        pendingTransactions.some(t => t.id === id)
-    );
-    
-    const cancelledSelectedIds = selectedTransactions.filter(id => 
-        cancelledTransactions.some(t => t.id === id)
-    );
-
-    // --- New Bulk Action Handlers (using the new API routes) ---
-    
-    // Function to handle bulk cancellation API call
-    const handleBulkCancelExecute = async (transactionIds) => {
-        setBulkCancellationTarget(null); 
-        setError(null);
-        setSuccessMessage(null);
-
+    const fetchDocuments = async () => {
         try {
-            setIsLoading(true);
-            
-            const response = await fetch(`http://localhost:5000/api/document-application/bulk-cancel`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId, transactionIds }),
-            });
-
+            const response = await fetch('http://localhost:5000/api/documents'); 
+            if (!response.ok) {
+                throw new Error('Failed to fetch barangay documents. Check server status.');
+            }
             const data = await response.json();
-
-            if (response.ok) {
-                setSuccessMessage(data.message || `${data.affectedRows} application(s) successfully cancelled.`);
-                setSelectedTransactions([]); 
-                fetchTransactions(currentUserId || 1);
-            } else {
-                setError(`Bulk Cancellation failed: ${data.message}`);
-                setIsLoading(false);
+            setDocuments(data);
+            setLoading(false);
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+    
+    // Function to fetch Barangay payment details
+    const fetchPaymentDetails = async () => {
+        try {
+            const response = await fetch('http://localhost:5000/api/payment-details');
+            if (!response.ok) {
+                throw new Error('Failed to fetch payment details.');
+            }
+            const data = await response.json();
+            setBarangayPaymentDetails(data);
+            if (data.length > 0) {
+                setPaymentMethod(data[0].method_name); // Set default payment method
             }
         } catch (err) {
-            console.error("Bulk cancel transaction error:", err);
-            setError('Network error. Could not connect to the server or cancel applications.');
-            setIsLoading(false);
+            console.error("Error fetching payment details:", err.message);
         }
     };
     
-    // Function to handle bulk deletion API call
-    const handleBulkDeleteExecute = async (transactionIds) => {
-        setBulkDeletionTarget(null); 
-        setError(null);
-        setSuccessMessage(null);
-
-        try {
-            setIsLoading(true);
-
-            const response = await fetch(`http://localhost:5000/api/document-applications/bulk-delete`, {
-                method: 'DELETE', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId, transactionIds }), 
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccessMessage(data.message || `${data.affectedRows} record(s) successfully deleted.`);
-                setSelectedTransactions([]); 
-                fetchTransactions(currentUserId || 1);
-            } else {
-                setError(`Bulk Deletion failed: ${data.message}`);
-                setIsLoading(false);
-            }
-        } catch (err) {
-            console.error("Bulk delete transaction error:", err);
-            setError('Network error. Could not connect to the server or delete records.');
-            setIsLoading(false);
+    const openApplyModal = (doc) => {
+        if (!isLoggedIn) {
+            alert('Please log in to apply for a document.');
+            navigate('/login');
+            return;
         }
+        setCurrentDocument(doc);
+        setFullName(userName || ''); 
+        setPurpose('');
+        setRequirementsFiles([]); // Reset files
+        // Reset new payment states
+        setPaymentMethod(barangayPaymentDetails.length > 0 ? barangayPaymentDetails[0].method_name : '');
+        setReferenceNumber(''); 
+        setIsModalOpen(true);
     };
 
-    // --- Single Action Handlers (updated to use new target states) ---
-
-    // Cancellation handler that executes the API call (PUT to UPDATE status)
-    const handleCancelExecute = async (transactionId) => {
-        setCancellationTarget(null);
-        // ... (Single cancel logic remains the same, calling the single cancel API)
-        setError(null);
-        setSuccessMessage(null);
-
-        try {
-            setIsLoading(true);
-
-            const response = await fetch(`http://localhost:5000/api/document-application/cancel/${transactionId}`, {
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccessMessage(data.message || `Application ${transactionId} has been successfully cancelled.`);
-                fetchTransactions(currentUserId || 1);
-            } else {
-                setError(`Cancellation failed: ${data.message}`);
-                setIsLoading(false);
-            }
-        } catch (err) {
-            console.error("Cancel transaction error:", err);
-            setError('Network error. Could not connect to the server or cancel the application.');
-            setIsLoading(false);
-        }
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setCurrentDocument(null);
     };
     
-    // Deletion handler that executes the API call (DELETE for permanent removal)
-    const handleDeleteExecute = async (transactionId) => {
-        setDeletionTarget(null);
-        // ... (Single delete logic remains the same, calling the single delete API)
-        setError(null);
-        setSuccessMessage(null);
+    // Helper function to handle multiple file change
+    const handleRequirementsChange = (e) => {
+        setRequirementsFiles(Array.from(e.target.files));
+    };
 
-        try {
-            setIsLoading(true);
-
-            const response = await fetch(`http://localhost:5000/api/document-applications/${transactionId}`, {
-                method: 'DELETE', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUserId }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccessMessage(data.message || `Record ${transactionId} has been successfully deleted.`);
-                fetchTransactions(currentUserId || 1);
-            } else {
-                setError(`Deletion failed: ${data.message}`);
-                setIsLoading(false);
-            }
-        } catch (err) {
-            console.error("Delete transaction error:", err);
-            setError('Network error. Could not connect to the server or delete the record.');
-            setIsLoading(false);
+    const handleApply = async (e) => {
+        e.preventDefault();
+        
+        if (!currentDocument || !fullName || !purpose || requirementsFiles.length === 0) {
+            alert('Please fill out all required text fields and upload the necessary requirements.');
+            return;
         }
-    };
-
-
-    // --- UI Logic Helpers ---
-    const getStatusStyle = (status) => {
-        // ... (styles remain the same)
-        switch (status) {
-            case 'Pending': return { backgroundColor: '#fff7ed', color: '#b45309', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' };
-            case 'Approved': return { backgroundColor: '#ecfdf5', color: '#059669', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
-            case 'Rejected': return { backgroundColor: '#fee2e2', color: '#ef4444', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
-            case 'Cancelled': return { backgroundColor: '#f3f4f6', color: '#6b7280', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
-            default: return { backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' };
-        }
-    };
-
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
-
-    // Determine the text for the selection button
-    const selectButtonText = isSelectMode ? 'Exit Selection Mode' : 'Select Applications';
-
-    if (isLoading && transactions.length === 0 && refreshKey === 0) { 
-        return (
-            <section style={documentStyles.transactionSection}>
-                <p style={{ textAlign: 'center', color: '#4b5563' }}><FiClock size={16} style={{marginRight: '5px'}}/> Loading application status...</p>
-            </section>
-        );
-    }
-    
-
-    return (
-        <section style={documentStyles.transactionSection}>
-            <div style={documentStyles.transactionHeaderActions}> {/* New wrapper for Title + Actions */}
-                <h2 style={documentStyles.sectionTitle}>
-                    <FiInfo size={24} style={{ marginRight: '8px', color: '#3b82f6' }} />
-                    Your Application Status
-                </h2>
-
-                <button
-                    onClick={handleToggleSelect}
-                    style={documentStyles.selectModeButton(isSelectMode)}
-                >
-                    {isSelectMode ? <FiXCircle size={16} /> : <FiCheckSquare size={16} />} 
-                    {selectButtonText}
-                </button>
-            </div>
-
-
-            {/* Bulk Action Bar */}
-            {selectedTransactions.length > 0 && (
-                <div style={documentStyles.bulkActionBar}>
-                    <span style={documentStyles.bulkActionText}>
-                        {selectedTransactions.length} item(s) selected.
-                    </span>
-
-                    {/* Bulk Cancel Button (Only if Pending transactions are selected) */}
-                    {pendingSelectedIds.length > 0 && (
-                        <button 
-                            onClick={() => setBulkCancellationTarget(pendingSelectedIds)}
-                            style={documentStyles.bulkActionButton.cancel}
-                            disabled={isLoading}
-                        >
-                            <FiXCircle size={16} /> Bulk Cancel ({pendingSelectedIds.length})
-                        </button>
-                    )}
-
-                    {/* Bulk Delete Button (Only if Cancelled transactions are selected) */}
-                    {cancelledSelectedIds.length > 0 && (
-                        <button 
-                            onClick={() => setBulkDeletionTarget(cancelledSelectedIds)}
-                            style={documentStyles.bulkActionButton.delete}
-                            disabled={isLoading}
-                        >
-                            <FiTrash2 size={16} /> Bulk Delete ({cancelledSelectedIds.length})
-                        </button>
-                    )}
-                </div>
-            )}
-
-
-            {/* Display Messages */}
-            {successMessage && (
-                <div style={documentStyles.successMessage}>
-                    {successMessage}
-                </div>
-            )}
-
-            {error && (
-                <p style={documentStyles.errorMessage}>
-                    Error: {error}
-                </p>
-            )}
-            
-            {isLoading && transactions.length > 0 && (
-                 <div style={documentStyles.updatingMessage}>
-                    Updating list...
-                </div>
-            )}
-
-            {transactions.length === 0 && !isLoading ? (
-                <p style={{ textAlign: 'center', color: '#6b7280', padding: '10px 0' }}>
-                    You have no document application transactions yet.
-                </p>
-            ) : (
-                <div style={documentStyles.transactionList}>
-                    {transactions.map((transaction) => {
-                        const mediaUrls = transaction.requirementsMediaUrl || []; 
-                        const isSelected = selectedTransactions.includes(transaction.id);
-
-                        return (
-                            <div 
-                                key={transaction.id} 
-                                style={documentStyles.transactionItem}
-                                // Handle click for selection when in select mode
-                                onClick={isSelectMode ? () => handleTransactionSelect(transaction.id) : null}
-                            >
-                                {/* Checkbox for selection mode */}
-                                {isSelectMode && (
-                                    <div 
-                                        style={documentStyles.checkboxContainer}
-                                        onClick={(e) => {
-                                            e.stopPropagation(); // Prevent card onClick from firing
-                                            handleTransactionSelect(transaction.id);
-                                        }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            readOnly
-                                            style={documentStyles.checkbox}
-                                        />
-                                    </div>
-                                )}
-                                
-                                <div style={documentStyles.transactionContent}> {/* Wrap content for cleaner flex layout */}
-                                    <div style={documentStyles.transactionHeader}>
-                                        <span style={documentStyles.transactionDocName}>
-                                            {transaction.document_name}
-                                        </span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={getStatusStyle(transaction.status)}>
-                                                {transaction.status === 'Pending' && <FiClock size={14} />}
-                                                {transaction.status}
-                                            </span>
-
-                                            {/* Cancellation Button (Only for Pending, disabled in select mode) */}
-                                            {transaction.status === 'Pending' && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Prevent selection
-                                                        if (!isSelectMode) setCancellationTarget({ id: transaction.id, name: transaction.document_name });
-                                                    }}
-                                                    style={documentStyles.cancelButton}
-                                                    title="Cancel Application"
-                                                    disabled={isLoading || isSelectMode}
-                                                >
-                                                    &#x2715;
-                                                </button>
-                                            )}
-                                            
-                                            {/* Deletion Button (Only for Cancelled, disabled in select mode) */}
-                                            {transaction.status === 'Cancelled' && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Prevent selection
-                                                        if (!isSelectMode) setDeletionTarget({ id: transaction.id, name: transaction.document_name });
-                                                    }}
-                                                    style={documentStyles.deleteButton} 
-                                                    title="Delete Record Permanently"
-                                                    disabled={isLoading || isSelectMode}
-                                                >
-                                                    <FiTrash2 size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p style={documentStyles.transactionPurpose}>Purpose: {transaction.purpose}</p>
-
-                                    {mediaUrls.length > 0 && (
-                                        <div style={documentStyles.transactionRequirements}>
-                                            <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#10b981' }}>
-                                                Submitted Requirements:
-                                            </p>
-                                            {mediaUrls.map((url, index) => (
-                                                <a
-                                                    key={index}
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    style={documentStyles.requirementLink}
-                                                >
-                                                    <FiUploadCloud size={14} style={{ marginRight: '5px' }} />
-                                                    File {index + 1}
-                                                </a>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <div style={documentStyles.transactionFooter}>
-                                        <span style={documentStyles.transactionInfo}>
-                                            Date Filed: {formatDate(transaction.created_at)}
-                                        </span>
-                                        <span style={documentStyles.transactionInfo}>
-                                            Fee: ₱{parseFloat(transaction.fee).toFixed(2)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-            
-            {/* Single Action Modals */}
-            {cancellationTarget && (
-                <CancellationConfirmationModal
-                    transactionId={cancellationTarget.id}
-                    documentName={cancellationTarget.name}
-                    onConfirm={handleCancelExecute}
-                    onClose={() => setCancellationTarget(null)}
-                />
-            )}
-            {deletionTarget && (
-                <DeletionConfirmationModal
-                    transactionId={deletionTarget.id}
-                    documentName={deletionTarget.name}
-                    onConfirm={handleDeleteExecute}
-                    onClose={() => setDeletionTarget(null)}
-                />
-            )}
-
-            {/* Bulk Action Modals */}
-            {bulkCancellationTarget && (
-                <BulkCancellationConfirmationModal
-                    ids={bulkCancellationTarget}
-                    onConfirm={handleBulkCancelExecute}
-                    onClose={() => setBulkCancellationTarget(null)}
-                />
-            )}
-            {bulkDeletionTarget && (
-                <BulkDeletionConfirmationModal
-                    ids={bulkDeletionTarget}
-                    onConfirm={handleBulkDeleteExecute}
-                    onClose={() => setBulkDeletionTarget(null)}
-                />
-            )}
-        </section>
-    );
-};
-
-
-// ... (DocumentCard, ApplicationModal, and main DocumentsPage components remain largely the same)
-
-// Main Documents Page Component
-export default function DocumentsPage({ userName, userEmail, profilePictureUrl, currentUserId }) {
-    const [selectedDocument, setSelectedDocument] = useState(null);
-    const [refreshTrigger, setRefreshTrigger] = useState(0); 
-
-    const PLACEHOLDER_USER_ID = currentUserId || 1;
-
-    const handleApplyClick = (doc) => {
-        setSelectedDocument(doc);
-    };
-
-    const handleModalClose = () => {
-        setSelectedDocument(null);
-    };
-    
-    const handleApplicationSuccess = () => {
-        setRefreshTrigger(prev => prev + 1); 
-        setSelectedDocument(null); 
-    };
-
-    return (
-        <div style={documentStyles.pageContainer}>
-            <main style={documentStyles.contentArea}>
-                <h1 style={documentStyles.mainTitle}>
-                    Barangay Documents Application
-                </h1>
-                <p style={documentStyles.subtitle}>
-                    Apply for official barangay documents online. Processing times may vary.
-                </p>
-
-                <div style={documentStyles.gridContainer}>
-                    {documentTypes.map(doc => (
-                        <DocumentCard key={doc.id} doc={doc} onApplyClick={handleApplyClick} />
-                    ))}
-                </div>
-
-                <section style={documentStyles.downloadSection}>
-                    <h2 style={documentStyles.sectionTitle}>
-                        <FiDownload size={24} style={{ marginRight: '8px' }} />
-                        Downloadable Forms
-                    </h2>
-                    <div style={documentStyles.downloadList}>
-                        {availableDownloads.map(item => (
-                            <a
-                                key={item.id}
-                                href={item.file}
-                                download
-                                style={documentStyles.downloadLink}
-                            >
-                                <span>{item.name}</span>
-                                <FiDownload size={18} />
-                            </a>
-                        ))}
-                    </div>
-                </section>
-
-                <TransactionHistory currentUserId={PLACEHOLDER_USER_ID} refreshKey={refreshTrigger} /> 
-
-            </main>
-            <RightPanel userName={userName} userEmail={userEmail} profilePictureUrl={profilePictureUrl} />
-            {selectedDocument && (
-                <ApplicationModal
-                    document={selectedDocument}
-                    onClose={handleModalClose}
-                    onSuccess={handleApplicationSuccess}
-                    userName={userName}
-                    userEmail={userEmail}
-                    currentUserId={PLACEHOLDER_USER_ID}
-                />
-            )}
-        </div>
-    );
-}
-
-
-// Document Card Component (No changes)
-const DocumentCard = ({ doc, onApplyClick }) => {
-    return (
-        <div style={documentStyles.card}>
-            <div style={documentStyles.cardHeader}>
-                <FiFileText size={24} style={documentStyles.icon} />
-                <h3 style={documentStyles.docName}>{doc.name}</h3>
-            </div>
-            <p style={documentStyles.docDescription}>{doc.description}</p>
-            <div style={documentStyles.cardFooter}>
-                <span style={documentStyles.docFee(doc.fee)}>{doc.fee === 0.00 ? 'FREE' : `₱${doc.fee.toFixed(2)}`}</span>
-                <button
-                    style={documentStyles.applyButton}
-                    onClick={() => onApplyClick(doc)}
-                >
-                    <FiSend size={16} /> Apply Now
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// Application Modal Component (No changes)
-const ApplicationModal = ({ document, onClose, userName, userEmail, currentUserId, onSuccess }) => {
-    const [purpose, setPurpose] = useState('');
-    const [selectedFiles, setSelectedFiles] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
-    const [submitMessage, setSubmitMessage] = useState('');
-
-    const handleFileChange = (e) => {
-        const files = Array.from(e.target.files).slice(0, 5);
-        setSelectedFiles(files);
-        setSubmitMessage('');
-    };
-
-    const uploadRequirements = async () => {
-        // ... (upload logic remains the same)
-        if (selectedFiles.length === 0) {
-            return null;
+        
+        const feeRequired = currentDocument.fee > 0;
+        
+        // Conditional check for payment method/reference number
+        if (feeRequired) {
+             if (!paymentMethod || !referenceNumber) {
+                 alert('This document requires a fee. Please select a payment method and provide a reference number.');
+                 return;
+             }
         }
 
         const formData = new FormData();
-        selectedFiles.forEach(file => {
-            formData.append('requirements', file);
+        formData.append('document_id', currentDocument.id);
+        formData.append('user_email', userEmail);
+        formData.append('full_name', fullName);
+        formData.append('purpose', purpose);
+        // requirementsDetails is optional, but still sent
+        formData.append('requirements_details', currentDocument.requirements); 
+        
+        // Append all requirements files
+        requirementsFiles.forEach((file) => {
+            formData.append('requirements', file); // 'requirements' must match multer field name
         });
-
+        
+        // Append new payment details
+        if (feeRequired) {
+             formData.append('payment_method', paymentMethod); 
+             formData.append('payment_reference_number', referenceNumber); 
+        }
+        
         try {
-            const response = await fetch('http://localhost:5000/api/upload-requirements', {
+            const response = await fetch('http://localhost:5000/api/documents/apply', {
                 method: 'POST',
-                body: formData,
+                // Content-Type is NOT set for FormData with files
+                body: formData, 
             });
 
             const data = await response.json();
 
-            if (response.ok) {
-                return data.mediaUrls; 
-            } else {
-                throw new Error(data.message || 'Requirements upload failed.');
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to submit application due to a server error.');
             }
-        } catch (error) {
-            console.error('Requirements upload error:', error);
-            throw new Error(`Upload failed: ${error.message}`);
+            
+            closeModal();
+            setSuccessMessage(
+                `Successfully applied for: ${currentDocument.document_name}.\nYour application is **Pending** review. Application ID: ${data.applicationId}`
+            );
+            setTimeout(() => setSuccessMessage(''), 7000); 
+
+        } catch (err) {
+            alert(`Application Submission Error: ${err.message}`);
         }
     };
 
-    const handleSubmit = async (e) => {
-        // ... (submit logic remains the same)
-        e.preventDefault();
-
-        if (!purpose.trim() || !currentUserId) {
-            setSubmitMessage("Error: Missing purpose or User ID.");
-            return;
-        }
-
-        const requirementsExist = document.requirements && document.requirements.length > 0;
-        if (requirementsExist && selectedFiles.length === 0) {
-            setSubmitMessage("Error: Please attach the required documents (images) before submitting.");
-            return;
-        }
-
-        setIsLoading(true);
-        setSubmitMessage('Uploading requirements...');
-        let uploadedUrls = null;
-
-        try {
-            if (selectedFiles.length > 0) {
-                uploadedUrls = await uploadRequirements();
-            }
-
-            setSubmitMessage('Submitting application...');
-
-            const applicationData = {
-                userId: currentUserId,
-                documentName: document.name,
-                purpose: purpose,
-                fee: document.fee,
-                requirementsMediaUrl: uploadedUrls && uploadedUrls.length > 0 ? JSON.stringify(uploadedUrls) : null,
-            };
-
-            const response = await fetch('http://localhost:5000/api/document-application', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(applicationData),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSubmitMessage(`Application submitted successfully! Transaction ID: ${data.transactionId}. Status: ${data.status}`);
-                setIsSubmitted(true);
-                setTimeout(onSuccess, 1500); 
-            } else {
-                throw new Error(data.message || 'Server error during application submission.');
-            }
-
-        } catch (error) {
-            console.error('Application submission error:', error);
-            setSubmitMessage(`Submission failed: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (isSubmitted) {
-        return (
-            <div style={documentStyles.modalBackdrop}>
-                <div style={documentStyles.modalContent}>
-                    <h2 style={documentStyles.modalHeader}>Application Sent!</h2>
-                    <p>Your application for {document.name} has been successfully submitted.</p>
-                    <p style={{ color: '#059669', fontWeight: 'bold' }}>
-                        {submitMessage}
-                    </p>
-                    <p>
-                        The transaction history will refresh shortly.
-                    </p>
-                    <button style={documentStyles.closeButtonSuccess} onClick={onSuccess}>
-                        Close
-                    </button>
-                </div>
-            </div>
-        );
+    if (loading) {
+        return <div style={{...styles.container, textAlign: 'center'}}>Loading documents...</div>;
     }
 
-    const requirementsExist = document.requirements && document.requirements.length > 0;
+    if (error) {
+        return <div style={{...styles.container, color: 'red', textAlign: 'center'}}><FiAlertTriangle /> Error: {error}</div>;
+    }
 
     return (
-        <div style={documentStyles.modalBackdrop}>
-            <div style={documentStyles.modalContent}>
-                <h2 style={documentStyles.modalHeader}>Apply for: {document.name}</h2>
-                <button style={documentStyles.modalClose} onClick={onClose}>&times;</button>
+        <div style={styles.container}>
+            <h1 style={styles.header}>Barangay Document Applications</h1>
+            <p style={styles.subheader}>
+                Apply for official documents and certificates. Your application will be processed using the email registered to your account: <strong>{userEmail || 'N/A'}</strong>.
+            </p>
 
-                {requirementsExist && (
-                    <div style={documentStyles.requirementsSection}>
-                        <h3 style={documentStyles.requirementsTitle}>Required Documents / Information:</h3>
-                        <ul style={documentStyles.requirementsList}>
-                            {document.requirements.map((req, index) => (
-                                <li key={index} style={documentStyles.requirementItem}>
-                                    {req}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
+            {successMessage && <div style={styles.successBox}><FiCheckCircle /> {successMessage}</div>}
 
-                <p style={documentStyles.modalInfo}>
-                    <FiInfo size={14} style={{ marginRight: '5px' }} />
-                    Fee: {document.fee === 0.00 ? 'FREE' : `₱${document.fee.toFixed(2)}`}
-                </p>
+            {!isLoggedIn && (
+                <div style={styles.loginAlert}>
+                    <FiLogIn size={20} style={{marginRight: '10px'}}/>
+                    **Action Required:** You must be logged in to submit an application. Please log in or create an account.
+                </div>
+            )}
 
-                <form onSubmit={handleSubmit}>
-                    <div style={documentStyles.formGroup}>
-                        <label style={documentStyles.label}>Applicant Name:</label>
-                        <input type="text" value={userName} readOnly style={documentStyles.inputReadOnly} />
-                    </div>
-                    <div style={documentStyles.formGroup}>
-                        <label style={documentStyles.label}>Email Address:</label>
-                        <input type="email" value={userEmail} readOnly style={documentStyles.inputReadOnly} />
-                    </div>
-                    <div style={documentStyles.formGroup}>
-                        <label style={documentStyles.label}>Applicant ID (for transaction):</label>
-                        <input type="text" value={currentUserId} readOnly style={documentStyles.inputReadOnly} />
-                    </div>
-
-                    <div style={documentStyles.formGroup}>
-                        <label htmlFor="purpose" style={documentStyles.label}>
-                            Purpose of Document <span style={{ color: 'red' }}>*</span>
-                        </label>
-                        <textarea
-                            id="purpose"
-                            rows="4"
-                            value={purpose}
-                            onChange={(e) => {
-                                setPurpose(e.target.value);
-                                setSubmitMessage('');
-                            }}
-                            required
-                            style={documentStyles.textarea}
-                            placeholder="e.g., Job application, Scholarship, Business permit renewal, etc."
-                        />
-                    </div>
-
-                    <div style={documentStyles.formGroup}>
-                        <label htmlFor="requirements-upload" style={documentStyles.label}>
-                            Attach Requirements (Images Only, Max 5 Files)
-                            {requirementsExist && <span style={{ color: 'red' }}> *</span>}
-                        </label>
-                        <input
-                            type="file"
-                            id="requirements-upload"
-                            accept="image/*"
-                            multiple
-                            onChange={handleFileChange}
-                            style={documentStyles.fileInput}
-                        />
-                        {selectedFiles.length > 0 && (
-                            <p style={documentStyles.fileCountText}>
-                                {selectedFiles.length} file(s) selected: {selectedFiles.map(f => f.name).join(', ').substring(0, 100) + '...'}
+            <div style={styles.documentGrid}>
+                {documents.map(doc => (
+                    <div key={doc.id} style={styles.card}>
+                        <div style={styles.cardHeader}>
+                            <FiFileText size={24} style={styles.icon} />
+                            <h2 style={styles.documentName}>{doc.document_name}</h2>
+                        </div>
+                        <p style={styles.description}>{doc.description}</p>
+                        
+                        <div style={styles.details}>
+                            <div style={styles.detailItem}>
+                                Fee: 
+                                <span>{doc.fee > 0 ? `₱${doc.fee.toFixed(2)}` : 'FREE'}</span>
+                            </div>
+                            {/* Display requirements prominently in the card */}
+                            <p style={styles.requirements}>
+                                <strong>Requirements:</strong> {doc.requirements || 'Varies based on purpose.'}
                             </p>
-                        )}
-                        <p style={documentStyles.modalSmallPrint}>
-                             Please ensure you have digitally scanned or taken clear photos of all documents listed above.
-                        </p>
+                        </div>
+                        
+                        <button 
+                            style={isLoggedIn ? styles.applyButton : styles.disabledButton} 
+                            onClick={() => openApplyModal(doc)}
+                            disabled={!isLoggedIn}
+                        >
+                            {isLoggedIn ? 'Apply Now' : 'Log in to Apply'}
+                        </button>
                     </div>
-
-                    <button
-                        type="submit"
-                        style={documentStyles.submitButton(isLoading)}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? submitMessage : <><FiSend size={16} /> Submit Application</>}
-                    </button>
-                </form>
-                {submitMessage && !isSubmitted && !isLoading && (
-                    <p style={{
-                        color: submitMessage.startsWith('Error') ? 'red' : '#b45309',
-                        marginTop: '10px',
-                        textAlign: 'center',
-                        fontWeight: '600'
-                    }}>
-                        {submitMessage}
-                    </p>
-                )}
+                ))}
             </div>
+            
+            {/* ========================================================= */}
+            {/* APPLICATION MODAL */}
+            {/* ========================================================= */}
+            {isModalOpen && currentDocument && (
+                <div style={modalStyles.backdrop}>
+                    <div style={modalStyles.modal}>
+                        <div style={modalStyles.modalHeader}>
+                            <h2>Application for: {currentDocument.document_name}</h2>
+                            <button onClick={closeModal} style={modalStyles.closeButton}><FiX size={20} /></button>
+                        </div>
+                        <form onSubmit={handleApply} style={modalStyles.form}>
+                            
+                            {/* Document Requirements Display (Updated Style) */}
+                            <div style={modalStyles.requirementsBox}>
+                                <h3 style={modalStyles.requirementsHeader}><FiPaperclip /> Official Requirements</h3>
+                                <p style={modalStyles.requirementsContent}>
+                                    {currentDocument.requirements || "No specific requirements listed. Please provide all necessary supporting documents."}
+                                </p>
+                            </div>
+
+                            <div style={modalStyles.formGroup}>
+                                <label style={modalStyles.label}>Full Name of Applicant *</label>
+                                <input 
+                                    type="text" 
+                                    value={fullName} 
+                                    onChange={(e) => setFullName(e.target.value)} 
+                                    style={modalStyles.input} 
+                                    required 
+                                />
+                            </div>
+
+                            <div style={modalStyles.formGroup}>
+                                <label style={modalStyles.label}>Purpose of Application *</label>
+                                <textarea 
+                                    value={purpose} 
+                                    onChange={(e) => setPurpose(e.target.value)} 
+                                    style={modalStyles.textarea} 
+                                    required 
+                                />
+                                <small style={modalStyles.hint}>e.g., Job application, School requirement, Financial assistance.</small>
+                            </div>
+                            
+                            {/* Requirements File Upload */}
+                            <div style={modalStyles.formGroup}>
+                                <label style={modalStyles.label}>Upload Requirements (Max 5 files) *</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*,application/pdf" 
+                                    onChange={handleRequirementsChange} 
+                                    style={modalStyles.fileInput} 
+                                    multiple // Allows multiple file selection
+                                    required 
+                                />
+                                {requirementsFiles.length > 0 && 
+                                    <small style={modalStyles.hint}>Files ready: {requirementsFiles.length} uploaded.</small>
+                                }
+                                <small style={modalStyles.hint}>Accepted formats: Image (PNG, JPG) or PDF. Max 5 files.</small>
+                            </div>
+                            
+                            {/* Payment Section (if fee is required) */}
+                            {currentDocument.fee > 0 && (
+                                <div style={modalStyles.paymentBox}>
+                                    <h3 style={modalStyles.requirementsHeader}><FiDollarSign /> Payment Details</h3>
+                                    <p style={modalStyles.paymentFee}>
+                                        **Required Fee: ₱{currentDocument.fee.toFixed(2)}** </p>
+                                    
+                                    {/* Barangay Payment Accounts (NEW) */}
+                                    {barangayPaymentDetails.length > 0 && (
+                                        <div style={modalStyles.paymentAccountList}>
+                                            <h4 style={modalStyles.accountHeader}><FiCreditCard size={16} /> Pay to:</h4>
+                                            {barangayPaymentDetails.map((detail, index) => (
+                                                <p key={index} style={modalStyles.accountDetail}>
+                                                    <strong>{detail.method_name} ({detail.account_name}):</strong> {detail.account_number}
+                                                </p>
+                                            ))}
+                                            <small style={modalStyles.hint}>Please pay the fee to one of the accounts above before submitting.</small>
+                                        </div>
+                                    )}
+
+                                    {/* User Payment Method and Reference Number Input (NEW) */}
+                                    <div style={modalStyles.paymentInputGroup}>
+                                        <div style={{...modalStyles.formGroup, flex: 1}}>
+                                            <label style={modalStyles.label}>Payment Method Used *</label>
+                                            <select
+                                                value={paymentMethod}
+                                                onChange={(e) => setPaymentMethod(e.target.value)}
+                                                style={modalStyles.input}
+                                                required={currentDocument.fee > 0}
+                                            >
+                                                <option value="" disabled>Select Method</option>
+                                                {barangayPaymentDetails.map((detail, index) => (
+                                                    <option key={index} value={detail.method_name}>{detail.method_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div style={{...modalStyles.formGroup, flex: 2}}>
+                                            <label style={modalStyles.label}>Payment Reference Number *</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Enter reference number (e.g., 1234567890)"
+                                                value={referenceNumber}
+                                                onChange={(e) => setReferenceNumber(e.target.value)} 
+                                                style={modalStyles.input} 
+                                                required={currentDocument.fee > 0}
+                                            />
+                                        </div>
+                                    </div>
+                                    <small style={modalStyles.hint}>Providing the correct reference number is crucial for verification.</small>
+                                </div>
+                            )}
+
+                            <div style={modalStyles.formActions}>
+                                <button type="submit" style={modalStyles.submitButton}>
+                                    Submit Application
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-// ⭐ Styles (Updated to include new bulk action and selection styles)
-const documentStyles = {
-    pageContainer: {
+const styles = {
+    container: {
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px',
         minHeight: '100vh',
-        width: '100%',
     },
-    contentArea: {
-        width: '100%',
-        paddingTop: '30px',
-        paddingLeft: '15px',
-        paddingRight: '350px',
-        paddingBottom: '50px',
-        boxSizing: 'border-box',
+    header: {
+        color: '#2563eb',
+        marginBottom: '10px',
+        borderBottom: '2px solid #eff6ff',
+        paddingBottom: '10px',
     },
-    mainTitle: {
-        fontSize: '24px',
-        fontWeight: '700',
-        color: '#1e40af',
-        margin: '0',
-        marginBottom: '5px',
-    },
-    subtitle: {
+    subheader: {
+        color: '#4b5563',
+        marginBottom: '30px',
         fontSize: '16px',
-        color: '#6b7280',
-        margin: '0 0 30px 0',
     },
-    gridContainer: {
+    documentGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: '20px',
-        marginBottom: '40px',
     },
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e5e7eb',
         borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
         padding: '20px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'box-shadow 0.3s',
-        minHeight: '180px',
-        border: '1px solid #e5e7eb',
     },
     cardHeader: {
         display: 'flex',
@@ -1040,474 +371,245 @@ const documentStyles = {
         color: '#2563eb',
         marginRight: '10px',
     },
-    docName: {
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#1e3a8a',
+    documentName: {
+        fontSize: '1.4rem',
+        color: '#1f2937',
         margin: '0',
     },
-    docDescription: {
-        fontSize: '14px',
-        color: '#4b5563',
+    description: {
+        color: '#6b7280',
+        fontSize: '0.95rem',
+        marginBottom: '15px',
         flexGrow: 1,
+    },
+    details: {
+        borderTop: '1px solid #f3f4f6',
+        paddingTop: '15px',
         marginBottom: '15px',
     },
-    cardFooter: {
+    detailItem: {
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: '10px',
-        paddingTop: '10px',
-        borderTop: '1px solid #f3f4f6',
+        fontSize: '1rem',
+        color: '#10b981',
+        marginBottom: '5px',
+        fontWeight: '600',
     },
-    docFee: (fee) => ({
-        fontSize: '16px',
-        fontWeight: '700',
-        color: fee === 0 ? '#059669' : '#b45309',
-        padding: '5px 10px',
-        backgroundColor: fee === 0 ? '#ecfdf5' : '#fff7ed',
-        borderRadius: '6px',
-    }),
+    requirements: {
+        fontSize: '0.85rem',
+        color: '#4b5563',
+        marginTop: '10px',
+        lineHeight: '1.4',
+    },
     applyButton: {
         backgroundColor: '#2563eb',
-        color: '#fff',
+        color: 'white',
         border: 'none',
-        borderRadius: '8px',
         padding: '10px 15px',
+        borderRadius: '8px',
         cursor: 'pointer',
-        fontSize: '14px',
+        fontSize: '1rem',
+        fontWeight: '600',
+        transition: 'background-color 0.3s',
+        marginTop: 'auto',
+    },
+    disabledButton: {
+        backgroundColor: '#9ca3af',
+        color: '#f3f4f6',
+        border: 'none',
+        padding: '10px 15px',
+        borderRadius: '8px',
+        fontSize: '1rem',
+        fontWeight: '600',
+        cursor: 'not-allowed',
+        marginTop: 'auto',
+    },
+    successBox: {
+        backgroundColor: '#d1fae5',
+        color: '#065f46',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontSize: '1rem',
         fontWeight: '600',
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
-        transition: 'background-color 0.2s',
+        gap: '10px',
+        whiteSpace: 'pre-wrap',
     },
-    modalBackdrop: {
+    loginAlert: {
+        backgroundColor: '#fffae6',
+        color: '#92400e',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontSize: '1rem',
+        fontWeight: '500',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    noDocuments: {
+        textAlign: 'center',
+        marginTop: '50px',
+        color: '#9ca3af',
+    }
+};
+
+
+// Styles for the Modal Popup
+const modalStyles = {
+    backdrop: {
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1000,
     },
-    modalContent: {
-        backgroundColor: '#fff',
+    modal: {
+        backgroundColor: 'white',
         padding: '30px',
-        borderRadius: '16px',
+        borderRadius: '10px',
         width: '90%',
-        maxWidth: '450px',
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-        position: 'relative',
+        maxWidth: '600px',
         maxHeight: '90vh',
         overflowY: 'auto',
+        boxShadow: '0 10px 20px rgba(0, 0, 0, 0.2)',
     },
     modalHeader: {
-        color: '#1e40af',
-        borderBottom: '2px solid #eff6ff',
-        paddingBottom: '10px',
-        marginBottom: '20px',
-        fontSize: '22px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalClose: {
-        position: 'absolute',
-        top: '15px',
-        right: '15px',
-        background: 'none',
-        border: 'none',
-        fontSize: '24px',
-        cursor: 'pointer',
-        color: '#9ca3af',
-    },
-    modalInfo: {
-        backgroundColor: '#f0f9ff',
-        borderLeft: '4px solid #3b82f6',
-        padding: '10px',
-        marginBottom: '20px',
-        fontSize: '14px',
-        color: '#1e40af',
-        display: 'flex',
-        alignItems: 'center',
-    },
-    requirementsSection: {
-        backgroundColor: '#f9f9f9',
-        border: '1px solid #e5e7eb',
-        borderRadius: '8px',
-        padding: '15px',
-        marginBottom: '20px',
-    },
-    requirementsTitle: {
-        fontSize: '16px',
-        fontWeight: '700',
-        color: '#374151',
-        margin: '0 0 10px 0',
-        paddingBottom: '5px',
-        borderBottom: '1px dashed #d1d5db',
-    },
-    requirementsList: {
-        listStyle: 'disc',
-        paddingLeft: '20px',
-        margin: '0',
-    },
-    requirementItem: {
-        fontSize: '14px',
-        color: '#4b5563',
-        marginBottom: '5px',
-    },
-    formGroup: {
-        marginBottom: '15px',
-    },
-    label: {
-        display: 'block',
-        marginBottom: '5px',
-        fontWeight: '600',
-        color: '#374151',
-        fontSize: '14px',
-    },
-    inputReadOnly: {
-        width: '95%',
-        padding: '10px',
-        borderRadius: '8px',
-        border: '1px solid #d1d5db',
-        backgroundColor: '#e5e7eb',
-        color: '#4b5563',
-        fontSize: '16px',
-    },
-    textarea: {
-        width: '95%',
-        padding: '10px',
-        borderRadius: '8px',
-        border: '1px solid #d1d5db',
-        resize: 'vertical',
-        fontSize: '16px',
-    },
-    fileInput: {
-        display: 'block',
-        width: '95%',
-        padding: '10px',
-        border: '2px dashed #93c5fd',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        backgroundColor: '#f7faff',
-        fontSize: '14px',
-    },
-    fileCountText: {
-        fontSize: '12px',
-        color: '#10b981',
-        marginTop: '5px',
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        textOverflow: 'ellipsis',
-    },
-    modalSmallPrint: {
-        fontSize: '12px',
-        color: '#6b7280',
-        marginTop: '5px',
-    },
-    submitButton: (isLoading) => ({
-        width: '100%',
-        backgroundColor: isLoading ? '#93c5fd' : '#2563eb',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '12px 20px',
-        cursor: isLoading ? 'not-allowed' : 'pointer',
-        fontSize: '16px',
-        fontWeight: '600',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        transition: 'background-color 0.2s',
-        marginTop: '20px',
-    }),
-    closeButtonSuccess: {
-        backgroundColor: '#10b981',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '10px 15px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        fontWeight: '600',
-        marginTop: '20px',
-        width: '100%',
-    },
-    downloadSection: {
-        marginBottom: '40px',
-    },
-    downloadList: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '15px',
-    },
-    downloadLink: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        backgroundColor: '#f0f9ff',
-        color: '#2563eb',
-        textDecoration: 'none',
-        padding: '10px 15px',
-        borderRadius: '8px',
-        border: '1px solid #bfdbfe',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'background-color 0.2s',
-        flexGrow: 1,
-        maxWidth: '350px',
-    },
-    // --- Transaction History Styles ---
-    transactionSection: {
-        backgroundColor: '#fff',
-        padding: '25px',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb',
-    },
-    transactionHeaderActions: { // New style for header wrapper
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingBottom: '10px',
-        borderBottom: '1px solid #eff6ff',
+        borderBottom: '1px solid #e5e7eb',
+        paddingBottom: '15px',
         marginBottom: '20px',
     },
-    sectionTitle: {
-        fontSize: '20px',
-        fontWeight: '700',
-        color: '#3b82f6',
-        margin: 0,
-        display: 'flex',
-        alignItems: 'center',
-    },
-    selectModeButton: (isActive) => ({
-        backgroundColor: isActive ? '#fef2f2' : '#eff6ff',
-        color: isActive ? '#ef4444' : '#2563eb',
-        border: isActive ? '1px solid #fecaca' : '1px solid #bfdbfe',
-        borderRadius: '8px',
-        padding: '8px 12px',
+    closeButton: {
+        background: 'none',
+        border: 'none',
         cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        transition: 'background-color 0.2s',
-    }),
-    bulkActionBar: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        backgroundColor: '#f0f9ff',
-        border: '1px solid #93c5fd',
-        padding: '10px 15px',
-        borderRadius: '8px',
-        marginBottom: '15px',
+        color: '#6b7280',
     },
-    bulkActionText: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#1e40af',
-        marginRight: '10px',
-    },
-    bulkActionButton: {
-        cancel: {
-            backgroundColor: '#f97316',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 10px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            transition: 'background-color 0.2s',
-        },
-        delete: {
-            backgroundColor: '#b91c1c',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 10px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            transition: 'background-color 0.2s',
-        }
-    },
-    successMessage: {
-        textAlign: 'center',
-        color: '#059669',
-        backgroundColor: '#ecfdf5',
-        padding: '10px',
-        borderRadius: '8px',
-        marginBottom: '15px',
-        fontWeight: 'bold'
-    },
-    errorMessage: {
-        textAlign: 'center', 
-        color: '#ef4444', 
-        padding: '10px 0', 
-        backgroundColor: '#fee2e2', 
-        borderRadius: '8px', 
-        marginBottom: '15px'
-    },
-    updatingMessage: {
-        textAlign: 'center',
-        color: '#2563eb',
-        backgroundColor: '#eff6ff',
-        padding: '5px',
-        borderRadius: '8px',
-        marginBottom: '10px',
-        fontWeight: 'bold',
-        fontSize: '14px'
-    },
-    transactionList: {
+    form: {
         display: 'flex',
         flexDirection: 'column',
         gap: '15px',
     },
-    transactionItem: {
-        border: '1px solid #e5e7eb',
-        borderRadius: '10px',
-        padding: '15px',
-        backgroundColor: '#f9fafb',
-        display: 'flex', // Added flex to align checkbox
-        alignItems: 'flex-start',
-        cursor: 'default',
-        transition: 'border 0.2s',
-    },
-    checkboxContainer: {
-        paddingRight: '10px',
-        paddingTop: '5px',
-        flexShrink: 0,
-        cursor: 'pointer',
-    },
-    checkbox: {
-        width: '18px',
-        height: '18px',
-        cursor: 'pointer',
-    },
-    transactionContent: { // New wrapper for original item content
-        flexGrow: 1,
-    },
-    transactionHeader: {
+    formGroup: {
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '5px',
-        borderBottom: '1px solid #f3f4f6',
-        paddingBottom: '8px',
+        flexDirection: 'column',
     },
-    transactionDocName: {
-        fontSize: '16px',
-        fontWeight: '700',
+    label: {
+        fontWeight: '600',
+        marginBottom: '5px',
         color: '#1f2937',
     },
-    transactionPurpose: {
-        fontSize: '14px',
-        color: '#4b5563',
-        margin: '5px 0',
-    },
-    transactionRequirements: {
-        marginTop: '10px',
-        paddingTop: '10px',
-        borderTop: '1px dashed #e5e7eb',
-    },
-    requirementLink: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        fontSize: '12px',
-        color: '#10b981',
-        textDecoration: 'none',
-        marginRight: '15px',
-        backgroundColor: '#ecfdf5',
-        padding: '3px 8px',
-        borderRadius: '4px',
-    },
-    transactionFooter: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginTop: '10px',
-        paddingTop: '10px',
-        borderTop: '1px solid #e5e7eb',
-    },
-    transactionInfo: {
-        fontSize: '12px',
-        color: '#6b7280',
-    },
-    cancelButton: {
-        backgroundColor: '#fef2f2',
-        color: '#ef4444',
-        border: '1px solid #fecaca',
-        borderRadius: '50%',
-        width: '28px',
-        height: '28px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '14px',
-        transition: 'background-color 0.2s',
-    },
-    cancelButtonPrimary: {
-        backgroundColor: '#ef4444',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '10px 15px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        transition: 'background-color 0.2s',
-    },
-    cancelButtonSecondary: {
-        backgroundColor: '#f3f4f6',
-        color: '#374151',
+    input: {
+        padding: '10px',
         border: '1px solid #d1d5db',
-        borderRadius: '8px',
-        padding: '10px 15px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
+        borderRadius: '6px',
+        fontSize: '1rem',
     },
-    deleteButton: {
-        backgroundColor: '#fef2f2',
-        color: '#b91c1c',
-        border: '1px solid #fecaca',
-        borderRadius: '50%',
-        width: '28px',
-        height: '28px',
+    textarea: {
+        padding: '10px',
+        border: '1px solid #d1d5db',
+        borderRadius: '6px',
+        fontSize: '1rem',
+        minHeight: '80px',
+        resize: 'vertical',
+    },
+    hint: {
+        fontSize: '0.8rem',
+        color: '#6b7280',
+        marginTop: '5px',
+    },
+    fileInput: {
+        padding: '10px 0',
+    },
+    paymentBox: {
+        border: '2px dashed #34d399', // Changed color to green/success color
+        backgroundColor: '#ecfdf5', // Light green background
+        padding: '15px',
+        borderRadius: '8px',
+    },
+    paymentFee: {
+        color: '#065f46',
+        fontWeight: '700',
+        marginBottom: '10px',
+        fontSize: '1.1rem',
+    },
+    paymentInputGroup: {
+        display: 'flex',
+        gap: '15px',
+        marginTop: '15px',
+    },
+    paymentAccountList: {
+        backgroundColor: '#fff',
+        border: '1px solid #d1d5db',
+        padding: '10px',
+        borderRadius: '6px',
+        marginTop: '10px',
+        marginBottom: '15px',
+    },
+    accountHeader: {
+        fontSize: '1rem',
+        color: '#1f2937',
+        margin: '0 0 5px 0',
+        fontWeight: '600',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '14px',
-        transition: 'background-color 0.2s',
+        gap: '5px',
     },
-    deleteButtonPrimary: {
-        backgroundColor: '#b91c1c',
-        color: '#fff',
+    accountDetail: {
+        fontSize: '0.9rem',
+        margin: '5px 0',
+        color: '#4b5563',
+    },
+    formActions: {
+        marginTop: '20px',
+        display: 'flex',
+        justifyContent: 'flex-end',
+    },
+    submitButton: {
+        backgroundColor: '#10b981',
+        color: 'white',
         border: 'none',
+        padding: '12px 20px',
         borderRadius: '8px',
-        padding: '10px 15px',
         cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        transition: 'background-color 0.2s',
+        fontSize: '1.1rem',
+        fontWeight: '700',
+        transition: 'background-color 0.3s',
     },
+    // UPDATED STYLE: Removed color bar and used a neutral border
+    requirementsBox: { 
+        backgroundColor: '#f9f9f9',
+        border: '1px solid #e0e0e0',
+        padding: '15px',
+        borderRadius: '8px',
+        marginBottom: '15px',
+    },
+    // UPDATED STYLE: Neutralized color
+    requirementsHeader: {
+        margin: '0 0 10px 0',
+        color: '#1f2937', 
+        fontSize: '1.1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        borderBottom: '1px solid #e5e7eb', // Added a subtle separator
+        paddingBottom: '5px',
+    },
+    requirementsContent: {
+        margin: 0,
+        color: '#4b5563',
+        fontSize: '0.9rem',
+        whiteSpace: 'pre-wrap', 
+    }
 };
+
+export default DocumentsPage;
