@@ -1724,6 +1724,101 @@ app.put('/api/admin/officials/:id', (req, res) => {
 });
 
 
+// GET /api/admin/content/all - Fetches all posts and jobs with response counts
+app.get('/api/admin/content/all', (req, res) => {
+    // NOTE: Implement isAdmin middleware here for security
+    
+    // CORRECTION APPLIED: Changed 'p.content_body' to 'p.body'
+    const sql = `
+        (
+            SELECT
+                p.id,
+                p.title,
+                p.body AS content_body,  -- *** CORRECTED COLUMN NAME ***
+                'Post' AS content_type,
+                p.created_at,
+                u.name AS author_name,
+                (SELECT COUNT(r.id) FROM responses r WHERE r.post_id = p.id) AS response_count
+            FROM posts p
+            LEFT JOIN users u ON p.user_id = u.id
+        )
+        UNION ALL
+        (
+            SELECT
+                j.id,
+                j.title,
+                j.body AS content_body, 
+                'Job' AS content_type,
+                j.created_at,
+                u.name AS author_name,
+                (SELECT COUNT(r.id) FROM responses r WHERE r.job_id = j.id) AS response_count
+            FROM jobs j
+            LEFT JOIN users u ON j.user_id = u.id
+        )
+        ORDER BY created_at DESC
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Database query error for admin content:', err);
+            return res.status(500).json({ message: 'Failed to retrieve content.' });
+        }
+        res.status(200).json({ content: results });
+    });
+});
+
+// GET /api/admin/content/post/responses/:contentId - Get all responses for a thread
+app.get('/api/admin/content/post/responses/:postId', (req, res) => {
+    const { postId } = req.params;
+    
+    const sql = `
+        SELECT 
+            r.id,
+            r.content AS response_content,
+            r.created_at,
+            u.name AS author_name
+        FROM responses r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.post_id = ?
+        ORDER BY r.created_at ASC
+    `;
+
+    db.query(sql, [postId], (err, results) => {
+        if (err) {
+            console.error('Database query error for post responses:', err);
+            return res.status(500).json({ message: 'Failed to retrieve post responses.' });
+        }
+        res.status(200).json({ responses: results });
+    });
+});
+
+// GET /api/admin/content/job/responses/:contentId - Get all applications for a job
+app.get('/api/admin/content/job/responses/:jobId', (req, res) => {
+    const { jobId } = req.params;
+    
+    // Assuming job applications/responses are stored in the same 'responses' table but linked by job_id
+    const sql = `
+        SELECT 
+            r.id,
+            r.content AS response_content, -- This might contain application text or a link to a CV
+            r.created_at,
+            u.name AS author_name
+        FROM responses r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.job_id = ?
+        ORDER BY r.created_at ASC
+    `;
+
+    db.query(sql, [jobId], (err, results) => {
+        if (err) {
+            console.error('Database query error for job applications:', err);
+            return res.status(500).json({ message: 'Failed to retrieve job applications.' });
+        }
+        res.status(200).json({ responses: results });
+    });
+});
+
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

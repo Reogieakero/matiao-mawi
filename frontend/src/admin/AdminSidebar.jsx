@@ -15,7 +15,7 @@ const AdminSidebar = () => {
         { name: 'Manage Users', path: '/admin/users', icon: Users },
         // NEW: Manage Officials link added here
         { name: 'Manage Officials', path: '/admin/officials', icon: UserCheck },
-        { name: 'Content Posts', path: '/admin/posts', icon: MessageSquare },
+        { name: 'Content Management', path: '/admin/content-management', icon: MessageSquare },
         { name: 'Job Listings', path: '/admin/jobs', icon: Briefcase },
     ];
     

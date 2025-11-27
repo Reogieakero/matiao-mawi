@@ -22,6 +22,7 @@ import AdminLayout from './admin/AdminLayout';
 import AdminLoginPage from './admin/AdminLoginPage';
 import AdminDashboardPage from './admin/AdminDashboardPage';
 import AdminOfficialsPage from './admin/AdminOfficialsPage'; 
+import AdminContentManagementPage from './admin/AdminContentManagementPage';
 
 
 
@@ -237,8 +238,7 @@ const App = () => {
                         <Route path="/dashboard" element={<AdminDashboardPage />} />
                         <Route path="/users" element={<AdminUsersPage />} />
                         <Route path="/officials" element={<AdminOfficialsPage />} /> 
-                        <Route path="/posts" element={<Placeholder title="Admin Content Posts" />} />
-                        <Route path="/jobs" element={<Placeholder title="Admin Job Listings" />} />
+                        <Route path="/content-management" element={<AdminContentManagementPage />} />
                         <Route path="/news" element={<Placeholder title="Admin News Management" />} />
                         <Route path="/announcements" element={<Placeholder title="Admin Announcements" />} />
                         <Route path="/documents" element={<Placeholder title="Admin Documents Requests" />} />
