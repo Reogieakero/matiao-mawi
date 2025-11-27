@@ -62,7 +62,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
 
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
-    const firstName = userName ? userName.split(' ')[0] : 'User';
+    const firstName = userName ? userName.split(' ')[0] : 'Mawii';
     const userId = parseInt(localStorage.getItem('userId'), 10); 
 
     // NEW HELPER: Function to render avatar based on URL presence
@@ -702,35 +702,42 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 />
             </div>
 
-            {/* ⭐ NEW: Read Details Modal */}
+            {/* ⭐ MODIFIED: Full Read Details Modal for consistency (Same Width/Height/Radius) */}
             {isReadModalOpen && readModalThread && (
-                // Click outside to close
                 <div style={styles.modalOverlay} onClick={closeReadModal}>
-                    {/* Stop propagation for clicks inside content */}
-                    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        {/* Header without title/border */}
-                        <div style={styles.modalHeaderNoBorder}> 
-                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
-                        </div>
+                    {/* Use styles.modalContent for consistent width, height, and border radius. Override padding to 0 for internal layout control. */}
+                    <div style={{...styles.modalContent, padding: '0'}} onClick={(e) => e.stopPropagation()}>
                         
-                        <div style={styles.modalUserSection}>
-                            {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')} 
-                            <span style={styles.modalUserName}>{readModalThread.author}</span>
-                            <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
+                        {/* Header: Author info, Tag, and Close button - Uses NEW style */}
+                        <div style={styles.readModalHeader}>
+                            <div style={styles.threadAuthorInfo}>
+                                {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'small')}
+                                <div>
+                                    <span style={styles.threadAuthorName}>{readModalThread.author}</span>
+                                    <span style={styles.threadTime}> {getTimeSince(readModalThread.time)} </span>
+                                </div>
+                            </div>
                             <span style={styles.threadTagModified}>{readModalThread.tag}</span>
+                            <FiX size={28} style={{ cursor: 'pointer', color: '#6b7280', marginLeft: '10px' }} onClick={closeReadModal} />
                         </div>
                         
-                        {/* Full Content */}
-                        <p style={styles.modalThreadBody}>
-                            {readModalThread.body}
-                        </p>
+                        {/* Scrollable Body: Content and Media - Uses NEW style */}
+                        <div style={styles.readModalBody}>
+                            {/* Full Content - Reusing the style for full thread body */}
+                            <p style={styles.modalThreadBody}>
+                                {readModalThread.body}
+                            </p>
 
-                        {/* Media (if any) */}
-                        {renderMediaGallery(readModalThread.mediaUrls)}
+                            {/* Media (if any) */}
+                            {renderMediaGallery(readModalThread.mediaUrls)}
+                        </div>
 
-                        <button onClick={closeReadModal} style={styles.modalCloseButton}>
-                            <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
-                        </button>
+                        {/* Footer: Close button */}
+                        <div style={{ padding: '0 25px 25px', borderTop: '1px solid #e5e7eb' }}>
+                            <button style={styles.modalCloseButton} onClick={closeReadModal}>
+                                <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1202,12 +1209,12 @@ const styles = {
     modalContent: {
         backgroundColor: '#fff',
         padding: '25px',
-        // Consistent Radius
-        borderRadius: '16px', // ⭐ ADDED: Consistent border radius for modals
+        // Consistent Radius (for all modals)
+        borderRadius: '16px', 
         width: '90%',
-        maxWidth: '500px',
+        maxWidth: '500px', // CONSISTENT WIDTH
         // Added for Read Modal overflow
-        maxHeight: '80vh',
+        maxHeight: '80vh', // CONSISTENT HEIGHT
         overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
     },
@@ -1222,15 +1229,31 @@ const styles = {
         borderBottom: '1px solid #c7d2fe',
         paddingBottom: '12px'
     },
-    // NEW Style: For Read Modal (No Title)
-    modalHeaderNoBorder: { 
+    
+    // ⭐ NEW STYLE: Header for the Read Modal to ensure consistent internal structure
+    readModalHeader: { 
         display: 'flex', 
-        justifyContent: 'flex-end', 
+        justifyContent: 'space-between', 
         alignItems: 'center', 
-        paddingBottom: '10px', 
-        paddingTop: '5px',
-        marginBottom: '5px',
+        padding: '15px 25px', 
+        borderBottom: '1px solid #e5e7eb',
     },
+    // ⭐ NEW STYLE: Body for the Read Modal to handle scrolling
+    readModalBody: { 
+        padding: '25px', 
+        overflowY: 'auto', 
+        flexGrow: 1, 
+    },
+    
+    // OLD Style: For Read Modal (No Title) - DELETED/REPLACED BY readModalHeader
+    // modalHeaderNoBorder: { 
+    //     display: 'flex', 
+    //     justifyContent: 'flex-end', 
+    //     alignItems: 'center', 
+    //     paddingBottom: '10px', 
+    //     paddingTop: '5px',
+    //     marginBottom: '5px',
+    // },
     toggleContainer: {
         display: 'flex',
         gap: '10px',
@@ -1329,7 +1352,7 @@ const styles = {
         cursor: 'pointer',
         transition: 'background-color 0.2s'
     },
-    // NEW Style for Full Post Content in Read Modal
+    // NEW Style for Full Post Content in Read Modal - REUSING the name, it's fine.
     modalThreadBody: {
         fontSize: '15px',
         color: '#4b5563',

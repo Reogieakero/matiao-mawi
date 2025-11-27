@@ -11,7 +11,7 @@ const Header = ({ currentUser, onLogout }) => {
     const navigate = useNavigate(); 
     
     // NEW: Extract profile details from the currentUser object
-    const userName = currentUser?.name || 'Guest';
+    const userName = currentUser?.name;
     const profilePictureUrl = currentUser?.profilePictureUrl || null;
 
 

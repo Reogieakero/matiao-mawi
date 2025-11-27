@@ -7,8 +7,6 @@ import {
     FiSend, 
     FiTrash2,
     FiAlertOctagon, 
-    // FiChevronDown, // Removed: Defined but never used
-    // FiChevronUp, // Removed: Defined but never used
 } from 'react-icons/fi';
 
 // CONSTANT for truncation length (Max characters to show before "Read More")
@@ -32,6 +30,11 @@ const getTimeSince = (date) => {
     if (interval > 1) return Math.floor(interval) + "d ago";
     interval = seconds / 3600;
     if (interval > 1) return Math.floor(interval) + "h ago";
+    
+    // ADDED: Check for minutes (m)
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + "m ago"; 
+    
     return Math.floor(seconds) + "s ago";
 };
 
@@ -137,7 +140,6 @@ const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody,
                 {/* Thread Content Display (Only for single thread delete) */}
                 {isSingleThreadDelete && (
                     <div style={{...modalStyles.threadContentBox, marginTop: imageUrl ? '15px' : '0'}}> 
-                        <h4 style={modalStyles.threadTitle}>{threadTitle}</h4>
                         <p style={modalStyles.threadBody}>{threadBody}</p>
                     </div>
                 )}
@@ -283,6 +285,10 @@ const EditProfileModal = ({
     const [selectedFile, setSelectedFile] = useState(null); 
     const [previewUrl, setPreviewUrl] = useState(''); 
     const [isDragging, setIsDragging] = useState(false);
+    
+    // NEW STATE: For inline validation errors
+    const [nameError, setNameError] = useState(''); 
+    const [contactError, setContactError] = useState(''); // NEW STATE for contact number
 
     const fileInputRef = useRef(null);
     // const currentUserId = parseInt(localStorage.getItem('userId'), 10); // Commented out to prevent no-undef
@@ -297,6 +303,8 @@ const EditProfileModal = ({
             setProfilePictureUrl(userData?.profilePictureUrl || currentProfilePictureUrl || '');
             setSelectedFile(null); // Reset file selection
             setPreviewUrl(''); // Reset preview
+            setNameError(''); // Reset name error
+            setContactError(''); // Reset contact error
         }
     }, [isVisible, userData, userName, currentProfilePictureUrl]);
     
@@ -374,7 +382,8 @@ const EditProfileModal = ({
     const currentPictureSource = previewUrl || profilePictureUrl;
 
     // Helper to render an editable field (Modified for Modal)
-    const renderModalField = (label, value, stateSetter, icon) => (
+    // ADDED: error parameter
+    const renderModalField = (label, value, stateSetter, icon, error) => ( 
         <div style={modalEditStyles.fieldRow}>
             <div style={modalEditStyles.fieldLabel}>
                 {icon} 
@@ -384,10 +393,18 @@ const EditProfileModal = ({
                 type="text" 
                 value={value} 
                 onChange={(e) => stateSetter(e.target.value)} 
-                style={modalEditStyles.fieldInput}
+                style={{
+                    ...modalEditStyles.fieldInput,
+                    // Apply error style if an error message exists
+                    ...(error ? modalEditStyles.fieldInputError : {}) 
+                }}
                 disabled={loading}
                 placeholder={`Enter new ${label.toLowerCase()}`}
             />
+            {/* NEW: Display Error Message */}
+            {error && (
+                <p style={modalEditStyles.errorMessage}><FiAlertTriangle size={14} /> {error}</p>
+            )}
         </div>
     );
     
@@ -399,20 +416,37 @@ const EditProfileModal = ({
         setEditedAddress(userData?.address || '');
         setSelectedFile(null); 
         setPreviewUrl(''); 
+        setNameError(''); 
+        setContactError(''); // Clear contact error on cancel
         onClose(); // Calls setIsEditModalVisible(false)
     };
 
     const handleModalSave = () => {
         // 1. Validate
+        setNameError(''); // Clear previous name error
+        setContactError(''); // Clear previous contact error
+        
         if (!editedName.trim()) {
-            setPopup({ message: 'Name cannot be empty.', type: 'error' });
+            setNameError('Name cannot be empty.'); 
             return;
         }
+
+        // --- CONTACT NUMBER VALIDATION ---
+        const contactNumber = editedContact.trim();
+        // Regex: Must start with '09' followed by exactly 9 digits (total 11)
+        const contactRegex = /^09\d{9}$/; 
+
+        // Only validate if a contact number is provided (it's optional, but if provided, it must be valid)
+        if (contactNumber && !contactRegex.test(contactNumber)) {
+            setContactError('Contact No. must start with "09" and have exactly 11 digits (e.g., 09xxxxxxxxx).'); 
+            return; // Stop if validation fails
+        }
+        // ---------------------------------
 
         // 2. Prepare payload for the parent's onSave handler
         const savePayload = {
             editedName: editedName.trim(),
-            editedContact: editedContact.trim(),
+            editedContact: contactNumber, // Use the validated/trimmed value
             editedAddress: editedAddress.trim(),
             selectedFile: selectedFile, 
             existingProfilePictureUrl: profilePictureUrl, // The current URL (DB or preview URL)
@@ -464,7 +498,8 @@ const EditProfileModal = ({
 
                 {/* Editable Fields */}
                 <div style={modalEditStyles.fieldsContainer}>
-                    {renderModalField('Name', editedName, setEditedName, <FiUser size={18} />)}
+                    {/* Name Field with inline error */}
+                    {renderModalField('Name', editedName, setEditedName, <FiUser size={18} />, nameError)} 
                     
                     <div style={modalEditStyles.fieldRow}>
                         <div style={modalEditStyles.fieldLabel}>
@@ -479,7 +514,9 @@ const EditProfileModal = ({
                         />
                     </div>
                     
-                    {renderModalField('Contact No.', editedContact, setEditedContact, <FiPhone size={18} />)}
+                    {/* Contact No. Field with inline error */}
+                    {renderModalField('Contact No.', editedContact, setEditedContact, <FiPhone size={18} />, contactError)}
+                    
                     {renderModalField('Address', editedAddress, setEditedAddress, <FiMapPin size={18} />)}
                 </div>
 
@@ -494,8 +531,9 @@ const EditProfileModal = ({
                     </button>
                     <button 
                         style={modalEditStyles.buttonStyles.saveButton} 
+                        // Disable if loading or if there's a name or contact error
                         onClick={handleModalSave} 
-                        disabled={loading || !editedName.trim()} 
+                        disabled={loading || !editedName.trim() || !!nameError || !!contactError} 
                     >
                         {loading ? <FiRefreshCcw size={18} style={styles.spinner} /> : <FiSave size={18} />} Save Changes
                     </button>
@@ -506,6 +544,79 @@ const EditProfileModal = ({
 };
 
 // --- END EditProfileModal ---
+
+// --- NEW COMPONENT: ReadPostModal (Pro-Level Polish) ---
+const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
+    if (!isVisible || !thread) return null;
+
+    // Determine the post type label
+    const postTypeLabel = thread.type === 'job' ? 'Job Posting' : 'Community Thread'; 
+    
+    // Filter and prepare images
+    const imageUrls = (thread.mediaUrls || []).filter(url => 
+        url.match(/\.(jpeg|jpg|gif|png|webp)$/i)
+    );
+
+    return (
+        <div style={modalStyles.overlay} onClick={onClose}>
+            <div style={modalReadStyles.box} onClick={(e) => e.stopPropagation()}>
+                
+                {/* Close Button & Header */}
+                <div style={modalReadStyles.header}>
+                    <div style={modalReadStyles.postTypeTag}>{postTypeLabel}</div>
+                    <button style={modalReadStyles.closeButton} onClick={onClose}>
+                        <FiX size={24} />
+                    </button>
+                </div>
+
+                {/* User Info */}
+                <div style={modalReadStyles.userInfo}>
+                    {renderAvatar(thread.author_picture_url, thread.author, 'small')}
+                    <div style={modalReadStyles.authorDetails}>
+                        <span style={modalReadStyles.authorName}>{thread.author}</span>
+                        <span style={modalReadStyles.postTime}>{getTimeSince(thread.time)}</span>
+                    </div>
+                </div>
+                
+                {/* Scrollable Body Content */}
+                <div style={modalReadStyles.bodyScrollContainer}>
+                    {/* Title */}
+                    
+                    {/* Media Gallery (Before Body for better visual hierarchy) */}
+                    {imageUrls.length > 0 && (
+                        <div style={modalReadStyles.mediaGallery}>
+                            {imageUrls.map((url, index) => (
+                                <img key={index} src={url} alt={`Media ${index}`} style={modalReadStyles.mediaImage} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Full Text Body */}
+                    <p style={modalReadStyles.textBody}>{thread.body}</p>
+
+                    {/* Job Contact Info (If applicable) */}
+                    {thread.type === 'job' && thread.contactNumber && (
+                        <div style={modalReadStyles.jobContactBox}>
+                            <FiPhone size={18} /> 
+                            <span style={modalReadStyles.jobContactText}>
+                                **Contact:** {thread.contactNumber}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer (Placeholder for actions/comments if needed) */}
+                <div style={modalReadStyles.footer}>
+                    <span style={modalReadStyles.readFooterText}>
+                        Viewing full content of the post.
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- END ReadPostModal ---
+
 // --- NEW MODAL STYLES (Use existing modalStyles and augment) ---
 const modalEditStyles = {
     // Inherits overlay from modalStyles
@@ -606,6 +717,20 @@ const modalEditStyles = {
         boxSizing: 'border-box',
         marginTop: '5px',
     },
+    fieldInputError: { // STYLE for red border on error
+        border: '1px solid #ef4444', 
+        boxShadow: '0 0 0 1px #fca5a5',
+    },
+    errorMessage: { // STYLE for the validation message
+        color: '#ef4444', 
+        fontSize: '12px',
+        marginTop: '5px',
+        padding: '0 5px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        fontWeight: '500',
+    },
     actions: {
         display: 'flex',
         justifyContent: 'flex-end',
@@ -678,6 +803,126 @@ const modalEditStyles = {
     }
 };
 
+// --- NEW MODAL READ STYLES (Pro-Level Polish) ---
+const modalReadStyles = {
+    box: {
+        backgroundColor: '#fff',
+        borderRadius: '16px', // Slightly larger border-radius
+        width: '95%',
+        maxWidth: '800px', // Wider modal for content focus
+        maxHeight: '90vh',
+        boxShadow: '0 15px 35px rgba(0, 0, 0, 0.4)',
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    header: {
+        padding: '20px 25px 15px 25px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: '1px solid #f3f4f6',
+    },
+    postTypeTag: {
+        backgroundColor: '#e0f2f1',
+        color: '#047857',
+        padding: '6px 12px',
+        borderRadius: '20px',
+        fontSize: '13px',
+        fontWeight: '600',
+    },
+    closeButton: {
+        background: 'none',
+        border: 'none',
+        color: '#9ca3af',
+        cursor: 'pointer',
+        padding: '5px',
+        transition: 'color 0.2s',
+        // ':hover': { // Assuming styling-in-js handles this via separate style logic or a framework
+        //     color: '#ef4444',
+        // },
+    },
+    userInfo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+        padding: '15px 25px',
+        borderBottom: '1px solid #e5e7eb',
+    },
+    authorDetails: {
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    authorName: {
+        fontWeight: '600',
+        fontSize: '15px',
+        color: '#1e40af',
+    },
+    postTime: {
+        fontSize: '13px',
+        color: '#6b7280',
+    },
+    bodyScrollContainer: {
+        padding: '25px',
+        overflowY: 'auto', // Scrollable content area
+        flexGrow: 1,
+    },
+    title: {
+        fontSize: '28px', // Larger, bolder title
+        fontWeight: '800',
+        color: '#111827',
+        margin: '0 0 20px 0',
+        lineHeight: 1.3,
+    },
+    textBody: {
+        fontSize: '17px',
+        color: '#374151',
+        lineHeight: 1.7,
+        whiteSpace: 'pre-wrap', // Preserve formatting
+        marginBottom: '20px',
+    },
+    mediaGallery: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '12px',
+        marginBottom: '25px',
+    },
+    mediaImage: {
+        width: '100%',
+        height: '250px',
+        objectFit: 'cover',
+        borderRadius: '10px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        // transition: 'transform 0.3s', // Assuming styling-in-js handles this
+        // ':hover': {
+        //     transform: 'scale(1.01)',
+        // },
+    },
+    jobContactBox: {
+        fontSize: '17px',
+        color: '#059669',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        margin: '15px 0 0 0',
+        padding: '15px 20px',
+        backgroundColor: '#ecfdf5',
+        borderRadius: '10px',
+        border: '1px solid #a7f3d0',
+    },
+    jobContactText: {
+        fontWeight: '700',
+    },
+    footer: {
+        padding: '15px 25px',
+        borderTop: '1px solid #f3f4f6',
+        textAlign: 'center',
+    },
+    readFooterText: {
+        fontSize: '13px',
+        color: '#9ca3af',
+    }
+};
+
 // --- END Modal Styles ---
 
 // --- Core Thread/Post Components (Simplified for context) ---
@@ -705,7 +950,6 @@ const PostBody = ({ thread }) => {
     return (
         <div style={styles.threadBodyContainer}>
             <p style={styles.threadPostType}>{postTypeLabel}</p>
-            <h3 style={styles.threadTitle}>{thread.title}</h3>
             {thread.type === 'job' && thread.contactNumber && (
                  <p style={styles.jobContact}><FiPhone size={14} /> Contact: {thread.contactNumber}</p>
             )}
@@ -1009,7 +1253,15 @@ const ProfilePage = ({
             }
             // CRITICAL UPDATE FOR AUTO-REFRESH: Clear the state immediately
             setUserThreads([]);
+            
+            // Set success popup
             setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
+            
+            // New: Set a timeout to clear the popup after 2000ms (2 seconds)
+            setTimeout(() => {
+                setPopup(null);
+            }, 2000);
+
         } catch (err) {
             console.error("Delete All Threads error:", err);
             setPopup({ message: `Bulk deletion failed: ${err.message}.`, type: 'error' });
@@ -1142,7 +1394,7 @@ const ProfilePage = ({
                     onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread); }} 
                     title="Delete this Thread/Job"
                 >
-                    <FiTrash2 size={16} /> Delete
+                    <FiTrash2 size={16} /> 
                 </button>
             </div>
             
@@ -1180,7 +1432,7 @@ const ProfilePage = ({
 
     return (
         <main style={styles.container}>
-            {/* Alert Popup */}
+            {/* Alert Popup (for general errors like picture upload or server issues) */}
             <AlertPopup 
                 message={popup?.message} 
                 type={popup?.type} 
@@ -1228,7 +1480,7 @@ const ProfilePage = ({
                     <h2 style={styles.postsSectionTitle}>Your Community Posts ({filteredThreads.length})</h2>
                     {userThreads.length > 0 && (
                         <button style={styles.deleteAllButton} onClick={handleDeleteAllPosts} disabled={isThreadsLoading || loading} >
-                            <FiTrash2 size={16} /> Delete All Posts
+                            <FiTrash2 size={16} /> Delete All Posts & Jobs
                         </button>
                     )}
                 </div>
@@ -1299,46 +1551,13 @@ const ProfilePage = ({
                 confirmIcon={<FiAlertOctagon size={18} />}
             />
 
-            {/* Read Details Modal */}
-            {isReadModalOpen && readModalThread && (
-                // Click outside to close
-                <div style={styles.modalOverlay} onClick={closeReadModal}>
-                    {/* Stop propagation for clicks inside content */}
-                    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        {/* Header without title/border */}
-                        <div style={styles.modalHeaderNoBorder}>
-                            <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
-                        </div>
-                        <div style={styles.modalUserSection}>
-                            {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'large')}
-                            <span style={styles.modalUserName}>{readModalThread.author}</span>
-                            <span style={styles.modalTime}>{getTimeSince(readModalThread.time)}</span>
-                        </div>
-                        
-                        {/* Thread Content */}
-                        <div style={styles.modalBody}>
-                            <h3 style={styles.modalTitle}>{readModalThread.title}</h3>
-                            <p style={styles.modalText}>{readModalThread.body}</p>
-                            {readModalThread.type === 'job' && readModalThread.contactNumber && (
-                                <p style={styles.modalJobContact}>
-                                    <FiPhone size={18} /> Contact: <strong>{readModalThread.contactNumber}</strong>
-                                </p>
-                            )}
-                            
-                            {/* Media Gallery */}
-                            {readModalThread.mediaUrls && readModalThread.mediaUrls.length > 0 && (
-                                <div style={styles.modalMediaGallery}>
-                                    {readModalThread.mediaUrls.map((url, index) => (
-                                        url.match(/\.(jpeg|jpg|gif|png|webp)$/i) && (
-                                            <img key={index} src={url} alt={`Media ${index}`} style={styles.modalMediaImage} />
-                                        )
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* NEW: Pro-Level Read Details Modal (Replaces the old inline modal) */}
+            <ReadPostModal
+                isVisible={isReadModalOpen}
+                thread={readModalThread}
+                onClose={closeReadModal}
+                renderAvatar={renderAvatar}
+            />
             
         </main>
     );
@@ -1555,9 +1774,9 @@ const styles = {
         flexDirection: 'column',
     },
     threadAuthorName: {
-        fontWeight: '700',
-        color: '#1f2937',
+        fontWeight: '600',
         fontSize: '15px',
+        color: '#1e40af',
     },
     threadTime: {
         fontSize: '12px',
@@ -1783,90 +2002,88 @@ const styles = {
         height: '100%',
         objectFit: 'cover',
     },
-    // Read Modal Styles
-    modalOverlay: {
-        position: 'fixed',
-        top: 0, right: 0, bottom: 0, left: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        zIndex: 1500,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderRadius: '12px',
-        width: '90%',
-        maxWidth: '700px',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    modalHeaderNoBorder: {
-        padding: '15px 20px 0',
-        textAlign: 'right',
-    },
-    modalUserSection: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        padding: '0 20px 20px',
-        borderBottom: '1px solid #e5e7eb',
-    },
-    modalUserName: {
-        fontSize: '18px',
-        fontWeight: '700',
-        color: '#1f2937',
-    },
-    modalTime: {
-        fontSize: '14px',
-        color: '#9ca3af',
-        marginLeft: 'auto',
-    },
-    modalBody: {
-        padding: '20px',
-    },
-    modalTitle: {
-        fontSize: '24px',
-        fontWeight: '800',
-        color: '#111827',
-        margin: '0 0 10px 0',
-    },
-    modalText: {
-        fontSize: '16px',
-        color: '#374151',
-        lineHeight: 1.6,
-        whiteSpace: 'pre-wrap',
-        marginBottom: '20px',
-    },
-    modalJobContact: {
-        fontSize: '16px',
-        color: '#059669',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        margin: '10px 0 20px 0',
-        padding: '10px',
-        backgroundColor: '#ecfdf5',
-        borderRadius: '8px',
-        borderLeft: '4px solid #10b981',
-    },
-    modalMediaGallery: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '10px',
-        marginTop: '10px',
-        marginBottom: '20px',
-    },
-    modalMediaImage: {
-        width: '100%',
-        height: '200px',
-        objectFit: 'cover',
-        borderRadius: '8px',
-    }
+    // The old Read Modal styles are now unused but kept here for reference:
+    // modalOverlay: {
+    //     position: 'fixed',
+    //     top: 0, right: 0, bottom: 0, left: 0,
+    //     backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    //     zIndex: 1500,
+    //     display: 'flex',
+    //     alignItems: 'center',
+    //     justifyContent: 'center',
+    //     padding: '20px',
+    // },
+    // modalContent: {
+    //     backgroundColor: '#fff',
+    //     borderRadius: '12px',
+    //     width: '90%',
+    //     maxWidth: '700px',
+    //     maxHeight: '90vh',
+    //     overflowY: 'auto',
+    //     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+    //     display: 'flex',
+    //     flexDirection: 'column',
+    // },
+    // modalHeaderNoBorder: {
+    //     padding: '15px 20px 0',
+    //     textAlign: 'right',
+    // },
+    // modalUserSection: {
+    //     display: 'flex',
+    //     alignItems: 'center',
+    //     gap: '15px',
+    //     padding: '0 20px 20px',
+    //     borderBottom: '1px solid #e5e7eb',
+    // },
+    // modalUserName: {
+    //     fontSize: '18px',
+    //     fontWeight: '700',
+    //     color: '#1f2937',
+    // },
+    // modalTime: {
+    //     fontSize: '14px',
+    //     color: '#9ca3af',
+    //     marginLeft: 'auto',
+    // },
+    // modalBody: {
+    //     padding: '20px',
+    // },
+    // modalTitle: {
+    //     fontSize: '24px',
+    //     fontWeight: '800',
+    //     color: '#111827',
+    //     margin: '0 0 10px 0',
+    // },
+    // modalText: {
+    //     fontSize: '16px',
+    //     color: '#374151',
+    //     lineHeight: 1.6,
+    //     whiteSpace: 'pre-wrap',
+    //     marginBottom: '20px',
+    // },
+    // modalJobContact: {
+    //     fontSize: '16px',
+    //     color: '#059669',
+    //     display: 'flex',
+    //     alignItems: 'center',
+    //     gap: '8px',
+    //     margin: '10px 0 20px 0',
+    //     padding: '10px',
+    //     backgroundColor: '#ecfdf5',
+    //     borderRadius: '8px',
+    // },
+    // modalMediaGallery: {
+    //     display: 'grid',
+    //     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    //     gap: '10px',
+    //     marginTop: '10px',
+    //     marginBottom: '20px',
+    // },
+    // modalMediaImage: {
+    //     width: '100%',
+    //     height: '200px',
+    //     objectFit: 'cover',
+    // }
 };
 
 export default ProfilePage;

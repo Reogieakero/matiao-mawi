@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // Added FiClock for history section header
-import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard, FiClock, FiCalendar, FiUser } from 'react-icons/fi';
+// ADDED FiTrash2 to the imports
+import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard, FiClock, FiCalendar, FiUser, FiTrash2 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 
 // New Confirmation Modal Component
@@ -49,13 +50,19 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
 
     // Modified button styles to match the page's new blue palette consistency
     const confirmButtonStyle = {
-        backgroundColor: confirmStyle === 'delete' ? '#2563eb' : '#dc2626', // Primary blue for Delete, Amber for Cancel
+        // Red for Delete action, Blue for Cancel (the main destructive action in the modal)
+        backgroundColor: confirmStyle === 'delete' ? '#dc2626' : '#2563eb', 
         color: 'white',
         border: 'none',
         padding: '10px 20px',
         borderRadius: '8px',
         cursor: 'pointer',
         fontWeight: '600',
+        // MODIFICATION: Add styles for icon alignment
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center', 
+        gap: '8px',
     };
 
     const cancelButtonStyle = {
@@ -78,6 +85,8 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
                         Keep Application
                     </button>
                     <button onClick={onConfirm} style={confirmButtonStyle}>
+                        {/* MODIFICATION: Conditionally render FiTrash2 icon for delete action */}
+                        {confirmStyle === 'delete' && <FiTrash2 size={18} />}
                         {confirmText}
                     </button>
                 </div>
@@ -454,7 +463,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                                 style={styles.actionButton('delete')} 
                                                 onClick={() => handleOpenConfirmation('delete', app.id, app.document_name)}
                                             >
-                                                Delete
+                                                {/* MODIFICATION: Icon-only delete button */}
+                                                <FiTrash2 size={18} /> 
                                             </button>
                                         )}
                                         {app.status === 'Pending' && (
@@ -628,12 +638,10 @@ const styles = {
         fontFamily: 'Arial, sans-serif',
     },
     header: {
-        fontSize: '2rem',
-        color: '#1f2937',
-        borderBottom: '2px solid #eff6ff',
-        paddingBottom: '10px',
-        display: 'flex', 
-        alignItems: 'center',
+        fontSize: '24px',
+        fontWeight: '700',
+        color: '#1e40af',
+        marginBottom: '15px',
     },
     subheader: {
         color: '#4b5563',
@@ -746,11 +754,10 @@ const styles = {
         borderTop: '1px solid #e5e7eb',
     },
     historyHeader: {
-        fontSize: '1.8rem',
-        color: '#1f2937',
-        marginBottom: '20px',
-        display: 'flex',
-        alignItems: 'center',
+        fontSize: '24px',
+        fontWeight: '700',
+        color: '#1e40af',
+        marginBottom: '15px',
     },
     historyGrid: {
         display: 'grid',
@@ -875,24 +882,28 @@ const styles = {
             zIndex: 2,
         };
     },
-    // UPDATED: Blue Palette Consistency
+    // UPDATED: Action Button Styles
     actionButton: (type) => {
         let common = {
             border: 'none',
-            padding: '8px 12px',
             borderRadius: '6px',
             cursor: 'pointer',
             fontSize: '0.9rem',
             fontWeight: '600',
             transition: 'background-color 0.2s, color 0.2s',
+            // ADDED: For icon alignment/centering
+            display: 'flex', 
+            alignItems: 'center',
+            justifyContent: 'center',
         };
 
         if (type === 'delete') {
-            // Primary Blue (#2563eb) as requested for consistency
+            // MODIFIED: Icon-only button styles
             return {
                 ...common,
-                backgroundColor: '#2563eb', 
+                backgroundColor: '#dc2626', // Red for danger/delete
                 color: 'white',
+                padding: '8px 10px', // Smaller padding suitable for an icon
             };
         } else if (type === 'cancel') {
             // Secondary action: Muted blue background, blue text for theme consistency
@@ -901,6 +912,7 @@ const styles = {
                 backgroundColor: '#eff6ff', // Very light blue
                 color: '#2563eb', // Primary Blue text
                 border: '1px solid #bfdbfe', // Light Blue border
+                padding: '8px 12px',
             };
         }
         return common; 

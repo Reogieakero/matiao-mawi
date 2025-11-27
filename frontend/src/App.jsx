@@ -200,6 +200,7 @@ const App = () => {
                                     
                                     {/* Placeholder and other static routes */}
                                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
+                                    <Route path="/news" element={<Placeholder title="News" />} />
                                     <Route path="/services" element={<ServicesPage userName={currentUser?.name} userEmail={currentUser?.email} profilePictureUrl={currentUser?.profilePictureUrl} />} />
                                     
                                     <Route 
