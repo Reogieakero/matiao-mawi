@@ -1,8 +1,44 @@
 import React, { useState, useEffect } from 'react';
 // Added FiClock for history section header
 // ADDED FiTrash2 to the imports
-import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard, FiClock, FiCalendar, FiUser, FiTrash2 } from 'react-icons/fi';
+import { FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, FiPaperclip, FiCreditCard, FiClock, FiCalendar, FiUser, FiTrash2, FiDownload } from 'react-icons/fi'; // ADDED FiDownload
 import { useNavigate } from 'react-router-dom';
+
+// NEW: Document Template Component
+const DocumentTemplates = () => {
+    // The path in the href attribute is relative to the public/ directory
+    const templates = [
+        { name: 'Barangay Blotter Form', path: '/forms/Blotter.pdf', icon: <FiFileText /> },
+        { name: 'Barangay Volunteer Application Form', path: '/forms/Volunteer.pdf', icon: <FiUser /> },
+    ];
+
+    return (
+        <div style={styles.templatesSection}>
+            <h2 style={styles.templatesHeader}><FiDownload size={20} style={{marginRight: '10px'}} /> Download Document Templates</h2>
+            <p style={styles.templatesSubheader}>You can download these official forms for reference or to prepare required documents.</p>
+            <div style={styles.templateGrid}>
+                {templates.map((template, index) => (
+                    <a 
+                        key={index} 
+                        href={template.path} 
+                        download // This attribute triggers the browser to download the file
+                        style={styles.templateCard}
+                        target="_blank" // Optional: open in new tab before downloading
+                        rel="noopener noreferrer"
+                    >
+                        <div style={styles.templateCardContent}>
+                            <div style={styles.templateIcon}>{template.icon}</div>
+                            <span style={styles.templateName}>{template.name}</span>
+                        </div>
+                        <FiDownload size={18} style={styles.templateDownloadIcon} />
+                    </a>
+                ))}
+            </div>
+        </div>
+    );
+};
+// End NEW: Document Template Component
+
 
 // New Confirmation Modal Component
 const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText, confirmStyle }) => {
@@ -364,6 +400,9 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                     Action Required: You must be logged in to submit an application. Please log in or create an account.
                 </div>
             )}
+            
+            {/* NEW: Document Templates Section */}
+            <DocumentTemplates />
 
             <div style={styles.documentGrid}>
                 {documents.map(doc => (
@@ -671,6 +710,86 @@ const styles = {
         alignItems: 'center',
         border: '1px solid #f59e0b',
     },
+    // NEW Styles for Templates Section
+    templatesSection: {
+        marginBottom: '40px',
+        padding: '20px',
+        backgroundColor: '#f9fafb',
+        borderRadius: '12px',
+        border: '1px solid #e5e7eb',
+    },
+    templatesHeader: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#2563eb',
+        marginBottom: '5px',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    templatesSubheader: {
+        color: '#4b5563',
+        marginBottom: '15px',
+        fontSize: '14px',
+    },
+    templateGrid: {
+        display: 'flex',
+        gap: '15px',
+        flexWrap: 'wrap',
+    },
+    templateCard: {
+        textDecoration: 'none',
+        backgroundColor: '#ffffff',
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        padding: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexGrow: 1,
+        minWidth: '280px',
+        maxWidth: 'calc(50% - 7.5px)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        transition: 'all 0.2s',
+    },
+    templateCard: {
+        textDecoration: 'none',
+        backgroundColor: '#ffffff',
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        padding: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexGrow: 1,
+        minWidth: '280px',
+        maxWidth: 'calc(50% - 7.5px)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        transition: 'all 0.2s',
+        '&:hover': {
+            borderColor: '#2563eb',
+            boxShadow: '0 4px 6px rgba(37, 99, 235, 0.1)',
+        }
+    },
+    templateCardContent: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+    },
+    templateIcon: {
+        color: '#2563eb',
+        fontSize: '1.2rem',
+    },
+    templateName: {
+        color: '#1f2937',
+        fontWeight: '600',
+        fontSize: '0.95rem',
+    },
+    templateDownloadIcon: {
+        color: '#10b981',
+        marginLeft: '10px',
+    },
+    // End NEW Styles for Templates Section
+    
     documentGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
