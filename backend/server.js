@@ -11,7 +11,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
+const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 1001;
 
 app.use(cors({
     origin: 'http://localhost:3000', 
@@ -1817,6 +1817,67 @@ app.get('/api/admin/content/job/responses/:jobId', (req, res) => {
         res.status(200).json({ responses: results });
     });
 });
+
+
+app.get('/api/admin/jobs/all', (req, res) => {
+    
+    // SQL query to fetch all jobs, including author details, contact number, 
+    // and the count of applications (responses)
+    const SQL_FETCH_ALL_JOBS = `
+        SELECT 
+            j.id, 
+            j.title, 
+            j.body AS content_body, 
+            'Job' AS content_type, 
+            j.tag, 
+            j.created_at, 
+            j.media_url, 
+            j.contact_number, -- Key job field
+            u.id AS author_id,
+            u.name AS author_name,
+            up.profile_picture_url AS author_picture_url, 
+            CAST(COUNT(r.id) AS UNSIGNED) AS response_count 
+        FROM jobs j
+        JOIN users u ON j.user_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id 
+        LEFT JOIN responses r ON j.id = r.job_id
+        GROUP BY 
+            j.id, j.title, j.body, j.tag, j.created_at, j.media_url, j.contact_number, 
+            u.id, u.name, up.profile_picture_url
+        ORDER BY j.created_at DESC
+    `;
+
+    db.query(SQL_FETCH_ALL_JOBS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching all jobs for admin:", err);
+            return res.status(500).json({ message: 'Failed to fetch job listings.' });
+        }
+        
+        // Helper function to format media_url from JSON string to array
+        const formatMediaUrls = (row) => {
+            let mediaUrls = [];
+            if (row.media_url) {
+                try {
+                    mediaUrls = JSON.parse(row.media_url);
+                } catch (e) {
+                    if (typeof row.media_url === 'string') {
+                        mediaUrls = [row.media_url];
+                    }
+                }
+            }
+            return mediaUrls;
+        };
+
+        const formattedResults = results.map(row => ({
+            ...row,
+            media_url: formatMediaUrls(row)
+        }));
+
+        res.status(200).json({ jobs: formattedResults });
+    });
+});
+
+
 
 
 
