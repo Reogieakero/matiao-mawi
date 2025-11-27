@@ -1,106 +1,167 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 // NOTE: userName, userEmail, and profilePictureUrl are still accepted
 // as props but are no longer used in the component's render output.
 export default function RightPanel({ userName, userEmail, profilePictureUrl }) {
-  // Mock data RETAINED
-  const officialList = [
-    { id: 1, name: "John Doe", position: "Barangay Captain", committee: "Peace & Order", profileLink: "/profile", status: "On Duty" },
-    { id: 2, name: "Jane Smith", position: "Council Member", committee: "Health & Sanitation", profileLink: "/profile", status: "On Leave" },
-    { id: 3, name: "Mark Johnson", position: "Council Member", committee: "Education & Youth", profileLink: "/profile", status: "Busy" },
-    { id: 4, name: "Emily Davis", position: "Secretary", committee: "", profileLink: "/profile", status: "On Duty" }, // Committee left empty
-    { id: 5, name: "Michael Brown", position: "Treasurer", committee: "Finance & Budget", profileLink: "/profile", status: "Offline" },
-    { id: 6, name: "Sarah Wilson", position: "Youth Leader", committee: "SK Affairs", profileLink: "/profile", status: "On Leave" },
-    { id: 7, name: "David Lee", position: "Barangay Tanod", committee: "Security", profileLink: "/profile", status: "On Duty" },
-    { id: 8, name: "Anna Taylor", position: "Senior Citizen Rep", committee: "Welfare & Services", profileLink: "/profile", status: "Busy" },
-    { id: 9, name: "Chris Evans", position: "Environmental Officer", committee: "Environment", profileLink: "/profile", status: "On Duty" },
-  ];
+  const [officials, setOfficials] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Helper function to group officials by their category
+  const groupOfficialsByCategory = (officials) => {
+    return officials.reduce((acc, official) => {
+        // Use official.category, falling back to 'Other Officials' if not present or empty
+        const category = official.category && official.category.trim() !== '' ? official.category : 'Other Officials';
+        if (!acc[category]) {
+            acc[category] = [];
+        }
+        acc[category].push(official);
+        return acc;
+    }, {});
+  };
+
+  useEffect(() => {
+    const fetchOfficials = async () => {
+      try {
+        // Fetch officials from the backend API
+        const response = await fetch('http://localhost:5000/api/admin/officials');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setOfficials(data);
+      } catch (error) {
+        console.error("Failed to fetch barangay officials:", error);
+        setOfficials([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOfficials();
+  }, []); // Run once on mount
+  
+  // Group the fetched officials for rendering
+  const categorizedOfficials = groupOfficialsByCategory(officials);
+  const categories = Object.keys(categorizedOfficials);
+
 
   const statusColors = {
-    "On Duty": "#22c55e",
-    "On Leave": "#f59e0b",
-    "Busy": "#ef4444",
-    "Offline": "#9ca3af",
+    // Status color mapping for the badge
+    "Working": "#22c55e",
+    "AWOL": "#1d17d2ff",
+    "On Site": "#f59e0b",
+    "On Leave": "#ef4444",
+  };
+
+  const styles = {
+    rightSidebar: { width: '320px', position: 'fixed', top: '20px', right: '20px', height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column', fontFamily: 'Arial, sans-serif' },
+    sidebarBlock: {
+        backgroundColor: '#ffffffff',
+        padding: '20px',
+        paddingTop: '50px',
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        transition: 'transform 0.2s',
+    },
+    sidebarTitle: {
+        fontSize: '16px',
+        fontWeight: '600',
+        color: '#1e40af',
+        marginBottom: '15px',
+        borderBottom: '2px solid #eff6ff',
+        paddingBottom: '10px',
+    },
+    // NEW style for category headers
+    categoryHeader: {
+        fontSize: '14px',
+        fontWeight: '700',
+        color: '#1f2937', 
+        marginTop: '15px',
+        marginBottom: '5px',
+        padding: '5px 0',
+        borderBottom: '1px solid #d1d5db',
+    },
+    officialList: { listStyle: 'none', padding: 0, margin: 0, width: '100%' },
+    officialItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #e5e7eb', fontSize: '14px', color: '#333' },
+    officialInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
+    avatarSmall: { 
+        width: '36px', 
+        height: '36px', 
+        borderRadius: '50%', 
+        backgroundColor: '#dbeafe', 
+        color: '#1e40af', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontWeight: 'bold', 
+        flexShrink: 0,
+        overflow: 'hidden' 
+    },
+    statusBadge: {
+        fontSize: '11px',
+        fontWeight: '600',
+        padding: '3px 8px',
+        borderRadius: '12px',
+        color: 'white',
+        flexShrink: 0,
+    }
   };
 
   return (
-    // 💡 POLISH: Adjusted top and height to occupy the full sidebar space elegantly.
     <div style={{ ...styles.rightSidebar, top: '20px', height: 'calc(100vh - 40px)' }}>
-      
-      {/* Official List (Adjusted styles for full height of the sidebar) */}
-      <div style={{ ...styles.sidebarBlock, flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', marginBottom: '0px' }}>
-        <h3 style={styles.sidebarTitle}>Officials & Friends</h3>
-        <ul style={styles.officialList}>
-          {officialList.map(official => (
-            <li key={official.id} style={styles.officialItem}>
-              <div style={styles.officialInfo}>
-                <div 
-                    style={{ 
-                        ...styles.avatarSmall, 
-                        backgroundColor: official.status === 'On Duty' ? '#2563eb' : official.status === 'On Leave' ? '#f97316' : '#9ca3af' 
-                    }}
-                >
-                    {official.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </div>
-                <div>
-                    <span style={styles.officialName}>{official.name}</span>
-                    <span style={styles.officialPosition}>{official.position}</span>
-                    {official.committee && official.committee !== "" && (
-                        <span style={styles.officialCommittee}>({official.committee})</span>
-                    )}
-                </div>
-              </div> 
-              <div style={styles.statusWrapper}>
-                <span style={{ ...styles.statusDot, backgroundColor: statusColors[official.status] || '#ccc', }} />
-                <span style={styles.statusText}>{official.status}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <div style={{ ...styles.sidebarBlock, flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <h3 style={styles.sidebarTitle}>Barangay Officials</h3>
+        
+        {loading ? (
+            <p style={{ textAlign: 'center', color: '#6b7280' }}>Loading officials...</p>
+        ) : officials.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#6b7280' }}>No officials found in the database.</p>
+        ) : (
+            <div style={{ width: '100%' }}>
+                {/* Iterate over each category */}
+                {categories.map(category => (
+                    <div key={category}>
+                        {/* Display Category Header */}
+                        <h4 style={styles.categoryHeader}>{category} ({categorizedOfficials[category].length})</h4>
+                        
+                        <ul style={styles.officialList}>
+                            {/* Iterate over officials in the current category */}
+                            {categorizedOfficials[category].map((official) => (
+                                <li key={official.id} style={styles.officialItem}>
+                                    <div style={styles.officialInfo}>
+                                        {/* Profile (Picture) */}
+                                        <div style={styles.avatarSmall}>
+                                            {official.profile_picture_url ? (
+                                                <img 
+                                                    src={official.profile_picture_url} 
+                                                    alt={`${official.first_name} ${official.last_name}`} 
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                />
+                                            ) : (
+                                                // Fallback to initials if no picture URL
+                                                `${official.first_name.charAt(0)}${official.last_name.charAt(0)}`
+                                            )}
+                                        </div>
+                                        <div>
+                                            {/* Official Name */}
+                                            <div style={{  fontWeight: '600',fontSize: '15px', color: '#1e40af'}}>{`${official.first_name} ${official.last_name}`}</div>
+                                            {/* Position */}
+                                            <div style={{ color: '#6b7280', fontSize: '12px' }}>{official.position}</div> 
+                                        </div>
+                                    </div>
+                                    {/* Status */}
+                                    <div style={{ ...styles.statusBadge, backgroundColor: statusColors[official.status] || '#9ca3af' }}>
+                                        {official.status}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ))}
+            </div>
+        )}
       </div>
     </div>
   );
 }
-
-const styles = {
-  rightSidebar: {
-    width: '320px',
-    position: 'fixed',
-    // 💡 POLISH: Adjusted top to '20px' (instead of '70px')
-    right: '20px',
-    // 💡 POLISH: Adjusted height to 'calc(100vh - 40px)' to fill the space above and below
-    height: 'calc(100vh - 40px)',
-    display: 'flex',
-    flexDirection: 'column',
-    fontFamily: 'Arial, sans-serif',
-  },
-  // accountLinkWrapper removed
-  sidebarBlock: {
-    backgroundColor: '#ffffffff',
-    padding: '20px',
-    paddingTop: '50px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-    transition: 'transform 0.2s',
-  },
-  sidebarTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#1e40af',
-    marginBottom: '15px',
-    borderBottom: '2px solid #eff6ff',
-    paddingBottom: '10px',
-  },
-  // account overview styles removed
-  officialList: { listStyle: 'none', padding: 0, margin: 0, width: '100%' },
-  officialItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #e5e7eb', fontSize: '14px', color: '#333' },
-  officialInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
-  avatarSmall: { width: '36px', height: '36px', borderRadius: '50%', color: '#fff', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' },
-  officialName: { fontWeight: '500' },
-  officialPosition: { fontSize: '12px', color: '#555', fontStyle: 'italic' },
-  officialCommittee: { fontSize: '12px', color: '#333', marginLeft: '5px' },
-  statusWrapper: { display: 'flex', alignItems: 'center', gap: '5px' },
-  statusDot: { width: '8px', height: '8px', borderRadius: '50%' },
-  statusText: { fontSize: '12px', color: '#555' },
-};

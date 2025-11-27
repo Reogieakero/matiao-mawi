@@ -1599,6 +1599,132 @@ app.delete('/api/admin/officials/:id', (req, res) => {
 });
 
 
+app.put('/api/admin/officials/:id/status', (req, res) => {
+    const officialId = parseInt(req.params.id, 10);
+    const { status } = req.body;
+
+    // Input Validation
+    if (isNaN(officialId)) {
+        return res.status(400).json({ message: 'Invalid Official ID.' });
+    }
+    if (!status) {
+        return res.status(400).json({ message: 'Status field is required.' });
+    }
+
+    const SQL_UPDATE_STATUS = `
+        UPDATE barangay_officials 
+        SET status = ?, updated_at = NOW() 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_UPDATE_STATUS, [status, officialId], (err, result) => {
+        if (err) {
+            console.error("Database error updating official status:", err);
+            return res.status(500).json({ message: 'Failed to update official status.' });
+        }
+        if (result.affectedRows === 0) {
+            // 404 if ID not found, or 200 if no change was made
+            return res.status(404).json({ message: 'Official not found.' });
+        }
+        res.status(200).json({ message: 'Official status updated successfully.', officialId: officialId, newStatus: status });
+    });
+});
+
+app.put('/api/admin/officials/:id', (req, res) => {
+    const officialId = parseInt(req.params.id, 10);
+    const { 
+        firstName, middleInitial, lastName, contactNumber, 
+        category, status, position, committee, profilePictureUrl 
+    } = req.body;
+
+    if (isNaN(officialId) || !firstName || !lastName || !category || !status || !position || !committee) {
+        return res.status(400).json({ message: 'Missing required official fields.' });
+    }
+
+    const SQL_FETCH_OLD_PICTURE = `
+        SELECT profile_picture_url FROM barangay_officials WHERE id = ?
+    `;
+
+    const SQL_UPDATE = `
+        UPDATE barangay_officials 
+        SET first_name = ?, middle_initial = ?, last_name = ?, contact_number = ?, 
+            category = ?, status = ?, position = ?, committee = ?, 
+            profile_picture_url = ?, updated_at = NOW()
+        WHERE id = ?
+    `;
+    
+    // Begin Transaction to handle potential picture deletion
+    db.beginTransaction(err => {
+        if (err) {
+            console.error("Transaction Begin Error:", err);
+            return res.status(500).json({ message: 'Failed to start official update transaction.' });
+        }
+
+        // 1. Fetch current data to check for existing picture
+        db.query(SQL_FETCH_OLD_PICTURE, [officialId], (err, results) => {
+            if (err) return db.rollback(() => {
+                console.error("Database error fetching old picture URL:", err);
+                res.status(500).json({ message: 'Failed to update official (DB fetch error).' });
+            });
+            
+            const oldProfilePictureUrl = results.length > 0 ? results[0].profile_picture_url : null;
+            
+            // 2. Perform the update
+            const params = [
+                firstName, middleInitial || null, lastName, contactNumber || null,
+                category, status, position, committee, 
+                profilePictureUrl || null, officialId
+            ];
+
+            db.query(SQL_UPDATE, params, (err, updateResult) => {
+                if (err) return db.rollback(() => {
+                    console.error("Database error updating official:", err);
+                    res.status(500).json({ message: 'Failed to update official (DB update error).' });
+                });
+
+                if (updateResult.affectedRows === 0) return db.rollback(() => {
+                    res.status(404).json({ message: 'Official not found or no changes made.' });
+                });
+                
+                // 3. Delete old picture file if a NEW picture was uploaded (or old one was removed)
+                const pictureChanged = oldProfilePictureUrl && oldProfilePictureUrl !== profilePictureUrl;
+                
+                if (pictureChanged) {
+                    deleteFile(oldProfilePictureUrl);
+                }
+                
+                // 4. Commit the transaction
+                db.commit(commitErr => {
+                    if (commitErr) return db.rollback(() => {
+                        console.error("Transaction Commit Error:", commitErr);
+                        res.status(500).json({ message: 'Failed to complete official update.' });
+                    });
+                    
+                    // Respond with the updated official (by returning the fields sent)
+                    res.status(200).json({ 
+                        message: 'Official updated successfully!',
+                        official: { 
+                            id: officialId, 
+                            first_name: firstName, 
+                            middle_initial: middleInitial,
+                            last_name: lastName,
+                            contact_number: contactNumber,
+                            category: category,
+                            status: status,
+                            position: position,
+                            committee: committee,
+                            profile_picture_url: profilePictureUrl,
+                            // Note: created_at and updated_at will not be returned here
+                        }
+                    });
+                });
+            });
+        });
+    });
+});
+
+
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

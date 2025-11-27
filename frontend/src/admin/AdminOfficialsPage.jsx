@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX } from 'lucide-react';
+import { 
+    Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX, Edit
+} from 'lucide-react';
 
 // --- Constants ---
 const OFFICIAL_CATEGORIES = [
@@ -12,7 +14,6 @@ const OFFICIAL_STATUSES = [
     'Working', 'On Site', 'On Leave', 'AWOL'
 ];
 
-// --- NEW CONSTANTS FOR POSITION AND COMMITTEE ---
 const BARANGAY_POSITIONS = [
     'Barangay Captain', 'Kagawad', 'Secretary', 'Treasurer'
 ];
@@ -22,15 +23,19 @@ const SK_POSITIONS = [
 ];
 
 const OTHER_POSITIONS = [
-    'Staff', 'Tanod', 'Other' // Use categories as positions for these.
+    'Staff', 'Tanod', 'Other'
 ];
 
 const COMMITTEES = [
-    'None', // Default for Captain, Staff, Tanod, or when not applicable
+    'None', 
     'Appropriation', 'Peace and Order', 'Education', 'Health and Sanitation', 
     'Agriculture', 'Youth and Sports Development', 'Women and Family', 
     'Infrastructure', 'Environmental Protection'
 ];
+
+// --- REGEX FOR PHILIPPINE MOBILE NUMBERS ---
+// Allows 09xxxxxxxxx, +639xxxxxxxxx, or 639xxxxxxxxx. It validates 11 digits after the prefix.
+const PHILIPPINE_MOBILE_REGEX = /^(09|\+639|639)\d{9}$/;
 
 // Helper to get positions based on category
 const getPositionsForCategory = (category) => {
@@ -43,7 +48,18 @@ const getPositionsForCategory = (category) => {
             return OTHER_POSITIONS.includes(category) ? [category] : OTHER_POSITIONS;
     }
 };
-// --- END NEW CONSTANTS ---
+
+// --- VALIDATION HELPER FUNCTION ---
+const isValidPhilippineNumber = (number) => {
+    // If the field is empty (optional), it is valid.
+    if (!number) return true; 
+    
+    // Clean the number by removing spaces, hyphens, and parentheses
+    const cleanedNumber = number.replace(/[\s\-\(\)]/g, ''); 
+    
+    return PHILIPPINE_MOBILE_REGEX.test(cleanedNumber);
+};
+
 
 // --- Helper Components ---
 
@@ -57,7 +73,6 @@ const SuccessAlert = ({ message, style }) => {
     );
 };
 
-// --- Modal for Deletion ---
 const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     if (!show || !official) return null;
     const fullName = `${official.first_name} ${official.last_name}`;
@@ -71,7 +86,7 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
                     <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} (ID: {official.id})</strong>?
                 </p>
                 <p style={modalStyles.warning}>
-                    ⚠️ This action is irreversible. The official's record will be removed from the database.
+                    ⚠️ This action is irreversible. The official's record will be removed.
                 </p>
                 <div style={modalStyles.footer}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>
@@ -86,7 +101,7 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     );
 };
 
-// --- Modal for Adding Official ---
+// --- Modal for Adding Official (UPDATED FOR INLINE VALIDATION) ---
 const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const [formData, setFormData] = useState({
         firstName: '',
@@ -95,32 +110,28 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         contactNumber: '',
         category: OFFICIAL_CATEGORIES[0],
         status: OFFICIAL_STATUSES[0],
-        // --- NEW: position and committee in initial state ---
         position: getPositionsForCategory(OFFICIAL_CATEGORIES[0])[0], 
         committee: COMMITTEES[0],
-        // ---------------------------------------------------
     });
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
-    const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL from server
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    // State for API errors
+    const [error, setError] = useState(null); 
+    // State for inline validation errors (NEW)
+    const [contactNumError, setContactNumError] = useState(null); 
 
     useEffect(() => {
-        // Reset state when modal is hidden
         if (!show) {
             setFormData({
                 firstName: '', middleInitial: '', lastName: '', contactNumber: '',
                 category: OFFICIAL_CATEGORIES[0], status: OFFICIAL_STATUSES[0],
-                // --- NEW: Reset position and committee ---
                 position: getPositionsForCategory(OFFICIAL_CATEGORIES[0])[0], 
                 committee: COMMITTEES[0],
-                // -----------------------------------------
             });
-            setFile(null);
-            setPreviewUrl(null);
-            setProfilePictureUrl(null);
-            setError(null);
+            setFile(null); setPreviewUrl(null);
+            setError(null); 
+            setContactNumError(null); // Reset inline error
             setLoading(false);
         }
     }, [show]);
@@ -128,19 +139,22 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         
-        // --- NEW LOGIC: Dynamic position and committee reset based on category ---
+        if (name === 'contactNumber') {
+            // Clear validation error as soon as user types
+            setContactNumError(null); 
+        }
+
         if (name === 'category') {
             const newPositions = getPositionsForCategory(value);
             setFormData({ 
                 ...formData, 
                 [name]: value,
-                position: newPositions[0], // Reset position to the first available for the new category
-                committee: COMMITTEES[0], // Reset committee to None
+                position: newPositions[0], 
+                committee: COMMITTEES[0], 
             });
         } else {
             setFormData({ ...formData, [name]: value });
         }
-        // --- END NEW LOGIC ---
     };
 
     const handleFileChange = (e) => {
@@ -152,61 +166,57 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         }
     };
 
-    const handlePictureUpload = async () => {
-        if (!file) return null; // No file, nothing to upload
-
-        setLoading(true);
+    const handlePictureUpload = async (fileToUpload) => {
         const uploadFormData = new FormData();
-        uploadFormData.append('official_picture', file); // 'official_picture' matches server multer field name
+        uploadFormData.append('official_picture', fileToUpload); 
 
         try {
             const response = await axios.post('http://localhost:5000/api/admin/officials/upload-picture', uploadFormData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
-            setProfilePictureUrl(response.data.profilePictureUrl);
-            setLoading(false);
             return response.data.profilePictureUrl;
         } catch (err) {
-            console.error("Profile picture upload failed:", err.response ? err.response.data : err);
+            console.error("Profile picture upload failed:", err);
             setError('Failed to upload profile picture.');
-            setLoading(false);
-            return null;
+            throw new Error('Upload failed');
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
+        setContactNumError(null); // Clear inline error before new submission attempt
         setLoading(true);
+        
+        // --- CONTACT NUMBER VALIDATION (Inline check) ---
+        if (formData.contactNumber && !isValidPhilippineNumber(formData.contactNumber)) {
+            setContactNumError('Invalid number. Use 09xxxxxxxxx, +639xxxxxxxxx, or 639xxxxxxxxx format.');
+            setLoading(false);
+            return;
+        }
+        // ------------------------------------------------
 
         try {
-            // 1. Upload picture first, if a file is selected
-            let finalPictureUrl = profilePictureUrl;
+            let finalPictureUrl = null;
             if (file) {
-                finalPictureUrl = await handlePictureUpload();
-                if (!finalPictureUrl) {
-                    setLoading(false);
-                    return; // Stop if picture upload failed
-                }
+                finalPictureUrl = await handlePictureUpload(file);
             }
 
-            // 2. Submit official data
             const payload = {
                 ...formData,
                 profilePictureUrl: finalPictureUrl,
-                // Ensure new fields are explicitly included
                 position: formData.position, 
                 committee: formData.committee,
             };
 
             const response = await axios.post('http://localhost:5000/api/admin/officials', payload);
             
-            // Success
             onOfficialAdded(response.data.official);
             onHide();
 
         } catch (err) {
             console.error("Add official failed:", err.response ? err.response.data : err);
+            // Display API error at the top
             setError(err.response?.data?.message || 'An unknown error occurred while adding the official.');
         } finally {
             setLoading(false);
@@ -215,9 +225,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
 
     if (!show) return null;
 
-    // --- NEW: Get current positions based on selected category ---
     const currentPositions = getPositionsForCategory(formData.category);
-    // -------------------------------------------------------------
 
     return (
         <div style={modalStyles.backdrop}>
@@ -227,13 +235,14 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                     Add New Barangay Official
                 </h3>
                 <form onSubmit={handleSubmit}>
-                    {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ Error: {error}</p></div>}
+                    {/* Display API/Backend Errors at the top */}
+                    {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ API Error: {error}</p></div>}
                     
                     <div style={addModalStyles.grid}>
                         {/* Column 1: Profile Picture */}
                         <div style={addModalStyles.picUploadContainer}>
                             <p style={addModalStyles.label}>Profile Picture (Optional)</p>
-                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('official-pic-upload').click()}>
+                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('add-official-pic-upload').click()}>
                                 {previewUrl ? (
                                     <img src={previewUrl} alt="Preview" style={addModalStyles.picImage} />
                                 ) : (
@@ -244,7 +253,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 )}
                                 <input 
                                     type="file" 
-                                    id="official-pic-upload"
+                                    id="add-official-pic-upload"
                                     accept="image/*" 
                                     onChange={handleFileChange} 
                                     style={{ display: 'none' }} 
@@ -262,6 +271,19 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} style={addModalStyles.input} required />
                             </div>
 
+                            <p style={addModalStyles.label}>Contact Number (Optional)</p>
+                            <input 
+                                type="tel" 
+                                name="contactNumber" 
+                                placeholder="e.g., 09171234567 or +639171234567" 
+                                value={formData.contactNumber} 
+                                onChange={handleInputChange} 
+                                style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
+                            />
+                            {/* INLINE VALIDATION MESSAGE */}
+                            {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
+
+
                             <p style={addModalStyles.label}>Category *</p>
                             <select name="category" value={formData.category} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
                                 {OFFICIAL_CATEGORIES.map(cat => (
@@ -269,16 +291,13 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 ))}
                             </select>
 
-                            {/* NEW: Position Field */}
                             <p style={addModalStyles.label}>Position *</p>
                             <select name="position" value={formData.position} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
                                 {currentPositions.map(pos => (
                                     <option key={pos} value={pos}>{pos}</option>
                                 ))}
                             </select>
-                            {/* END NEW: Position Field */}
 
-                            {/* NEW: Committee Field (Conditional) */}
                             {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
                                 <>
                                     <p style={addModalStyles.label}>Committee (Mandatory for Kagawads)</p>
@@ -289,7 +308,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                     </select>
                                 </>
                             )}
-                            {/* END NEW: Committee Field */}
 
                             <p style={addModalStyles.label}>Status *</p>
                             <select name="status" value={formData.status} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
@@ -298,8 +316,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 ))}
                             </select>
 
-                            <p style={addModalStyles.label}>Contact Number (Optional)</p>
-                            <input type="text" name="contactNumber" placeholder="e.g., 09123456789" value={formData.contactNumber} onChange={handleInputChange} style={addModalStyles.input} />
                         </div>
                     </div>
 
@@ -309,6 +325,266 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                         </button>
                         <button type="submit" style={addModalStyles.addButton} disabled={loading}>
                             {loading ? 'Adding...' : 'Add Official'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// --- Modal for Editing Official (UPDATED FOR INLINE VALIDATION) ---
+const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
+    const initialOfficial = official || {};
+
+    const [formData, setFormData] = useState({
+        firstName: initialOfficial.first_name || '',
+        middleInitial: initialOfficial.middle_initial || '',
+        lastName: initialOfficial.last_name || '',
+        contactNumber: initialOfficial.contact_number || '',
+        category: initialOfficial.category || OFFICIAL_CATEGORIES[0],
+        status: initialOfficial.status || OFFICIAL_STATUSES[0],
+        position: initialOfficial.position || getPositionsForCategory(initialOfficial.category || OFFICIAL_CATEGORIES[0])[0], 
+        committee: initialOfficial.committee || COMMITTEES[0],
+    });
+    const [file, setFile] = useState(null); 
+    const [previewUrl, setPreviewUrl] = useState(null); 
+    const [profilePictureUrl, setProfilePictureUrl] = useState(initialOfficial.profile_picture_url || null); 
+    const [loading, setLoading] = useState(false);
+    // State for API errors
+    const [error, setError] = useState(null);
+    // State for inline validation errors (NEW)
+    const [contactNumError, setContactNumError] = useState(null);
+
+    // Effect to reset state when the official prop changes or modal is shown/hidden
+    useEffect(() => {
+        if (show && official) {
+            setFormData({
+                firstName: official.first_name || '',
+                middleInitial: official.middle_initial || '',
+                lastName: official.last_name || '',
+                contactNumber: official.contact_number || '',
+                category: official.category || OFFICIAL_CATEGORIES[0],
+                status: official.status || OFFICIAL_STATUSES[0],
+                position: official.position || getPositionsForCategory(official.category || OFFICIAL_CATEGORIES[0])[0], 
+                committee: official.committee || COMMITTEES[0],
+            });
+            setFile(null);
+            setPreviewUrl(null);
+            setProfilePictureUrl(official.profile_picture_url || null);
+            setError(null);
+            setContactNumError(null); // Reset inline error
+            setLoading(false);
+        }
+    }, [show, official]);
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        
+        if (name === 'contactNumber') {
+             // Clear validation error as soon as user types
+            setContactNumError(null); 
+        }
+
+        if (name === 'category') {
+            const newPositions = getPositionsForCategory(value);
+            setFormData({ 
+                ...formData, 
+                [name]: value,
+                position: newPositions[0], 
+                committee: COMMITTEES[0], 
+            });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
+    };
+
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            setPreviewUrl(URL.createObjectURL(selectedFile));
+            setError(null);
+        }
+    };
+
+    const handlePictureUpload = async (fileToUpload) => {
+        setLoading(true);
+        const uploadFormData = new FormData();
+        uploadFormData.append('official_picture', fileToUpload); 
+
+        try {
+            const response = await axios.post('http://localhost:5000/api/admin/officials/upload-picture', uploadFormData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            setLoading(false);
+            return response.data.profilePictureUrl;
+        } catch (err) {
+            console.error("Profile picture upload failed:", err);
+            setError('Failed to upload profile picture.');
+            setLoading(false);
+            throw new Error('Upload failed'); 
+        }
+    };
+    
+    const handleRemovePicture = () => {
+        setFile(null); 
+        setPreviewUrl(null); 
+        setProfilePictureUrl(null); 
+        document.getElementById('edit-official-pic-upload').value = null; 
+        setError(null);
+        setContactNumError(null);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setContactNumError(null); // Clear inline error before new submission attempt
+        setLoading(true);
+
+        // --- CONTACT NUMBER VALIDATION (Inline check) ---
+        if (formData.contactNumber && !isValidPhilippineNumber(formData.contactNumber)) {
+            setContactNumError('Invalid number. Use 09xxxxxxxxx, +639xxxxxxxxx, or 639xxxxxxxxx format.');
+            setLoading(false);
+            return;
+        }
+        // ------------------------------------------------
+
+        try {
+            let finalPictureUrl = profilePictureUrl; 
+
+            if (file) {
+                finalPictureUrl = await handlePictureUpload(file);
+            }
+            
+            const payload = {
+                ...formData,
+                profilePictureUrl: finalPictureUrl,
+            };
+
+            const response = await axios.put(`http://localhost:5000/api/admin/officials/${official.id}`, payload);
+            
+            onOfficialUpdated(response.data.official);
+            onHide();
+
+        } catch (err) {
+            console.error("Edit official failed:", err.response ? err.response.data : err);
+            // Display API error at the top
+            setError(err.response?.data?.message || 'An unknown error occurred while updating the official.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!show || !official) return null;
+
+    const currentPositions = getPositionsForCategory(formData.category);
+    const picToDisplay = previewUrl || profilePictureUrl; 
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={{...modalStyles.modal, width: '90%', maxWidth: '600px'}}>
+                <h3 style={modalStyles.header}>
+                    <Edit size={24} style={{ marginRight: '10px', color: '#6366F1' }} />
+                    Edit Official: {official.first_name} {official.last_name}
+                </h3>
+                <form onSubmit={handleSubmit}>
+                    {/* Display API/Backend Errors at the top */}
+                    {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ API Error: {error}</p></div>}
+                    
+                    <div style={addModalStyles.grid}>
+                        {/* Column 1: Profile Picture */}
+                        <div style={addModalStyles.picUploadContainer}>
+                            <p style={addModalStyles.label}>Profile Picture (Optional)</p>
+                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('edit-official-pic-upload').click()}>
+                                {picToDisplay ? (
+                                    <img src={picToDisplay} alt="Preview" style={addModalStyles.picImage} />
+                                ) : (
+                                    <div style={addModalStyles.picPlaceholder}>
+                                        <Image size={40} color="#9CA3AF" />
+                                        <p style={{ margin: '10px 0 0 0', color: '#9CA3AF', fontSize: '12px' }}>Click to Upload</p>
+                                    </div>
+                                )}
+                                <input 
+                                    type="file" 
+                                    id="edit-official-pic-upload"
+                                    accept="image/*" 
+                                    onChange={handleFileChange} 
+                                    style={{ display: 'none' }} 
+                                />
+                            </div>
+                            <p style={addModalStyles.hint}>Max 2MB. Only image files.</p>
+                            {(picToDisplay || file) && (
+                                <button type="button" onClick={handleRemovePicture} style={{...styles.secondaryButton, marginTop: '10px', display: 'flex', alignItems: 'center'}}>
+                                    <UserX size={16} style={{marginRight: '5px'}}/> Remove Picture
+                                </button>
+                            )}
+                        </div>
+                        
+                        {/* Column 2: Details */}
+                        <div style={addModalStyles.detailsContainer}>
+                            <p style={addModalStyles.label}>Full Name *</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
+                                <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} style={addModalStyles.input} required />
+                                <input type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} style={addModalStyles.input} maxLength="1" />
+                                <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} style={addModalStyles.input} required />
+                            </div>
+
+                            <p style={addModalStyles.label}>Contact Number (Optional)</p>
+                            <input 
+                                type="tel" 
+                                name="contactNumber" 
+                                placeholder="e.g., 09171234567 or +639171234567" 
+                                value={formData.contactNumber} 
+                                onChange={handleInputChange} 
+                                style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
+                            />
+                            {/* INLINE VALIDATION MESSAGE */}
+                            {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
+
+
+                            <p style={addModalStyles.label}>Category *</p>
+                            <select name="category" value={formData.category} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {OFFICIAL_CATEGORIES.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+
+                            <p style={addModalStyles.label}>Position *</p>
+                            <select name="position" value={formData.position} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {currentPositions.map(pos => (
+                                    <option key={pos} value={pos}>{pos}</option>
+                                ))}
+                            </select>
+
+                            {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
+                                <>
+                                    <p style={addModalStyles.label}>Committee (Mandatory for Kagawads)</p>
+                                    <select name="committee" value={formData.committee} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}}>
+                                        {COMMITTEES.map(com => (
+                                            <option key={com} value={com}>{com}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            
+                            <p style={addModalStyles.label}>Status *</p>
+                            <select name="status" value={formData.status} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {OFFICIAL_STATUSES.map(stat => (
+                                    <option key={stat} value={stat}>{stat}</option>
+                                ))}
+                            </select>
+
+                        </div>
+                    </div>
+
+                    <div style={modalStyles.footer}>
+                        <button type="button" onClick={onHide} style={modalStyles.cancelButton} disabled={loading}>
+                            Cancel
+                        </button>
+                        <button type="submit" style={addModalStyles.addButton} disabled={loading}>
+                            {loading ? 'Updating...' : 'Save Changes'}
+                            {!loading && <CheckCircle size={18} style={{ marginLeft: '10px' }} />}
                         </button>
                     </div>
                 </form>
@@ -328,15 +604,20 @@ const AdminOfficialsPage = () => {
     const [sortBy, setSortBy] = useState('id'); 
     const [sortDirection, setSortDirection] = useState('asc');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [officialToDelete, setOfficialToDelete] = useState(null); // { id, name }
+    const [officialToDelete, setOfficialToDelete] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [successMessage, setSuccessMessage] = useState(null); 
+    
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [officialToEdit, setOfficialToEdit] = useState(null);
+    
+    const [editingStatusId, setEditingStatusId] = useState(null);
+
 
     const fetchOfficials = async () => {
         setLoading(true);
         setError(null);
         try {
-            // The API call to fetch officials will now return position and committee
             const response = await axios.get('http://localhost:5000/api/admin/officials');
             setOfficials(response.data);
         } catch (err) {
@@ -390,23 +671,70 @@ const AdminOfficialsPage = () => {
         setTimeout(() => setSuccessMessage(null), 5000);
     };
 
+    const handleEditClick = (official) => {
+        setOfficialToEdit(official);
+        setShowEditModal(true);
+    };
+
+    const handleOfficialUpdated = (updatedOfficial) => {
+        setOfficials(prev => 
+            prev.map(o => (o.id === updatedOfficial.id ? { 
+                ...o, 
+                ...updatedOfficial 
+            } : o))
+        );
+        setShowEditModal(false);
+        setOfficialToEdit(null);
+        setSuccessMessage(`Official ${updatedOfficial.first_name} ${updatedOfficial.last_name} updated successfully.`);
+        setTimeout(() => setSuccessMessage(null), 5000);
+    };
+
+    const handleStatusUpdate = async (officialId, statusValue) => {
+        const currentStatus = officials.find(o => o.id === officialId)?.status;
+        if (statusValue === currentStatus) {
+            setEditingStatusId(null);
+            return;
+        }
+
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            await axios.put(`http://localhost:5000/api/admin/officials/${officialId}/status`, {
+                status: statusValue
+            });
+
+            setOfficials(prev => prev.map(o => 
+                o.id === officialId ? { ...o, status: statusValue } : o
+            ));
+            
+            setEditingStatusId(null);
+            setSuccessMessage(`Status for Official ID ${officialId} updated successfully to '${statusValue}'.`);
+            setTimeout(() => setSuccessMessage(null), 5000);
+
+        } catch (err) {
+            console.error(`Error updating status for official ${officialId}:`, err.response ? err.response.data : err);
+            setError(err.response?.data?.message || 'Failed to update official status.');
+            setTimeout(() => setError(null), 5000);
+            setEditingStatusId(null);
+        }
+    };
+
+
     const filteredAndSortedOfficials = useMemo(() => {
         let currentOfficials = officials.filter(official => {
             const searchLower = searchTerm.toLowerCase();
             const fullName = `${official.first_name} ${official.last_name} ${official.middle_initial || ''}`.toLowerCase();
-            
-            // --- NEW: Include position and committee in search filter ---
             const positionLower = (official.position || '').toLowerCase();
             const committeeLower = (official.committee || '').toLowerCase();
-            // -------------------------------------------------------------
 
             return (
                 fullName.includes(searchLower) ||
                 (official.contact_number && official.contact_number.includes(searchLower)) ||
                 official.category.toLowerCase().includes(searchLower) ||
                 official.status.toLowerCase().includes(searchLower) ||
-                positionLower.includes(searchLower) || // NEW
-                committeeLower.includes(searchLower) // NEW
+                positionLower.includes(searchLower) || 
+                committeeLower.includes(searchLower)
             );
         });
 
@@ -416,15 +744,12 @@ const AdminOfficialsPage = () => {
 
             if (sortBy === 'id' || sortBy === 'created_at') {
                 if (sortBy === 'created_at') {
-                    // Convert to timestamp for accurate date comparison
                     const aTime = new Date(aValue).getTime();
                     const bTime = new Date(bValue).getTime();
                     return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
                 }
-                // For 'id', direct numeric comparison
                 return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
             } else {
-                // String comparison (case-insensitive)
                 if (String(aValue).toLowerCase() < String(bValue).toLowerCase()) return sortDirection === 'asc' ? -1 : 1;
                 if (String(aValue).toLowerCase() > String(bValue).toLowerCase()) return sortDirection === 'asc' ? 1 : -1;
             }
@@ -502,14 +827,12 @@ const AdminOfficialsPage = () => {
                             <th style={{...styles.tableHeader, width: '40px'}}>Pic</th>
                             <SortableHeader title="Name" sortKey="last_name" />
                             <SortableHeader title="Category" sortKey="category" />
-                            {/* NEW: Position Header */}
                             <SortableHeader title="Position" sortKey="position" />
-                            {/* NEW: Committee Header */}
                             <SortableHeader title="Committee" sortKey="committee" />
                             <SortableHeader title="Status" sortKey="status" />
                             <SortableHeader title="Contact" sortKey="contact_number" />
                             <SortableHeader title="Added On" sortKey="created_at" />
-                            <th style={{...styles.tableHeader, width: '80px', textAlign: 'center'}}>Actions</th>
+                            <th style={{...styles.tableHeader, width: '100px', textAlign: 'center'}}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -530,17 +853,14 @@ const AdminOfficialsPage = () => {
                                 </td>
                                 <td style={styles.tableData}>{official.category}</td>
                                 
-                                {/* NEW: Position Data */}
                                 <td style={{...styles.tableData, fontWeight: '500'}}>{official.position}</td>
 
-                                {/* NEW: Committee Data */}
                                 <td style={styles.tableData}>
                                     <span style={{ 
                                         padding: '4px 8px', 
                                         borderRadius: '4px', 
                                         fontSize: '12px', 
                                         fontWeight: '600',
-                                        // Use a light green/teal for assigned committees, or gray for 'None'/null
                                         backgroundColor: official.committee === 'None' || !official.committee ? '#F3F4F6' : '#D1FAE5', 
                                         color: official.committee === 'None' || !official.committee ? '#4B5563' : '#047857'
                                     }}>
@@ -548,18 +868,65 @@ const AdminOfficialsPage = () => {
                                     </span>
                                 </td>
 
-                                <td style={styles.tableData}>
-                                    <span style={{...styles.statusBadge, ...getStatusBadgeStyle(official.status)}}>
-                                        {official.status}
-                                    </span>
+                                <td 
+                                    key="status" 
+                                    style={{
+                                        ...styles.tableData, 
+                                        padding: editingStatusId === official.id ? '8px 20px' : '15px 20px', 
+                                        cursor: editingStatusId !== official.id ? 'pointer' : 'default'
+                                    }}
+                                    onClick={() => {
+                                        if (editingStatusId !== official.id) {
+                                            setEditingStatusId(official.id);
+                                        }
+                                    }}
+                                >
+                                    {editingStatusId === official.id ? (
+                                        <select
+                                            value={official.status}
+                                            onChange={(e) => handleStatusUpdate(official.id, e.target.value)}
+                                            onBlur={() => setEditingStatusId(null)}
+                                            style={styles.statusSelect} 
+                                            autoFocus 
+                                        >
+                                            {OFFICIAL_STATUSES.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div style={styles.clickableStatusDisplay} title="Click to edit status">
+                                            <span style={{...styles.statusBadge, ...getStatusBadgeStyle(official.status)}}>
+                                                {official.status}
+                                            </span>
+                                            <ChevronDown size={16} color="#4B5563" style={{ marginLeft: '5px' }} />
+                                        </div>
+                                    )}
                                 </td>
+                                
                                 <td style={styles.tableData}>{official.contact_number || 'N/A'}</td>
                                 <td style={styles.tableData}>{new Date(official.created_at).toLocaleDateString()}</td>
-                                <td style={{...styles.tableData, textAlign: 'center'}}>
+                                
+                                {/* MODIFIED TD FOR FLEXBOX LAYOUT */}
+                                <td style={{
+                                    ...styles.tableData, 
+                                    display: 'flex', 
+                                    justifyContent: 'center', 
+                                    alignItems: 'center',
+                                    padding: '0 20px', 
+                                    height: '65px' // Set a fixed height to align actions consistently
+                                }}>
+                                    <button 
+                                        onClick={() => handleEditClick(official)} 
+                                        style={{...styles.actionButton, marginRight: '10px'}} 
+                                        title="Edit Official"
+                                    >
+                                        <Edit size={18} color="#2563EB" /> 
+                                    </button>
                                     <button onClick={() => handleDeleteClick(official)} style={styles.actionButton} title="Delete Official" >
                                         <Trash2 size={18} color="#DC2626" />
                                     </button>
                                 </td>
+                                {/* END MODIFIED TD */}
                             </tr>
                         ))}
                         {filteredAndSortedOfficials.length === 0 && (
@@ -583,11 +950,18 @@ const AdminOfficialsPage = () => {
                 onHide={() => setShowAddModal(false)} 
                 onOfficialAdded={handleOfficialAdded} 
             />
+            <EditOfficialModal 
+                show={showEditModal}
+                official={officialToEdit}
+                onHide={() => setShowEditModal(false)}
+                onOfficialUpdated={handleOfficialUpdated}
+            />
         </div>
     );
 };
 
 // --- Styles ---
+
 const styles = {
     container: {
         padding: '30px',
@@ -638,7 +1012,7 @@ const styles = {
         backgroundColor: 'transparent',
     },
     addButton: {
-        backgroundColor: '#6366F1',
+        backgroundColor: '#10B981', 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '8px',
@@ -650,7 +1024,21 @@ const styles = {
         alignItems: 'center',
         transition: 'background-color 0.2s',
         ':hover': {
-            backgroundColor: '#4F46E5',
+            backgroundColor: '#059669',
+        }
+    },
+    secondaryButton: {
+        backgroundColor: '#F3F4F6', 
+        color: '#4B5563',
+        border: '1px solid #D1D5DB',
+        borderRadius: '6px',
+        padding: '8px 15px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '14px',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#E5E7EB',
         }
     },
     tableWrapper: {
@@ -662,7 +1050,7 @@ const styles = {
     table: {
         width: '100%',
         borderCollapse: 'collapse',
-        minWidth: '1200px', // Ensure horizontal scrolling if too narrow
+        minWidth: '1300px', 
     },
     tableHeader: {
         padding: '15px 20px',
@@ -702,12 +1090,30 @@ const styles = {
         minWidth: '80px',
         textAlign: 'center',
     },
+    statusSelect: {
+        padding: '6px 8px',
+        borderRadius: '6px',
+        border: '1px solid #D1D5DB',
+        backgroundColor: 'white',
+        fontWeight: '600',
+        fontSize: '13px',
+        color: '#1F2937',
+        cursor: 'pointer',
+        width: '100%',
+        boxSizing: 'border-box',
+        outline: 'none',
+    },
+    clickableStatusDisplay: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+    },
     actionButton: {
         background: 'none',
         border: 'none',
         cursor: 'pointer',
         padding: '5px',
-        marginLeft: '5px',
         transition: 'transform 0.1s',
         ':hover': {
             transform: 'scale(1.1)',
@@ -717,21 +1123,20 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         padding: '15px',
-        backgroundColor: '#D1FAE5', // Light green
-        color: '#047857', // Dark green text
+        backgroundColor: '#D1FAE5',
+        color: '#047857',
         border: '1px solid #6EE7B7',
         borderRadius: '8px',
         fontWeight: '600',
         fontSize: '15px',
         marginBottom: '15px',
     },
-    // New: Error Alert Styles
     errorAlert: {
         display: 'flex',
         alignItems: 'center',
         padding: '15px',
-        backgroundColor: '#FEE2E2', // Light red
-        color: '#991B1B', // Dark red text
+        backgroundColor: '#FEE2E2',
+        color: '#991B1B',
         border: '1px solid #FCA5A5',
         borderRadius: '8px',
         fontWeight: '600',
@@ -845,7 +1250,7 @@ const modalStyles = {
 const addModalStyles = {
     ...modalStyles,
     addButton: {
-        backgroundColor: '#10B981', // Emerald green
+        backgroundColor: '#6366F1', 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '6px',
@@ -853,9 +1258,11 @@ const addModalStyles = {
         cursor: 'pointer',
         fontWeight: '600',
         fontSize: '15px',
+        display: 'flex',
+        alignItems: 'center',
         transition: 'background-color 0.2s',
         ':hover': {
-            backgroundColor: '#059669',
+            backgroundColor: '#4F46E5',
         }
     },
     grid: {
@@ -885,6 +1292,14 @@ const addModalStyles = {
             boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
             outline: 'none',
         }
+    },
+    // NEW STYLE FOR INLINE VALIDATION MESSAGE
+    validationError: {
+        fontSize: '12px',
+        color: '#DC2626',
+        marginTop: '5px',
+        marginBottom: '10px',
+        fontWeight: '500',
     },
     picUploadContainer: {
         display: 'flex',

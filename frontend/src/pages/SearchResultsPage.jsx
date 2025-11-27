@@ -410,7 +410,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                                         </div>
                                         <span style={styles.threadTagModified}>{thread.tag}</span>
                                     </div>
-                                    <h3 style={styles.threadTitle}>{thread.title}</h3>
                                     <p style={styles.threadBodyModified}> 
                                         {thread.body} 
                                     </p>
@@ -757,13 +756,13 @@ const styles = {
         marginBottom: '5px' 
     }, 
     threadBodyModified: { 
-        fontSize: '15px', 
-        fontWeight: '500', 
-        color: '#111827', 
-        lineHeight: '1.4', 
-        marginBottom: '15px', 
-        marginTop: '10px', 
-        whiteSpace: 'pre-wrap', 
+         fontSize: '16px',
+        color: '#4b5563',
+        margin: '5px 0 0 0', // Top margin adjusted from previous steps
+        lineHeight: '1.5',
+        // Text wrapping fix
+        wordWrap: 'break-word', 
+        overflowWrap: 'break-word',
     }, 
     threadFooter: { 
         display: 'flex', 
