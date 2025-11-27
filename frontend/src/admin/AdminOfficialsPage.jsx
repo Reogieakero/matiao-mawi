@@ -1,1109 +1,933 @@
-// AdminOfficialsPage.jsx
+// frontend/src/admin/AdminOfficialsPage.jsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-// Import all necessary icons from lucide-react, including the new ones for toasts and loading
-import { 
-    PlusCircle, Edit, Trash2, X, AlertTriangle, Users, Image, CheckCircle, 
-    Info, Loader // Added CheckCircle, Info, Loader
-} from 'lucide-react'; 
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import { Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX } from 'lucide-react';
 
-// -----------------------------------------------------------------
-// --- Configuration: Predefined Positions and Committees (UPDATED) ---
-// -----------------------------------------------------------------
-
-// Positions specific to Sangguniang Kabataan and Barangay Support Staff
-const POSITIONS = [
-    'SK Chairperson',
-    'SK Kagawad',
-    'SK Secretary',
-    'SK Treasurer',
-    'Barangay Staff', // General staff role
-    'Appointive Official (e.g., BHW, Tanod)',
-    'Other'
+// --- Constants ---
+const OFFICIAL_CATEGORIES = [
+    'Barangay Official', 'SK Official', 'Staff', 'Tanod', 'Other'
+];
+const OFFICIAL_STATUSES = [
+    'Working', 'On Site', 'On Leave', 'AWOL'
 ];
 
-// Standard Committees in a typical Sangguniang Kabataan (SK) or Barangay structure
+// --- NEW CONSTANTS FOR POSITION AND COMMITTEE ---
+const BARANGAY_POSITIONS = [
+    'Barangay Captain', 'Kagawad', 'Secretary', 'Treasurer'
+];
+
+const SK_POSITIONS = [
+    'SK Chairperson', 'SK Kagawad'
+];
+
+const OTHER_POSITIONS = [
+    'Staff', 'Tanod', 'Other' // Use categories as positions for these.
+];
+
 const COMMITTEES = [
-    'None (Executive Role/Staff)', 
-    'Committee on Youth and Sports Development',
-    'Committee on Education',
-    'Committee on Health and Sanitation',
-    'Committee on Social Inclusion & Equity',
-    'Committee on Economic Empowerment & Livelihood',
-    'Committee on Environment & Disaster Risk Reduction (DRR)',
-    'Committee on Peace-Building and Security',
-    'Committee on Public Works and Infrastructure',
-    'Committee on Budget and Finance',
-    'Committee on Governance & Accountability'
+    'None', // Default for Captain, Staff, Tanod, or when not applicable
+    'Appropriation', 'Peace and Order', 'Education', 'Health and Sanitation', 
+    'Agriculture', 'Youth and Sports Development', 'Women and Family', 
+    'Infrastructure', 'Environmental Protection'
 ];
 
-
-// --- TOAST COMPONENT ---
-// A simple, modern notification component
-const Toast = ({ message, type, onClose }) => {
-    
-    // FIX: useEffect is now called UNCONDITIONALLY at the top of the component
-    useEffect(() => {
-        if (!message) return; // Prevent setting a timeout if no message is present
-        const timer = setTimeout(onClose, 5000); // Auto-close after 5 seconds
-        return () => clearTimeout(timer);
-    }, [onClose, message]); 
-
-    // Conditional return happens AFTER the hook is called
-    if (!message) return null; 
-
-    const baseStyle = {
-        position: 'fixed',
-        bottom: '30px',
-        right: '30px',
-        padding: '15px 20px',
-        borderRadius: '8px',
-        color: 'white',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-        display: 'flex',
-        alignItems: 'center',
-        zIndex: 2000,
-        transition: 'opacity 0.3s ease-in-out',
-    };
-
-    let colorStyle = {};
-    let Icon = Info;
-
-    switch (type) {
-        case 'success':
-            colorStyle = { backgroundColor: '#059669' }; // Darker Green
-            Icon = CheckCircle;
-            break;
-        case 'error':
-            colorStyle = { backgroundColor: '#DC2626' }; // Darker Red
-            Icon = AlertTriangle;
-            break;
+// Helper to get positions based on category
+const getPositionsForCategory = (category) => {
+    switch (category) {
+        case 'Barangay Official':
+            return BARANGAY_POSITIONS;
+        case 'SK Official':
+            return SK_POSITIONS;
         default:
-            colorStyle = { backgroundColor: '#2563EB' }; // Darker Blue (Info)
-            Icon = Info;
+            return OTHER_POSITIONS.includes(category) ? [category] : OTHER_POSITIONS;
     }
+};
+// --- END NEW CONSTANTS ---
 
+// --- Helper Components ---
+
+const SuccessAlert = ({ message, style }) => {
+    if (!message) return null;
     return (
-        <div style={{ ...baseStyle, ...colorStyle }}>
-            <Icon size={20} style={{ marginRight: '10px' }} />
-            <span>{message}</span>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', marginLeft: '15px', cursor: 'pointer' }}>
-                <X size={16} />
-            </button>
+        <div style={{...styles.successAlert, ...style}}>
+            <CheckCircle size={20} style={{ marginRight: '10px' }} />
+            {message}
         </div>
     );
 };
-// --- END TOAST COMPONENT ---
 
+// --- Modal for Deletion ---
+const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
+    if (!show || !official) return null;
+    const fullName = `${official.first_name} ${official.last_name}`;
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={modalStyles.modal}>
+                <h3 style={modalStyles.header}>Confirm Deletion</h3>
+                <p style={modalStyles.body}>
+                    Are you sure you want to permanently delete the official: 
+                    <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} (ID: {official.id})</strong>?
+                </p>
+                <p style={modalStyles.warning}>
+                    ⚠️ This action is irreversible. The official's record will be removed from the database.
+                </p>
+                <div style={modalStyles.footer}>
+                    <button onClick={onCancel} style={modalStyles.cancelButton}>
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm} style={modalStyles.deleteButton}>
+                        Yes, Delete Official
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Modal for Adding Official ---
+const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
+    const [formData, setFormData] = useState({
+        firstName: '',
+        middleInitial: '',
+        lastName: '',
+        contactNumber: '',
+        category: OFFICIAL_CATEGORIES[0],
+        status: OFFICIAL_STATUSES[0],
+        // --- NEW: position and committee in initial state ---
+        position: getPositionsForCategory(OFFICIAL_CATEGORIES[0])[0], 
+        committee: COMMITTEES[0],
+        // ---------------------------------------------------
+    });
+    const [file, setFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL from server
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        // Reset state when modal is hidden
+        if (!show) {
+            setFormData({
+                firstName: '', middleInitial: '', lastName: '', contactNumber: '',
+                category: OFFICIAL_CATEGORIES[0], status: OFFICIAL_STATUSES[0],
+                // --- NEW: Reset position and committee ---
+                position: getPositionsForCategory(OFFICIAL_CATEGORIES[0])[0], 
+                committee: COMMITTEES[0],
+                // -----------------------------------------
+            });
+            setFile(null);
+            setPreviewUrl(null);
+            setProfilePictureUrl(null);
+            setError(null);
+            setLoading(false);
+        }
+    }, [show]);
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        
+        // --- NEW LOGIC: Dynamic position and committee reset based on category ---
+        if (name === 'category') {
+            const newPositions = getPositionsForCategory(value);
+            setFormData({ 
+                ...formData, 
+                [name]: value,
+                position: newPositions[0], // Reset position to the first available for the new category
+                committee: COMMITTEES[0], // Reset committee to None
+            });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
+        // --- END NEW LOGIC ---
+    };
+
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            setPreviewUrl(URL.createObjectURL(selectedFile));
+            setError(null);
+        }
+    };
+
+    const handlePictureUpload = async () => {
+        if (!file) return null; // No file, nothing to upload
+
+        setLoading(true);
+        const uploadFormData = new FormData();
+        uploadFormData.append('official_picture', file); // 'official_picture' matches server multer field name
+
+        try {
+            const response = await axios.post('http://localhost:5000/api/admin/officials/upload-picture', uploadFormData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            setProfilePictureUrl(response.data.profilePictureUrl);
+            setLoading(false);
+            return response.data.profilePictureUrl;
+        } catch (err) {
+            console.error("Profile picture upload failed:", err.response ? err.response.data : err);
+            setError('Failed to upload profile picture.');
+            setLoading(false);
+            return null;
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setLoading(true);
+
+        try {
+            // 1. Upload picture first, if a file is selected
+            let finalPictureUrl = profilePictureUrl;
+            if (file) {
+                finalPictureUrl = await handlePictureUpload();
+                if (!finalPictureUrl) {
+                    setLoading(false);
+                    return; // Stop if picture upload failed
+                }
+            }
+
+            // 2. Submit official data
+            const payload = {
+                ...formData,
+                profilePictureUrl: finalPictureUrl,
+                // Ensure new fields are explicitly included
+                position: formData.position, 
+                committee: formData.committee,
+            };
+
+            const response = await axios.post('http://localhost:5000/api/admin/officials', payload);
+            
+            // Success
+            onOfficialAdded(response.data.official);
+            onHide();
+
+        } catch (err) {
+            console.error("Add official failed:", err.response ? err.response.data : err);
+            setError(err.response?.data?.message || 'An unknown error occurred while adding the official.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!show) return null;
+
+    // --- NEW: Get current positions based on selected category ---
+    const currentPositions = getPositionsForCategory(formData.category);
+    // -------------------------------------------------------------
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={{...modalStyles.modal, width: '90%', maxWidth: '600px'}}>
+                <h3 style={modalStyles.header}>
+                    <UserPlus size={24} style={{ marginRight: '10px', color: '#6366F1' }} />
+                    Add New Barangay Official
+                </h3>
+                <form onSubmit={handleSubmit}>
+                    {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ Error: {error}</p></div>}
+                    
+                    <div style={addModalStyles.grid}>
+                        {/* Column 1: Profile Picture */}
+                        <div style={addModalStyles.picUploadContainer}>
+                            <p style={addModalStyles.label}>Profile Picture (Optional)</p>
+                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('official-pic-upload').click()}>
+                                {previewUrl ? (
+                                    <img src={previewUrl} alt="Preview" style={addModalStyles.picImage} />
+                                ) : (
+                                    <div style={addModalStyles.picPlaceholder}>
+                                        <Image size={40} color="#9CA3AF" />
+                                        <p style={{ margin: '10px 0 0 0', color: '#9CA3AF', fontSize: '12px' }}>Click to Upload</p>
+                                    </div>
+                                )}
+                                <input 
+                                    type="file" 
+                                    id="official-pic-upload"
+                                    accept="image/*" 
+                                    onChange={handleFileChange} 
+                                    style={{ display: 'none' }} 
+                                />
+                            </div>
+                            <p style={addModalStyles.hint}>Max 2MB. Only image files.</p>
+                        </div>
+                        
+                        {/* Column 2: Details */}
+                        <div style={addModalStyles.detailsContainer}>
+                            <p style={addModalStyles.label}>Full Name *</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
+                                <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} style={addModalStyles.input} required />
+                                <input type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} style={addModalStyles.input} maxLength="1" />
+                                <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} style={addModalStyles.input} required />
+                            </div>
+
+                            <p style={addModalStyles.label}>Category *</p>
+                            <select name="category" value={formData.category} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {OFFICIAL_CATEGORIES.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+
+                            {/* NEW: Position Field */}
+                            <p style={addModalStyles.label}>Position *</p>
+                            <select name="position" value={formData.position} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {currentPositions.map(pos => (
+                                    <option key={pos} value={pos}>{pos}</option>
+                                ))}
+                            </select>
+                            {/* END NEW: Position Field */}
+
+                            {/* NEW: Committee Field (Conditional) */}
+                            {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
+                                <>
+                                    <p style={addModalStyles.label}>Committee (Mandatory for Kagawads)</p>
+                                    <select name="committee" value={formData.committee} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}}>
+                                        {COMMITTEES.map(comm => (
+                                            <option key={comm} value={comm}>{comm}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            {/* END NEW: Committee Field */}
+
+                            <p style={addModalStyles.label}>Status *</p>
+                            <select name="status" value={formData.status} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
+                                {OFFICIAL_STATUSES.map(stat => (
+                                    <option key={stat} value={stat}>{stat}</option>
+                                ))}
+                            </select>
+
+                            <p style={addModalStyles.label}>Contact Number (Optional)</p>
+                            <input type="text" name="contactNumber" placeholder="e.g., 09123456789" value={formData.contactNumber} onChange={handleInputChange} style={addModalStyles.input} />
+                        </div>
+                    </div>
+
+                    <div style={{...modalStyles.footer, marginTop: '20px'}}>
+                        <button type="button" onClick={onHide} style={modalStyles.cancelButton} disabled={loading}>
+                            Cancel
+                        </button>
+                        <button type="submit" style={addModalStyles.addButton} disabled={loading}>
+                            {loading ? 'Adding...' : 'Add Official'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main Component ---
 
 const AdminOfficialsPage = () => {
-    // --- State Management ---
     const [officials, setOfficials] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    
-    // State for the Add/Edit form modal
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [currentOfficial, setCurrentOfficial] = useState(null); 
-    
-    // Form state
-    const [name, setName] = useState('');
-    const [position, setPosition] = useState(POSITIONS[0]);
-    const [committee, setCommittee] = useState(COMMITTEES[0]);
-    const [contact, setContact] = useState('');
-    
-    // State for Profile Picture
-    const [profilePictureFile, setProfilePictureFile] = useState(null); 
-    const [picturePath, setPicturePath] = useState(''); 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortBy, setSortBy] = useState('id'); 
+    const [sortDirection, setSortDirection] = useState('asc');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [officialToDelete, setOfficialToDelete] = useState(null); // { id, name }
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [successMessage, setSuccessMessage] = useState(null); 
 
-    // State for Delete Confirmation Modal
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [officialToDelete, setOfficialToDelete] = useState(null);
-
-    // NEW STATE FOR EDIT CONFIRMATION MODAL
-    const [isEditConfirmModalOpen, setIsEditConfirmModalOpen] = useState(false);
-    const [officialToEdit, setOfficialToEdit] = useState(null);
-    
-    // State for Toast Notification
-    const [toast, setToast] = useState({ message: '', type: '' });
-    
-    // State for form submission loading
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    // State for input focus (to simulate better styling)
-    const [focusedInput, setFocusedInput] = useState(null);
-
-
-    // --- API Configuration ---
-    const API_URL = 'http://localhost:5000/api/officials'; 
-    const UPLOAD_API_URL = 'http://localhost:5000/api/officials/upload-picture';
-
-    // --- Data Fetching ---
-    // Using useCallback to stabilize the function for useEffect dependency
-    const fetchOfficials = useCallback(async () => {
-        setIsLoading(true);
+    const fetchOfficials = async () => {
+        setLoading(true);
         setError(null);
         try {
-            const response = await fetch(API_URL);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            setOfficials(data);
+            // The API call to fetch officials will now return position and committee
+            const response = await axios.get('http://localhost:5000/api/admin/officials');
+            setOfficials(response.data);
         } catch (err) {
-            console.error("Failed to fetch officials:", err);
-            setError("Failed to load officials. Please check the server connection.");
+            console.error("Error fetching officials data:", err);
+            setError('Failed to load officials data from the server.');
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    }, []);
+    };
 
     useEffect(() => {
         fetchOfficials();
-    }, [fetchOfficials]);
+    }, []);
 
-    // --- Modal and Form Handlers ---
-
-    // Primary function to open the main Add/Edit Modal
-    const handleOpenModal = (official = null) => {
-        setIsModalOpen(true);
-        setError(null); // Clear form error
-        setFocusedInput(null); // Clear focus state
-        
-        if (official) {
-            // Edit Mode
-            setIsEditMode(true);
-            setCurrentOfficial(official);
-            setName(official.name);
-            setPosition(official.position && POSITIONS.includes(official.position) ? official.position : POSITIONS[0]); 
-            setCommittee(official.committee && COMMITTEES.includes(official.committee) ? official.committee : COMMITTEES[0]);
-            setContact(official.contact || '');
-            setPicturePath(official.picture_path || ''); 
-            setProfilePictureFile(null);
+    const toggleSort = (key) => {
+        if (sortBy === key) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
-            // Add Mode
-            setIsEditMode(false);
-            setCurrentOfficial(null);
-            setName('');
-            setPosition(POSITIONS[0]);
-            setCommittee(COMMITTEES[0]);
-            setContact('');
-            setPicturePath('');
-            setProfilePictureFile(null);
+            setSortBy(key);
+            setSortDirection('asc');
         }
     };
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        // Reset all modal state
-        setName('');
-        setPosition(POSITIONS[0]);
-        setCommittee(COMMITTEES[0]);
-        setContact('');
-        setProfilePictureFile(null);
-        setPicturePath('');
-        setError(null);
-        setIsSubmitting(false); // Reset submitting state
-        setFocusedInput(null);
-    };
-    
-    const handlePictureChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setProfilePictureFile(file);
-            // Revoke previous blob URL if it exists
-            if (picturePath.startsWith('blob:')) {
-                URL.revokeObjectURL(picturePath);
-            }
-            setPicturePath(URL.createObjectURL(file)); 
-        } else {
-            setProfilePictureFile(null);
-            // Revert to original path if in edit mode and canceling file selection
-            setPicturePath(isEditMode && currentOfficial?.picture_path ? currentOfficial.picture_path : '');
-        }
-    };
-    
-    const handleRemovePicture = () => {
-        if (picturePath.startsWith('blob:')) {
-            URL.revokeObjectURL(picturePath); 
-        }
-        setProfilePictureFile(null); 
-        setPicturePath(''); 
-    }
-
-
-    // Toast Handler
-    const showToast = (message, type = 'success') => {
-        setToast({ message, type });
-    };
-
-    const closeToast = () => {
-        setToast({ message: '', type: '' });
-    };
-
-    // Delete Confirmation Modal Handlers
-    const openConfirmModal = (official) => {
+    const handleDeleteClick = (official) => {
         setOfficialToDelete(official);
-        setIsConfirmModalOpen(true);
+        setShowDeleteModal(true);
     };
 
-    const closeConfirmModal = () => {
-        setOfficialToDelete(null);
-        setIsConfirmModalOpen(false);
-    };
-
-    // NEW: Edit Confirmation Modal Handlers
-    const openEditConfirmModal = (official) => {
-        setOfficialToEdit(official);
-        setIsEditConfirmModalOpen(true);
-    };
-
-    const closeEditConfirmModal = () => {
-        setOfficialToEdit(null);
-        setIsEditConfirmModalOpen(false);
-    };
-
-    const handleEditConfirmed = () => {
-        // 1. Close the confirmation modal
-        closeEditConfirmModal();
-        // 2. Open the main Edit modal with the selected official
-        if (officialToEdit) {
-            handleOpenModal(officialToEdit);
-        }
-    };
-
-
-    // --- CRUD Operations ---
-
-    const handleAddOrUpdateOfficial = async (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-        
-        let finalPicturePath = isEditMode && currentOfficial ? currentOfficial.picture_path : null; 
-        setError(null);
-        
-        // 1. Handle File Upload
-        if (profilePictureFile && profilePictureFile instanceof File) {
-            try {
-                const formData = new FormData();
-                // NOTE: The server.js code is expecting the field name 'official_picture', not 'profilePicture'
-                // Ensure your server is configured to accept the field name used here, or update the client/server.
-                // Assuming you will update server.js to look for 'profilePicture' or will correct this field name:
-                formData.append('official_picture', profilePictureFile); 
-
-                const uploadResponse = await fetch(UPLOAD_API_URL, {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!uploadResponse.ok) {
-                    const errorBody = await uploadResponse.json();
-                    throw new Error(errorBody.message || 'Picture upload failed.');
-                }
-                
-                const uploadData = await uploadResponse.json();
-                finalPicturePath = uploadData.picturePath;
-
-            } catch (err) {
-                console.error("Upload error:", err);
-                setError(`Failed to upload picture: ${err.message}`);
-                setIsSubmitting(false);
-                return;
-            }
-        } else if (picturePath === '') {
-            // User explicitly removed the picture or never had one
-            finalPicturePath = null;
-        } else if (picturePath && !picturePath.startsWith('blob:')) {
-            // Picture path exists and is the existing remote URL (not a local blob URL)
-            finalPicturePath = picturePath;
-        }
-        
-        // 2. Prepare official data for CRUD operation
-        const officialData = {
-            name,
-            position,
-            committee: committee === COMMITTEES[0] ? null : committee, // Store null if 'None' is selected
-            contact: contact || null,
-            picturePath: finalPicturePath,
-        };
-
-        try {
-            const method = isEditMode ? 'PUT' : 'POST';
-            const url = isEditMode ? `${API_URL}/${currentOfficial.id}` : API_URL;
-            
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(officialData),
-            });
-            
-            if (!response.ok) {
-                const errorBody = await response.json();
-                throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
-            }
-
-            // Success
-            const successMessage = isEditMode ? 'Official updated successfully!' : 'New official added successfully!';
-            showToast(successMessage, 'success');
-
-            handleCloseModal();
-            fetchOfficials(); 
-
-        } catch (err) {
-            console.error("CRUD error:", err);
-            setError(`Operation failed: ${err.message}`);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleDeleteOfficialConfirmed = async () => {
+    const confirmDelete = async () => {
         if (!officialToDelete) return;
-
-        const { id: officialId, name: officialName } = officialToDelete;
-        closeConfirmModal(); // Close the confirmation modal first
-
+        setShowDeleteModal(false);
+        setError(null);
+        setSuccessMessage(null);
+        const officialName = `${officialToDelete.first_name} ${officialToDelete.last_name}`;
+        const officialId = officialToDelete.id;
         try {
-            setError(null);
-            const response = await fetch(`${API_URL}/${officialId}`, {
-                method: 'DELETE',
-            });
-
-            if (!response.ok) {
-                const errorBody = await response.json();
-                throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
-            }
-
-            showToast(`${officialName} has been deleted successfully.`, 'success');
-            fetchOfficials();
-
+            await axios.delete(`http://localhost:5000/api/admin/officials/${officialId}`);
+            setOfficials(prev => prev.filter(o => o.id !== officialId));
+            setSuccessMessage(`Official ${officialName} deleted successfully.`);
+            setTimeout(() => setSuccessMessage(null), 5000);
         } catch (err) {
-            console.error("Delete error:", err);
-            showToast(`Failed to delete official: ${err.message}`, 'error');
+            console.error(`Error deleting official ${officialId}:`, err);
+            setError(err.response?.data?.message || 'Failed to delete official.');
+            setTimeout(() => setError(null), 5000);
         }
     };
-    
-    // --- Renderers ---
 
-    const renderOfficialTable = () => {
-        if (isLoading) return <div style={styles.loadingText}><Loader size={20} style={styles.spinner} /> Loading officials...</div>;
-        if (error && !isModalOpen && !isConfirmModalOpen && !isEditConfirmModalOpen) return <div style={styles.alertError}>Error: {error}</div>;
-        if (officials.length === 0) return <div style={styles.noDataText}>No officials found. Click 'Add New Official' to start.</div>;
-
-        return (
-            <table style={styles.table}>
-                <thead>
-                    <tr>
-                        <th style={styles.th}>Picture</th> 
-                        <th style={styles.th}>Name</th>
-                        <th style={styles.th}>Position</th>
-                        <th style={styles.th}>Committee</th>
-                        <th style={styles.th}>Contact</th>
-                        <th style={styles.th}>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {officials.map((official) => (
-                        <tr key={official.id} style={styles.tr}>
-                            <td style={styles.td}>
-                                {official.picture_path ? (
-                                    <img 
-                                        // Path to static files served by server.js at /media
-                                        src={official.picture_path.startsWith('http') ? official.picture_path : `http://localhost:5000${official.picture_path}`} 
-                                        alt={official.name}
-                                        style={styles.tablePicture} 
-                                    />
-                                ) : (
-                                    <Users size={24} color="#64748B" /> 
-                                )}
-                            </td>
-                            <td style={styles.td}>{official.name}</td>
-                            <td style={styles.td}>{official.position}</td>
-                            <td style={styles.td}>{official.committee || 'N/A'}</td>
-                            <td style={styles.td}>{official.contact || 'N/A'}</td>
-                            <td style={styles.td}>
-                                <button 
-                                    // UPDATED: Now calls the confirmation modal
-                                    onClick={() => openEditConfirmModal(official)} 
-                                    style={{ ...styles.actionButton, marginRight: '8px', backgroundColor: '#2563EB' }} // Darker Blue for Edit
-                                    title="Edit Official"
-                                >
-                                    <Edit size={16} />
-                                </button>
-                                <button 
-                                    onClick={() => openConfirmModal(official)} // Open custom confirmation modal for delete
-                                    style={{ ...styles.actionButton, backgroundColor: '#DC2626' }} // Darker Red
-                                    title="Delete Official"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        );
+    const handleOfficialAdded = (newOfficial) => {
+        setOfficials(prev => [newOfficial, ...prev]);
+        setSuccessMessage(`Official ${newOfficial.first_name} ${newOfficial.last_name} added successfully!`);
+        setTimeout(() => setSuccessMessage(null), 5000);
     };
 
-    const renderAddEditModal = () => {
-        if (!isModalOpen) return null;
+    const filteredAndSortedOfficials = useMemo(() => {
+        let currentOfficials = officials.filter(official => {
+            const searchLower = searchTerm.toLowerCase();
+            const fullName = `${official.first_name} ${official.last_name} ${official.middle_initial || ''}`.toLowerCase();
+            
+            // --- NEW: Include position and committee in search filter ---
+            const positionLower = (official.position || '').toLowerCase();
+            const committeeLower = (official.committee || '').toLowerCase();
+            // -------------------------------------------------------------
 
-        const modalTitle = isEditMode ? 'Edit Official' : 'Add New Official';
-        const buttonText = isEditMode ? 'Save Changes' : 'Add Official';
-
-        // Helper function for dynamic input styles based on focus
-        const getInputStyle = (inputName) => ({
-            ...styles.input,
-            // Apply a stronger blue border/shadow on focus
-            ...(focusedInput === inputName && { 
-                borderColor: '#2563EB', 
-                boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.3)', 
-            }),
+            return (
+                fullName.includes(searchLower) ||
+                (official.contact_number && official.contact_number.includes(searchLower)) ||
+                official.category.toLowerCase().includes(searchLower) ||
+                official.status.toLowerCase().includes(searchLower) ||
+                positionLower.includes(searchLower) || // NEW
+                committeeLower.includes(searchLower) // NEW
+            );
         });
 
-        return (
-            <div style={styles.modalBackdrop}>
-                <div style={styles.modalContent}>
-                    <div style={styles.modalHeader}>
-                        <h3 style={styles.modalTitle}>{modalTitle}</h3>
-                        <button onClick={handleCloseModal} style={styles.closeButton}>
-                            <X size={20} />
-                        </button>
-                    </div>
-                    
-                    {error && (
-                        <div style={styles.alertError}>
-                            <AlertTriangle size={18} style={{ marginRight: '8px' }} />
-                            {error}
-                        </div>
-                    )}
+        currentOfficials.sort((a, b) => {
+            const aValue = a[sortBy];
+            const bValue = b[sortBy];
 
-                    <form onSubmit={handleAddOrUpdateOfficial}>
-                        
-                        {/* --- PROFESSIONAL PICTURE UPLOAD SECTION --- */}
-                        <div style={styles.formGroup}>
-                            <label style={styles.label} htmlFor="profilePicture">Profile Picture (Optional)</label>
-                            
-                            {/* Picture Preview and Action Buttons */}
-                            <div style={styles.pictureUploadContainer}>
-                                
-                                <div style={styles.picturePreviewWrapper}>
-                                    {picturePath ? (
-                                        <img 
-                                            // Handling both local blob URL (for immediate preview) and remote URL
-                                            src={picturePath.startsWith('blob:') 
-                                                ? picturePath 
-                                                : `http://localhost:5000${picturePath}`} 
-                                            alt="Profile Preview"
-                                            style={styles.picturePreview}
-                                        />
-                                    ) : (
-                                        <div style={styles.picturePlaceholder}>
-                                            <Users size={40} color="#94A3B8" />
-                                            <p style={{ margin: '5px 0 0', fontSize: '12px', color: '#94A3B8' }}>No Image</p>
-                                        </div>
-                                    )}
-                                </div>
+            if (sortBy === 'id' || sortBy === 'created_at') {
+                if (sortBy === 'created_at') {
+                    // Convert to timestamp for accurate date comparison
+                    const aTime = new Date(aValue).getTime();
+                    const bTime = new Date(bValue).getTime();
+                    return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+                }
+                // For 'id', direct numeric comparison
+                return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+            } else {
+                // String comparison (case-insensitive)
+                if (String(aValue).toLowerCase() < String(bValue).toLowerCase()) return sortDirection === 'asc' ? -1 : 1;
+                if (String(aValue).toLowerCase() > String(bValue).toLowerCase()) return sortDirection === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
 
-                                <div style={styles.pictureControls}>
-                                    <input
-                                        type="file"
-                                        id="profilePicture"
-                                        accept="image/*"
-                                        onChange={handlePictureChange}
-                                        style={styles.hiddenFileInput}
-                                    />
-                                    <label htmlFor="profilePicture" style={styles.uploadLabelButton}>
-                                        <Image size={16} style={{ marginRight: '8px' }} />
-                                        {profilePictureFile || (picturePath && !picturePath.startsWith('blob:')) ? 'Change Picture' : 'Upload Picture'}
-                                    </label>
-                                    
-                                    {(picturePath || profilePictureFile) && (
-                                        <button 
-                                            type="button" 
-                                            onClick={handleRemovePicture}
-                                            style={styles.removePictureButton}
-                                        >
-                                            <Trash2 size={16} style={{ marginRight: '5px' }} />
-                                            Remove
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        {/* ------------------------------------------- */}
+        return currentOfficials;
+    }, [officials, searchTerm, sortBy, sortDirection]);
 
-                        <div style={styles.formGrid}>
-                            
-                            {/* Full Name */}
-                            <div style={styles.formGroup}>
-                                <label style={styles.label} htmlFor="name">Full Name*</label>
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    onFocus={() => setFocusedInput('name')}
-                                    onBlur={() => setFocusedInput(null)}
-                                    style={getInputStyle('name')} 
-                                    required
-                                />
-                            </div>
-
-                            {/* Contact */}
-                            <div style={styles.formGroup}>
-                                <label style={styles.label} htmlFor="contact">Contact (Optional)</label>
-                                <input
-                                    id="contact"
-                                    type="text"
-                                    value={contact}
-                                    onChange={(e) => setContact(e.target.value)}
-                                    onFocus={() => setFocusedInput('contact')}
-                                    onBlur={() => setFocusedInput(null)}
-                                    style={getInputStyle('contact')}
-                                />
-                            </div>
-
-                        </div> {/* End formGrid */}
-                        
-                        <div style={styles.formGrid}>
-
-                            {/* Position (Dropdown/Select) - SK Roles */}
-                            <div style={styles.formGroup}>
-                                <label style={styles.label} htmlFor="position">Official Position*</label>
-                                <select
-                                    id="position"
-                                    value={position}
-                                    onChange={(e) => setPosition(e.target.value)}
-                                    onFocus={() => setFocusedInput('position')}
-                                    onBlur={() => setFocusedInput(null)}
-                                    style={getInputStyle('position')} 
-                                    required
-                                >
-                                    <option value="" disabled>Select Position</option>
-                                    {POSITIONS.map((pos) => (
-                                        <option key={pos} value={pos}>{pos}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Committee (Dropdown/Select) - Barangay Committees */}
-                            <div style={styles.formGroup}>
-                                <label style={styles.label} htmlFor="committee">Committee Assignment*</label>
-                                <select
-                                    id="committee"
-                                    value={committee}
-                                    onChange={(e) => setCommittee(e.target.value)}
-                                    onFocus={() => setFocusedInput('committee')}
-                                    onBlur={() => setFocusedInput(null)}
-                                    style={getInputStyle('committee')} 
-                                    required
-                                >
-                                    {COMMITTEES.map((comm) => (
-                                        <option key={comm} value={comm}>{comm}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                        </div> {/* End formGrid */}
-
-                        
-                        <button type="submit" style={styles.submitButton} disabled={isSubmitting}>
-                            {isSubmitting ? (
-                                <><Loader size={18} style={{ marginRight: '8px', animation: 'spin 1s linear infinite' }} /> Processing...</>
-                            ) : (
-                                buttonText
-                            )}
-                        </button>
-                    </form>
-                </div>
-                {/* Add CSS for spin animation */}
-                <style>{`
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `}</style>
-            </div>
-        );
+    const renderSortIcon = (key) => {
+        if (sortBy !== key) return null;
+        const Icon = sortDirection === 'asc' ? ChevronUp : ChevronDown;
+        return <Icon size={14} style={styles.sortIcon} />;
     };
 
-    // Delete Confirmation Modal Renderer
-    const renderConfirmModal = () => {
-        if (!isConfirmModalOpen || !officialToDelete) return null;
-
-        return (
-            <div style={styles.modalBackdrop}>
-                <div style={styles.confirmModalContent}>
-                    <div style={styles.modalHeader}>
-                        <h3 style={{ margin: 0, color: '#DC2626' }}>Confirm Deletion</h3>
-                        <button onClick={closeConfirmModal} style={styles.closeButton}>
-                            <X size={20} />
-                        </button>
-                    </div>
-                    
-                    <div style={{ padding: '10px 0', display: 'flex', alignItems: 'center' }}>
-                        <AlertTriangle size={24} color="#DC2626" style={{ marginRight: '15px' }} />
-                        <p style={{ margin: 0, color: '#334155' }}>
-                            Are you sure you want to delete **{officialToDelete.name}**? 
-                            This action cannot be undone.
-                        </p>
-                    </div>
-
-                    <div style={styles.confirmModalActions}>
-                        <button 
-                            onClick={closeConfirmModal} 
-                            style={styles.cancelButton}
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={handleDeleteOfficialConfirmed} 
-                            style={styles.deleteConfirmButton}
-                        >
-                            <Trash2 size={16} style={{ marginRight: '5px' }} />
-                            Delete
-                        </button>
-                    </div>
-                </div>
+    const SortableHeader = ({ title, sortKey }) => (
+        <th onClick={() => toggleSort(sortKey)} style={{...styles.tableHeader, cursor: 'pointer', minWidth: '100px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                {title} {renderSortIcon(sortKey)}
             </div>
-        );
-    }
-    
-    // NEW: Edit Confirmation Modal Renderer
-    const renderEditConfirmModal = () => {
-        if (!isEditConfirmModalOpen || !officialToEdit) return null;
+        </th>
+    );
 
-        return (
-            <div style={styles.modalBackdrop}>
-                <div style={styles.confirmModalContent}>
-                    <div style={styles.modalHeader}>
-                        <h3 style={{ margin: 0, color: '#2563EB' }}>Confirm Edit</h3> {/* Blue title */}
-                        <button onClick={closeEditConfirmModal} style={styles.closeButton}>
-                            <X size={20} />
-                        </button>
-                    </div>
-                    
-                    <div style={{ padding: '10px 0', display: 'flex', alignItems: 'center' }}>
-                        <Info size={24} color="#2563EB" style={{ marginRight: '15px' }} /> {/* Info icon */}
-                        <p style={{ margin: 0, color: '#334155' }}>
-                            Are you sure you want to edit the details for **{officialToEdit.name}**? 
-                            This will open the official editing form.
-                        </p>
-                    </div>
-
-                    <div style={styles.confirmModalActions}>
-                        <button 
-                            onClick={closeEditConfirmModal} 
-                            style={styles.cancelButton}
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={handleEditConfirmed} 
-                            style={styles.editConfirmButton}
-                        >
-                            <Edit size={16} style={{ marginRight: '5px' }} />
-                            Edit Details
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-
-    // --- Inline Styles (Adjusted for Pro-Look and New Components) ---
-    const styles = {
-        container: {
-            padding: '30px', // Increased padding
-            maxWidth: '1200px',
-            margin: '0 auto',
-            fontFamily: 'Inter, Arial, sans-serif', // Changed font
-            backgroundColor: '#F8FAFC', // Light background for the page
-        },
-        header: {
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '30px',
-            paddingBottom: '15px',
-            borderBottom: '2px solid #E2E8F0',
-        },
-        title: {
-            fontSize: '32px', // Slightly larger title
-            color: '#1E293B',
-            margin: 0,
-            fontWeight: '800', // Bolder title
-        },
-        addButton: {
-            display: 'flex',
-            alignItems: 'center',
-            padding: '10px 18px', // Slightly more padding
-            backgroundColor: '#2563EB', // Darker blue
-            color: 'white',
-            border: 'none',
-            borderRadius: '10px', // More rounded
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: '600',
-            boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)', // Subtle shadow
-            transition: 'background-color 0.2s, box-shadow 0.2s',
-        },
-        // Table Styles (kept largely the same as they were already polished)
-        table: {
-            width: '100%',
-            borderCollapse: 'separate',
-            borderSpacing: '0',
-            borderRadius: '10px', // More rounded
-            overflow: 'hidden',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05)', // Better shadow
-            border: '1px solid #E2E8F0',
-        },
-        th: {
-            backgroundColor: '#F1F5F9',
-            color: '#475569',
-            fontWeight: '700',
-            padding: '16px', // Slightly more vertical padding
-            textAlign: 'left',
-            textTransform: 'uppercase',
-            fontSize: '12px', // Smaller font for header
-        },
-        td: {
-            padding: '15px 16px',
-            borderBottom: '1px solid #E2E8F0',
-            backgroundColor: 'white',
-            fontSize: '15px',
-            color: '#334155',
-        },
-        tr: {
-            transition: 'background-color 0.1s',
-            // No direct ':hover' in inline styles
-        },
-        actionButton: {
-            padding: '10px', // Slightly larger button
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            color: 'white',
-            transition: 'opacity 0.2s',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        },
-        // Modal Styles
-        modalBackdrop: {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.7)', // Darker, more professional backdrop
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-        },
-        modalContent: {
-            backgroundColor: 'white',
-            padding: '40px', // More padding
-            borderRadius: '16px', // Pro-level rounding
-            width: '90%',
-            maxWidth: '700px', // Wider modal for the two-column layout
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)', // Stronger shadow
-            maxHeight: '90vh', 
-            overflowY: 'auto',
-            position: 'relative',
-            animation: 'slideIn 0.3s ease-out', // Added slide-in animation
-        },
-        confirmModalContent: {
-            backgroundColor: 'white',
-            padding: '30px',
-            borderRadius: '12px',
-            width: '90%',
-            maxWidth: '450px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            position: 'relative',
-            animation: 'slideIn 0.3s ease-out',
-        },
-        modalHeader: {
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '25px',
-            paddingBottom: '10px',
-            borderBottom: '1px solid #E2E8F0',
-        },
-        modalTitle: {
-            margin: 0, 
-            color: '#1E293B', 
-            fontSize: '24px', 
-            fontWeight: '700'
-        },
-        closeButton: {
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: '#94A3B8',
-            transition: 'color 0.2s',
-        },
-        formGrid: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '20px',
-            marginBottom: '20px',
-            // Simple media query simulation for responsiveness
-            '@media (maxWidth: 600px)': {
-                gridTemplateColumns: '1fr',
-            },
-        },
-        formGroup: {
-            marginBottom: '10px', 
-        },
-        label: {
-            display: 'block',
-            marginBottom: '6px',
-            fontWeight: '600',
-            color: '#475569',
-            fontSize: '14px',
-        },
-        // Polished Input/Select Style (base style, adjusted for focus via getInputStyle)
-        input: {
-            width: '100%',
-            padding: '12px',
-            border: '1px solid #E2E8F0', // Lighter border
-            borderRadius: '8px',
-            fontSize: '15px',
-            boxSizing: 'border-box',
-            backgroundColor: 'white',
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            transition: 'border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out', 
-        },
-        submitButton: {
-            width: '100%',
-            padding: '14px', // More padding
-            backgroundColor: '#2563EB',
-            color: 'white',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            fontSize: '17px',
-            marginTop: '30px',
-            transition: 'background-color 0.2s, opacity 0.2s',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            boxShadow: '0 4px 10px rgba(37, 99, 235, 0.4)',
-        },
-        alertError: {
-            backgroundColor: '#FEF2F2', // Very light red
-            color: '#DC2626',
-            padding: '12px',
-            borderRadius: '8px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: '14px',
-            fontWeight: '500',
-            border: '1px solid #FCA5A5', 
-        },
-        // --- NEW/UPDATED PICTURE UPLOAD STYLES ---
-        pictureUploadContainer: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '20px',
-            padding: '15px',
-            border: '1px solid #E2E8F0',
-            borderRadius: '10px',
-            backgroundColor: '#F9FAFB',
-            marginBottom: '20px', // Added spacing
-        },
-        picturePreviewWrapper: {
-            flexShrink: 0,
-            width: '100px', 
-            height: '100px', 
-            borderRadius: '50%',
-            border: '3px solid #6366F1', // Accent border
-            overflow: 'hidden',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        },
-        picturePreview: {
-            width: '100%', 
-            height: '100%', 
-            objectFit: 'cover',
-        },
-        picturePlaceholder: {
-            width: '100%', 
-            height: '100%', 
-            display: 'flex', 
-            flexDirection: 'column',
-            justifyContent: 'center', 
-            alignItems: 'center',
-            backgroundColor: '#E5E7EB',
-        },
-        pictureControls: {
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-        },
-        hiddenFileInput: {
-            display: 'none',
-        },
-        uploadLabelButton: {
-            display: 'flex',
-            alignItems: 'center',
-            padding: '10px 15px',
-            backgroundColor: '#6366F1',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            transition: 'background-color 0.2s',
-            boxShadow: '0 2px 5px rgba(99, 102, 241, 0.3)',
-        },
-        removePictureButton: {
-            backgroundColor: '#DC2626',
-            color: 'white',
-            border: 'none',
-            padding: '10px 15px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            transition: 'background-color 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-        },
-        // ----------------------------------------------------
-        loadingText: { 
-            textAlign: 'center', 
-            fontSize: '18px', 
-            color: '#64748B', 
-            padding: '50px 0',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        spinner: {
-            animation: 'spin 1s linear infinite',
-            marginRight: '10px',
-        },
-        noDataText: { 
-            textAlign: 'center', 
-            fontSize: '18px', 
-            color: '#64748B', 
-            padding: '50px 0', 
-            backgroundColor: 'white',
-            borderRadius: '10px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-            border: '1px solid #E2E8F0',
-        },
-        tablePicture: {
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            objectFit: 'cover',
-            border: '2px solid #E2E8F0'
-        },
-        // Confirmation Modal Specific Styles
-        confirmModalActions: {
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginTop: '25px',
-            gap: '10px',
-        },
-        cancelButton: {
-            padding: '10px 15px',
-            backgroundColor: '#E5E7EB',
-            color: '#4B5563',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'background-color 0.2s',
-        },
-        deleteConfirmButton: {
-            padding: '10px 15px',
-            backgroundColor: '#DC2626',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'background-color 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-        },
-        // NEW Style for Edit Confirmation Button
-        editConfirmButton: { 
-            padding: '10px 15px',
-            backgroundColor: '#2563EB', // Blue
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'background-color 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-        },
+    const getStatusBadgeStyle = (status) => {
+        switch (status) {
+            case 'Working':
+                return { backgroundColor: '#D1FAE5', color: '#047857' };
+            case 'On Site':
+                return { backgroundColor: '#FEF9C3', color: '#A16207' };
+            case 'On Leave':
+                return { backgroundColor: '#FEE2E2', color: '#B91C1C' };
+            case 'AWOL':
+                return { backgroundColor: '#FBCFE8', color: '#9D174D' };
+            default:
+                return { backgroundColor: '#E5E7EB', color: '#4B5563' };
+        }
     };
-    
-    // Add custom CSS for animation and media query support (as a fallback/simulation in inline styles)
-    const animationStyle = `
-        @keyframes slideIn {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Simulated Media Query for formGrid responsiveness */
-        @media (max-width: 600px) {
-            .formGrid {
-                grid-template-columns: 1fr !important;
-            }
-            .pictureUploadContainer {
-                 flex-direction: column;
-                 align-items: flex-start;
-            }
-            .pictureControls {
-                 flex-direction: column;
-                 align-items: stretch;
-                 width: 100%;
-            }
-        }
-    `;
+
+    if (loading) return <div style={styles.center}><p style={{ color: '#2563eb', fontSize: '18px' }}>🚀 Loading Officials Data...</p></div>;
 
     return (
         <div style={styles.container}>
-            <style>{animationStyle}</style>
-            
-            <div style={styles.header}>
-                <h1 style={styles.title}>Official Directory Management</h1>
-                <button onClick={() => handleOpenModal()} style={styles.addButton}>
-                    <PlusCircle size={20} style={{ marginRight: '8px' }} />
+            <h1 style={styles.pageTitle}>Barangay Officials Management</h1>
+            <p style={styles.subtitle}> 
+                Manage all barangay and SK officials, staff, and tanods. Total: <strong style={{color: '#1F2937'}}>{officials.length.toLocaleString()}</strong> 
+            </p>
+
+            {/* Toolbar: Search and Add Button */}
+            <div style={styles.toolbar}>
+                <div style={styles.searchBox}>
+                    <Search size={20} color="#6B7280" style={{ marginLeft: '10px' }}/>
+                    <input 
+                        type="text" 
+                        placeholder="Search by name, contact, category..." 
+                        style={styles.searchInput}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <button onClick={() => setShowAddModal(true)} style={styles.addButton}>
+                    <Plus size={20} style={{ marginRight: '5px' }} />
                     Add New Official
                 </button>
             </div>
 
-            {renderOfficialTable()}
-            {renderAddEditModal()}
-            {renderEditConfirmModal()} {/* NEW: Edit Confirmation Modal */}
-            {renderConfirmModal()}    {/* Delete Confirmation Modal */}
-            <Toast 
-                message={toast.message} 
-                type={toast.type} 
-                onClose={closeToast} 
+            {successMessage && <SuccessAlert message={successMessage} />}
+            {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ Error: {error}</p></div>}
+
+            {/* Officials Table */}
+            <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                    <thead>
+                        <tr>
+                            <SortableHeader title="ID" sortKey="id" />
+                            <th style={{...styles.tableHeader, width: '40px'}}>Pic</th>
+                            <SortableHeader title="Name" sortKey="last_name" />
+                            <SortableHeader title="Category" sortKey="category" />
+                            {/* NEW: Position Header */}
+                            <SortableHeader title="Position" sortKey="position" />
+                            {/* NEW: Committee Header */}
+                            <SortableHeader title="Committee" sortKey="committee" />
+                            <SortableHeader title="Status" sortKey="status" />
+                            <SortableHeader title="Contact" sortKey="contact_number" />
+                            <SortableHeader title="Added On" sortKey="created_at" />
+                            <th style={{...styles.tableHeader, width: '80px', textAlign: 'center'}}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredAndSortedOfficials.map(official => (
+                            <tr key={official.id} style={styles.tableRow}>
+                                <td style={styles.tableData}>{official.id}</td>
+                                <td style={styles.tableData}>
+                                    {official.profile_picture_url ? (
+                                        <img src={official.profile_picture_url} alt="Profile" style={styles.avatarTable} />
+                                    ) : (
+                                        <div style={styles.avatarPlaceholderTable}>
+                                            <UserX size={20} color="#6B7280" />
+                                        </div>
+                                    )}
+                                </td>
+                                <td style={{...styles.tableData, fontWeight: '600'}}>
+                                    {official.first_name} {official.middle_initial ? official.middle_initial + '. ' : ''}{official.last_name}
+                                </td>
+                                <td style={styles.tableData}>{official.category}</td>
+                                
+                                {/* NEW: Position Data */}
+                                <td style={{...styles.tableData, fontWeight: '500'}}>{official.position}</td>
+
+                                {/* NEW: Committee Data */}
+                                <td style={styles.tableData}>
+                                    <span style={{ 
+                                        padding: '4px 8px', 
+                                        borderRadius: '4px', 
+                                        fontSize: '12px', 
+                                        fontWeight: '600',
+                                        // Use a light green/teal for assigned committees, or gray for 'None'/null
+                                        backgroundColor: official.committee === 'None' || !official.committee ? '#F3F4F6' : '#D1FAE5', 
+                                        color: official.committee === 'None' || !official.committee ? '#4B5563' : '#047857'
+                                    }}>
+                                        {official.committee || 'None'}
+                                    </span>
+                                </td>
+
+                                <td style={styles.tableData}>
+                                    <span style={{...styles.statusBadge, ...getStatusBadgeStyle(official.status)}}>
+                                        {official.status}
+                                    </span>
+                                </td>
+                                <td style={styles.tableData}>{official.contact_number || 'N/A'}</td>
+                                <td style={styles.tableData}>{new Date(official.created_at).toLocaleDateString()}</td>
+                                <td style={{...styles.tableData, textAlign: 'center'}}>
+                                    <button onClick={() => handleDeleteClick(official)} style={styles.actionButton} title="Delete Official" >
+                                        <Trash2 size={18} color="#DC2626" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {filteredAndSortedOfficials.length === 0 && (
+                            <tr>
+                                <td colSpan="10" style={styles.noResults}>No officials found matching your criteria.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Modals */}
+            <DeleteConfirmationModal 
+                show={showDeleteModal} 
+                official={officialToDelete} 
+                onConfirm={confirmDelete} 
+                onCancel={() => setShowDeleteModal(false)} 
+            />
+            <AddOfficialModal 
+                show={showAddModal} 
+                onHide={() => setShowAddModal(false)} 
+                onOfficialAdded={handleOfficialAdded} 
             />
         </div>
     );
 };
+
+// --- Styles ---
+const styles = {
+    container: {
+        padding: '30px',
+        height: '100%',
+        overflowY: 'auto',
+        backgroundColor: '#F9FAFB',
+    },
+    center: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px',
+    },
+    pageTitle: {
+        color: '#1F2937',
+        marginBottom: '5px',
+        fontSize: '28px',
+        fontWeight: '700',
+    },
+    subtitle: {
+        color: '#6B7280',
+        fontSize: '15px',
+        marginBottom: '15px',
+        paddingBottom: '10px',
+        borderBottom: '1px solid #E5E7EB'
+    },
+    toolbar: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px',
+    },
+    searchBox: {
+        display: 'flex',
+        alignItems: 'center',
+        border: '1px solid #D1D5DB',
+        borderRadius: '8px',
+        backgroundColor: '#FFFFFF',
+        width: '350px',
+        padding: '5px',
+    },
+    searchInput: {
+        border: 'none',
+        outline: 'none',
+        padding: '8px 10px',
+        flexGrow: 1,
+        fontSize: '15px',
+        backgroundColor: 'transparent',
+    },
+    addButton: {
+        backgroundColor: '#6366F1',
+        color: '#FFFFFF',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '10px 20px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '15px',
+        display: 'flex',
+        alignItems: 'center',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#4F46E5',
+        }
+    },
+    tableWrapper: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: '10px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        overflowX: 'auto',
+    },
+    table: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        minWidth: '1200px', // Ensure horizontal scrolling if too narrow
+    },
+    tableHeader: {
+        padding: '15px 20px',
+        textAlign: 'left',
+        backgroundColor: '#F3F4F6',
+        color: '#4B5563',
+        fontSize: '13px',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        borderBottom: '2px solid #E5E7EB',
+    },
+    tableRow: {
+        borderBottom: '1px solid #E5E7EB',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#F9FAFB',
+        }
+    },
+    tableData: {
+        padding: '15px 20px',
+        color: '#1F2937',
+        fontSize: '14px',
+    },
+    noResults: {
+        textAlign: 'center',
+        padding: '30px',
+        color: '#9CA3AF',
+        fontSize: '16px',
+    },
+    statusBadge: {
+        padding: '5px 10px',
+        borderRadius: '50px',
+        fontWeight: '700',
+        fontSize: '12px',
+        display: 'inline-block',
+        minWidth: '80px',
+        textAlign: 'center',
+    },
+    actionButton: {
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        padding: '5px',
+        marginLeft: '5px',
+        transition: 'transform 0.1s',
+        ':hover': {
+            transform: 'scale(1.1)',
+        }
+    },
+    successAlert: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '15px',
+        backgroundColor: '#D1FAE5', // Light green
+        color: '#047857', // Dark green text
+        border: '1px solid #6EE7B7',
+        borderRadius: '8px',
+        fontWeight: '600',
+        fontSize: '15px',
+        marginBottom: '15px',
+    },
+    // New: Error Alert Styles
+    errorAlert: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '15px',
+        backgroundColor: '#FEE2E2', // Light red
+        color: '#991B1B', // Dark red text
+        border: '1px solid #FCA5A5',
+        borderRadius: '8px',
+        fontWeight: '600',
+        fontSize: '15px',
+        marginTop: '15px',
+    },
+    avatarTable: {
+        width: '35px',
+        height: '35px',
+        borderRadius: '50%',
+        objectFit: 'cover',
+        border: '1px solid #E5E7EB',
+    },
+    avatarPlaceholderTable: {
+        width: '35px',
+        height: '35px',
+        borderRadius: '50%',
+        backgroundColor: '#F3F4F6',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        border: '1px solid #E5E7EB',
+    },
+};
+
+const modalStyles = {
+    backdrop: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    modal: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: '10px',
+        padding: '30px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+        maxWidth: '450px',
+        width: '100%',
+    },
+    header: {
+        color: '#1F2937',
+        marginTop: 0,
+        marginBottom: '20px',
+        fontSize: '22px',
+        fontWeight: '700',
+        borderBottom: '1px solid #E5E7EB',
+        paddingBottom: '10px',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    body: {
+        color: '#4B5563',
+        fontSize: '16px',
+        lineHeight: '1.5',
+        marginBottom: '15px',
+    },
+    warning: {
+        color: '#DC2626',
+        backgroundColor: '#FEE2E2',
+        padding: '10px',
+        borderRadius: '6px',
+        fontSize: '14px',
+        border: '1px solid #FCA5A5',
+        marginBottom: '20px',
+    },
+    footer: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '15px',
+        marginTop: '30px',
+        paddingTop: '15px',
+        borderTop: '1px solid #E5E7EB',
+    },
+    cancelButton: {
+        backgroundColor: '#E5E7EB',
+        color: '#4B5563',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '10px 20px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '15px',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#D1D5DB',
+        }
+    },
+    deleteButton: {
+        backgroundColor: '#DC2626',
+        color: '#FFFFFF',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '10px 20px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '15px',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#B91C1C',
+        }
+    },
+};
+
+const addModalStyles = {
+    ...modalStyles,
+    addButton: {
+        backgroundColor: '#10B981', // Emerald green
+        color: '#FFFFFF',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '10px 20px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '15px',
+        transition: 'background-color 0.2s',
+        ':hover': {
+            backgroundColor: '#059669',
+        }
+    },
+    grid: {
+        display: 'grid',
+        gridTemplateColumns: '150px 1fr',
+        gap: '20px',
+    },
+    detailsContainer: {
+        padding: '10px',
+    },
+    label: {
+        color: '#374151',
+        marginBottom: '5px',
+        marginTop: '10px',
+        fontWeight: '600',
+        fontSize: '14px',
+    },
+    input: {
+        width: '100%',
+        padding: '10px',
+        border: '1px solid #D1D5DB',
+        borderRadius: '6px',
+        fontSize: '15px',
+        boxSizing: 'border-box',
+        ':focus': {
+            borderColor: '#6366F1',
+            boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
+            outline: 'none',
+        }
+    },
+    picUploadContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '10px',
+        backgroundColor: '#F9FAFB',
+        borderRadius: '8px',
+    },
+    picPreview: {
+        width: '120px',
+        height: '120px',
+        borderRadius: '50%',
+        backgroundColor: '#E5E7EB',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        cursor: 'pointer',
+        border: '3px dashed #D1D5DB',
+        overflow: 'hidden',
+        transition: 'border-color 0.2s',
+        ':hover': {
+            borderColor: '#6366F1',
+        }
+    },
+    picImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+    },
+    picPlaceholder: {
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    hint: {
+        fontSize: '11px',
+        color: '#6B7280',
+        marginTop: '10px',
+    }
+};
+
 
 export default AdminOfficialsPage;

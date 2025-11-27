@@ -1231,104 +1231,7 @@ app.delete('/api/admin/users/:userId', (req, res) => {
     });
 });
 
-// --- OFFICIALS API ROUTES ---
 
-app.get('/api/officials', (req, res) => {
-    const SQL_SELECT_OFFICIALS = 'SELECT * FROM officials ORDER BY name ASC';
-    db.query(SQL_SELECT_OFFICIALS, (err, results) => {
-        if (err) {
-            console.error("Database error fetching officials:", err);
-            return res.status(500).json({ message: 'Failed to fetch officials.' });
-        }
-        res.status(200).json(results);
-    });
-});
-
-app.post('/api/officials/upload-picture', (req, res) => {
-    officialPicUploader(req, res, (err) => {
-        if (err instanceof multer.MulterError) {
-            console.error("Multer error:", err);
-            return res.status(500).json({ message: `File upload error: ${err.message}` });
-        } else if (err) {
-            console.error("Unknown file upload error:", err);
-            return res.status(500).json({ message: err.message || 'File upload error.' });
-        }
-        
-        if (!req.file) {
-            return res.status(400).json({ message: 'No file selected.' });
-        }
-
-        const picturePath = `http://localhost:${PORT}/media/${req.file.filename}`; 
-        res.status(200).json({
-            message: 'Picture uploaded successfully.',
-            picturePath: picturePath
-        });
-    });
-});
-
-app.post('/api/officials', (req, res) => {
-    const { name, position, committee, contact, picturePath } = req.body; 
-
-    if (!name || !position) {
-        return res.status(400).json({ message: 'Name and Position are required.' });
-    }
-
-    const SQL_INSERT_OFFICIAL = 'INSERT INTO officials (name, position, committee, contact, picture_path) VALUES (?, ?, ?, ?, ?)';
-    
-    db.query(SQL_INSERT_OFFICIAL, [name, position, committee || null, contact || null, picturePath || null], (err, result) => {
-        if (err) {
-            console.error("Database error inserting official:", err);
-            return res.status(500).json({ message: 'Failed to add new official.' });
-        }
-        res.status(201).json({ 
-            id: result.insertId, 
-            message: 'Official added successfully.',
-            official: { id: result.insertId, name, position, committee, contact, picturePath }
-        });
-    });
-});
-
-app.put('/api/officials/:id', (req, res) => {
-    const officialId = parseInt(req.params.id, 10);
-    const { name, position, committee, contact, picturePath } = req.body; 
-
-    if (isNaN(officialId) || !name || !position) {
-        return res.status(400).json({ message: 'Invalid Official ID or missing required fields.' });
-    }
-
-    const SQL_UPDATE_OFFICIAL = 'UPDATE officials SET name = ?, position = ?, committee = ?, contact = ?, picture_path = ? WHERE id = ?';
-    
-    db.query(SQL_UPDATE_OFFICIAL, [name, position, committee || null, contact || null, picturePath || null, officialId], (err, result) => {
-        if (err) {
-            console.error("Database error updating official:", err);
-            return res.status(500).json({ message: 'Failed to update official.' });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Official not found or no changes made.' });
-        }
-        res.status(200).json({ message: 'Official updated successfully.' });
-    });
-});
-
-app.delete('/api/officials/:id', (req, res) => {
-    const officialId = parseInt(req.params.id, 10);
-    
-    if (isNaN(officialId)) {
-        return res.status(400).json({ message: 'Invalid Official ID.' });
-    }
-
-    const SQL_DELETE_OFFICIAL = 'DELETE FROM officials WHERE id = ?';
-    db.query(SQL_DELETE_OFFICIAL, [officialId], (err, result) => {
-        if (err) {
-            console.error("Database error deleting official:", err);
-            return res.status(500).json({ message: 'Failed to delete official.' });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Official not found.' });
-        }
-        res.status(200).json({ message: 'Official deleted successfully.' });
-    });
-});
 app.get('/api/documents', (req, res) => {
     const SQL_GET_DOCUMENTS = 'SELECT id, document_name, description, requirements, fee FROM barangay_documents ORDER BY document_name';
     db.query(SQL_GET_DOCUMENTS, (err, results) => {
@@ -1557,7 +1460,7 @@ app.get('/api/user/profile/:email', (req, res) => {
         // Renaming 'full_name' to 'name' to match frontend convention
         const userProfile = {
             id: results[0].id,
-            name: results[0].full_name,
+            name: results[0].name, // Corrected from results[0].full_name
             email: results[0].email,
             // The profile picture URL is now correctly sourced via the JOIN
             profilePictureUrl: results[0].profile_picture_url, 
@@ -1568,6 +1471,132 @@ app.get('/api/user/profile/:email', (req, res) => {
     });
 });
 // =========================================================
+
+// --- NEW API ENDPOINTS FOR BARANGAY OFFICIALS MANAGEMENT ---
+
+// 1. Upload Official Profile Picture
+app.post('/api/admin/officials/upload-picture', (req, res) => {
+    officialPicUploader(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error("Multer Official Picture Error:", err.message);
+            return res.status(400).json({ message: `File upload failed: ${err.message}` });
+        } else if (err) {
+            console.error("Unknown Official Upload Error:", err);
+            return res.status(500).json({ message: err.message || 'An unknown error occurred during file upload.' });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file selected for upload.' });
+        }
+
+        // Construct the full URL for the image
+        const pictureUrl = `http://localhost:${PORT}/media/${req.file.filename}`;
+
+        // Return the temporary URL to the frontend for use in the main form submission
+        res.status(200).json({ 
+            message: 'Picture uploaded successfully.', 
+            profilePictureUrl: pictureUrl,
+        });
+    });
+});
+
+// 2. Add New Barangay Official
+app.post('/api/admin/officials', (req, res) => {
+    // --- UPDATED: Destructure new fields: position, committee ---
+    const { firstName, middleInitial, lastName, contactNumber, category, status, profilePictureUrl, position, committee } = req.body;
+
+    // --- UPDATED: New required field 'position' ---
+    if (!firstName || !lastName || !category || !status || !position) {
+        return res.status(400).json({ message: 'Missing required official details (Name, Category, Status, Position).' });
+    }
+    
+    // Committee is optional or can be 'None', store as NULL if not provided or 'None'
+    const finalCommittee = (committee === 'None' || !committee) ? null : committee;
+
+    const SQL_INSERT = `
+        INSERT INTO barangay_officials 
+        (first_name, middle_initial, last_name, contact_number, position, committee, category, status, profile_picture_url) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [
+        firstName, 
+        middleInitial || null, 
+        lastName, 
+        contactNumber || null, 
+        position, // <-- NEW PARAMETER
+        finalCommittee, // <-- NEW PARAMETER
+        category, 
+        status, 
+        profilePictureUrl || null
+    ];
+
+    db.query(SQL_INSERT, params, (err, result) => {
+        if (err) {
+            console.error("Database error adding official:", err);
+            return res.status(500).json({ message: 'Failed to add new official.' });
+        }
+        
+        const newOfficialId = result.insertId;
+        const SQL_FETCH_NEW = `
+            SELECT 
+                id, first_name, middle_initial, last_name, contact_number, 
+                position, committee, category, status, profile_picture_url, created_at 
+            FROM barangay_officials 
+            WHERE id = ?
+        `; // <-- UPDATED: Added position and committee
+
+        db.query(SQL_FETCH_NEW, [newOfficialId], (fetchErr, fetchResults) => {
+            if (fetchErr || fetchResults.length === 0) {
+                console.error("Database error fetching newly created official:", fetchErr);
+                return res.status(500).json({ message: 'Official added, but failed to retrieve details.' });
+            }
+
+            res.status(201).json({ 
+                message: 'Official added successfully!', 
+                official: fetchResults[0] 
+            });
+        });
+    });
+});
+
+// 3. Fetch All Barangay Officials
+app.get('/api/admin/officials', (req, res) => {
+    const SQL_FETCH_OFFICIALS = `
+        SELECT 
+            id, first_name, middle_initial, last_name, contact_number, 
+            position, committee, category, status, profile_picture_url, created_at 
+        FROM barangay_officials 
+        ORDER BY last_name ASC, first_name ASC
+    `; // <-- UPDATED: Added position and committee
+    
+    db.query(SQL_FETCH_OFFICIALS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching officials:", err);
+            return res.status(500).json({ message: 'Failed to fetch barangay officials.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// 4. Delete a Barangay Official
+app.delete('/api/admin/officials/:id', (req, res) => {
+    const officialId = parseInt(req.params.id, 10);
+    if (isNaN(officialId)) {
+        return res.status(400).json({ message: 'Invalid Official ID.' });
+    }
+
+    const SQL_DELETE = `DELETE FROM barangay_officials WHERE id = ?`;
+    db.query(SQL_DELETE, [officialId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting official:", err);
+            return res.status(500).json({ message: 'Failed to delete official.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Official not found or already deleted.' });
+        }
+        res.status(200).json({ message: 'Official deleted successfully.', deletedId: officialId });
+    });
+});
 
 
 app.listen(PORT, () => {
