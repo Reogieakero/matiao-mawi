@@ -432,11 +432,11 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
         <div style={styles.backdrop}>
             <div style={styles.modal}>
                 <h3 style={styles.header}>
-                    {isEdit ? '✏️ Edit Barangay News' : '✨ Publish New Barangay News'}
+                    {isEdit ? 'Edit Barangay News' : ' News'}
                 </h3>
                 <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#6B7280' }}>&times;</button>
                 
-                {error && <p style={styles.error}>🚨 {error}</p>}
+                {error && <p style={styles.error}>{error}</p>}
 
                 <form onSubmit={handleSubmit} style={styles.form}>
                     
@@ -540,7 +540,7 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
                     </div>
 
                     <button type="submit" style={{ ...styles.button, opacity: loading ? 0.8 : 1 }} disabled={loading}>
-                        {loading ? '🚀 Publishing...' : (isEdit ? '💾 Update News' : '📢 Publish News')}
+                        {loading ? '🚀 Publishing...' : (isEdit ? '💾 Update News' : 'Publish News')}
                     </button>
                 </form>
             </div>
