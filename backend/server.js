@@ -8,6 +8,8 @@ const multer = require('multer');
 const path = require('path'); 
 const fs = require('fs');
 
+const { PDFDocument } = require('pdf-lib');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +22,19 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
+const formatDateForForm = (dateString) => {
+    if (!dateString) return '';
+    // Formats the date like: November 29, 2025
+    return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+    });
+};
+
+
+// Serve static files (like uploaded requirements)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve PDF templates (assuming they are in a 'templates' folder)
+app.use('/forms', express.static(path.join(__dirname, 'forms')));
 // --- MULTER CONFIGURATION ---
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -2258,6 +2273,261 @@ app.get('/api/announcements', (req, res) => {
 
         res.status(200).json(formattedResults);
     });
+});
+
+const getDocumentName = (id) => {
+    switch (id) {
+        case 1: return 'Barangay Clearance';
+        case 2: return 'Certificate of Indigency';
+        case 3: return 'Business Permit Endorsement';
+        case 4: return 'Certificate of Residency';
+        default: return 'Unknown Document';
+    }
+};
+
+// =========================================================
+// --- NEW ADMIN API ENDPOINT: GET All Document Applications ---
+// (Required by AdminDocumentsPage.jsx to fetch all data)
+// =========================================================
+app.get('/api/admin/documents', (req, res) => {
+    // NOTE: You must add authentication/authorization middleware here 
+    // to ensure only admins can access this route.
+    const SQL_FETCH_DOCUMENTS = `
+        SELECT 
+            da.id, da.document_id, da.user_email, da.applicant_name, 
+            da.purpose, da.requirements_details, da.requirements_file_paths, 
+            da.status, da.payment_method, da.payment_reference_number, 
+            da.date_applied AS dateRequested, da.updated_at
+        FROM document_applications da
+        ORDER BY da.date_applied DESC
+    `;
+
+    db.query(SQL_FETCH_DOCUMENTS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching document applications for admin:", err);
+            return res.status(500).json({ message: 'Failed to fetch document applications.' });
+        }
+        
+        // Format results: parse JSON string and replace document_id with documentType name
+        const formattedResults = results.map(row => ({
+            ...row,
+            fullName: row.applicant_name, // Map to match frontend component state key
+            documentType: getDocumentName(row.document_id), // Use the helper to get the name
+            requirementsFilePaths: JSON.parse(row.requirements_file_paths || '[]'),
+        }));
+
+        res.status(200).json(formattedResults);
+    });
+});
+
+// =========================================================
+// --- NEW ADMIN API ENDPOINT: PUT Update Document Status ---
+// (Required by AdminDocumentsPage.jsx to change status)
+// =========================================================
+app.put('/api/admin/documents/update-status/:applicationId', (req, res) => {
+    // NOTE: You must add authentication/authorization middleware here 
+    // to ensure only admins can access this route.
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { newStatus } = req.body; // e.g., 'Processing', 'Completed', 'Rejected'
+
+    // Validate input
+    if (isNaN(applicationId) || !newStatus || !['Pending', 'Approved', 'Completed', 'Rejected', 'Cancelled'].includes(newStatus)) {
+        return res.status(400).json({ message: 'Invalid application ID or new status.' });
+    }
+
+    const SQL_UPDATE_STATUS = `
+        UPDATE document_applications 
+        SET status = ?, updated_at = NOW() 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_UPDATE_STATUS, [newStatus, applicationId], (err, result) => {
+        if (err) {
+            console.error("Database error updating document status:", err);
+            return res.status(500).json({ message: 'Failed to update document status.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Document application not found.' });
+        }
+
+        res.status(200).json({ 
+            message: `Status of application #${applicationId} updated to ${newStatus}.`, 
+            updatedStatus: newStatus 
+        });
+    });
+});
+
+// server.js - Make sure the formatDateForForm function is defined at the top of the file!
+
+// =========================================================
+// 3. GENERATE PDF, APPROVE, AND DIRECTLY SERVE/DOWNLOAD
+// =========================================================
+app.post('/api/admin/documents/generate-and-approve', async (req, res) => {
+    // NOTE: Implement proper authentication/authorization here
+    const { documentId, templateFileName, newStatus } = req.body;
+    const applicationId = parseInt(documentId, 10);
+
+    if (isNaN(applicationId) || !templateFileName || newStatus !== 'Approved') {
+        return res.status(400).json({ message: 'Invalid request data for document generation.' });
+    }
+
+    try {
+        // 1. FETCH APPLICATION AND USER DATA (CRITICALLY CORRECTED)
+        // Ensure you select ALL fields needed for PDF filling.
+        const SQL_SELECT = `
+            SELECT 
+                da.*, 
+                u.name 
+            FROM 
+                document_applications da
+            LEFT JOIN 
+                users u ON da.user_email = u.id  
+            WHERE 
+                da.id = ?
+        `;
+        
+        const applicationData = await new Promise((resolve, reject) => {
+            db.query(SQL_SELECT, [applicationId], (err, result) => {
+                if (err) return reject(err);
+                if (result.length === 0) return reject({ message: 'Application data not found.' });
+                
+                // Return only the first result row for applicationData
+                resolve(result[0]);
+            });
+        });
+
+        // Ensure the path uses the correct 'templates' directory
+        const templatePath = path.join(__dirname, 'forms', templateFileName); 
+        
+        // Input Validation Check 
+        if (!fs.existsSync(templatePath)) {
+            console.error(`Template not found at: ${templatePath}`);
+            return res.status(404).json({ message: `PDF template file not found: ${templateFileName}` });
+        }
+
+        // 2. LOAD AND FILL PDF
+        const templateBytes = fs.readFileSync(templatePath);
+        const pdfDoc = await PDFDocument.load(templateBytes);
+        const form = pdfDoc.getForm();
+        
+        // --- Form Field Mapping Logic (Using applicationData) ---
+        
+        const today = formatDateForForm(new Date());
+        let fieldsToFill = {}; 
+
+        // Conditional Field Mapping based on the selected template
+        if (templateFileName === 'barangay_clearance_template.pdf') {
+    console.log('Mapping fields for Barangay Clearance...');
+    const today = formatDateForForm(new Date()); 
+    
+    // NOTE: Check your PDF form field names. These are a strong guess based on the image.
+    fieldsToFill = {
+        // --- APPLICANT DETAILS ---
+        // Assuming the name field is a single blank line
+        'Name of Applicant:': applicationData.applicant_name, 
+        'Full_Name': applicationData.applicant_name, // Common alternative
+        
+        // This is a critical field that is NOT in your current applicationData SQL query.
+        // It must be manually added to your database structure and SQL query for proper filling.
+        'Age_or_LegalAge': 'Legal Age', // Placeholder for now
+        
+        // --- PURPOSE & DATE ---
+        'Purpose': applicationData.purpose, 
+        'Date_Issued': today, 
+        'Day_of_Month': today, 
+        
+        // --- ID / REFERENCE ---
+        'Application_ID': `App-${applicationId}`,
+        'Reference_ID': `App-${applicationId}`,
+        
+        // --- CERTIFICATE HOLDER INFO ---
+        // If the form has a dedicated blank for the signature/thumbmark section
+        'CTC_No': '*** CTC No. required ***', // Placeholder: CTC not in appData
+        'Date_CTC_Issued': '*** Date required ***', // Placeholder
+        'Place_CTC_Issued': '*** Place required ***' // Placeholder
+    };
+
+        } else if (templateFileName === 'certificate_of_indigency.pdf') {
+            console.log("Mapping fields for Certificate of Indigency...");
+            // CRITICAL: Replace keys (e.g., 'Indigent_Name') with the EXACT field names in your PDF
+            fieldsToFill = {
+                'Indigent_Name': applicationData.full_name || applicationData.first_name + ' ' + applicationData.last_name,
+                'Indigent_Address': applicationData.address || 'N/A',
+                'Reason': applicationData.purpose || 'Financial Assistance', 
+                'Issuance_Date': today,
+            };
+            
+        } else {
+             console.warn(`No specific field mapping found for: ${templateFileName}. Using default mapping.`);
+             fieldsToFill = {
+                'Full_Name': applicationData.full_name,
+                'Date_Today': today,
+             };
+        }
+
+        // Apply the mapped data to the PDF form
+        Object.entries(fieldsToFill).forEach(([name, value]) => {
+            try {
+                const field = form.getTextField(name);
+                if (field) {
+                    field.setText(String(value));
+                    field.setReadOnly(true); 
+                }
+            } catch (e) {
+                console.warn(`Could not set field '${name}'. It might not exist in the PDF.`);
+            }
+        });
+        
+        // Flatten the form to make the fields uneditable
+        form.flatten();
+        
+        const pdfBytes = await pdfDoc.save();
+
+        // 3. UPDATE APPLICATION STATUS in the database
+        const SQL_UPDATE_STATUS = `
+            UPDATE document_applications 
+            SET status = ?, generated_path = ?, updated_at = NOW() 
+            WHERE id = ?
+        `;
+        
+        const finalFileUrl = 'DOCUMENT_GENERATED_AND_DOWNLOADED'; // Placeholder/Note in DB
+
+        await new Promise((resolve, reject) => {
+             db.query(SQL_UPDATE_STATUS, [newStatus, finalFileUrl, applicationId], (err, result) => {
+                if (err) return reject(err);
+                resolve(result);
+            });
+        });
+
+        // 4. SERVE THE FILE FOR DOWNLOAD (FIXED CRASH)
+        // Use fallbacks for document_type and last_name to prevent the TypeError crash
+        const docType = applicationData.document_type || 'document';
+        const lastName = applicationData.last_name || 'user';
+        
+        const safeName = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const fileName = `${applicationId}_${lastName}_${safeName}_Approved.pdf`;
+
+        // Set headers for file download
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', pdfBytes.length);
+
+        // Send the generated PDF content
+        res.send(Buffer.from(pdfBytes));
+
+    } catch (error) {
+        console.error('Server Error during PDF generation/approval:', error);
+        
+        // Send a 500 status and a message that the frontend can read from the Blob error
+        if (!res.headersSent) {
+            let message = 'Internal server error during document generation.';
+            if (error && error.message) {
+                message = error.message; 
+            }
+            res.status(500).json({ message: message });
+        }
+    }
 });
 
 
