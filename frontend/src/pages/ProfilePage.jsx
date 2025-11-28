@@ -1096,7 +1096,7 @@ const ProfilePage = ({
             setPopup({ message: 'Profile updated successfully!', type: 'success' });
             setIsEditModalVisible(false); // Close modal on success
 
-            // Update local state in ProfilePage
+            // Update local state in ProfilePage (FOR AUTO-REFRESH ON THE PAGE)
             setUserData(prev => ({
                 ...prev,
                 name: updatedFields.editedName,
@@ -1105,9 +1105,9 @@ const ProfilePage = ({
                 profilePictureUrl: data.updatedPictureUrl, // Use the final URL returned by the server
             }));
             
-            // Update global state in App.jsx
+            // Update global state in App.jsx (FOR AUTO-REFRESH ON OTHER COMPONENTS LIKE NAVBAR)
             onUpdateUser({ 
-                name: data.updatedName, // Use 'name' instead of 'updatedName' to match App.jsx's handleUpdateUser function signature
+                name: updatedFields.editedName, // Use the newly saved name
                 profilePictureUrl: data.updatedPictureUrl 
             });
 
@@ -1179,6 +1179,7 @@ const ProfilePage = ({
         }
     }, [userId, userName, userEmail, currentProfilePictureUrl]);
 
+    // Initial load and refresh handler
     useEffect(() => {
         fetchUserThreads();
         fetchUserData();

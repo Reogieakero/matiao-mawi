@@ -490,6 +490,77 @@ app.delete('/api/user-threads/:userId', (req, res) => {
     });
 });
 
+// --- NEW API ENDPOINT: DELETE a single thread (Post or Job) ---
+app.delete('/api/threads/:threadType/:threadId', (req, res) => {
+    const threadId = parseInt(req.params.threadId, 10);
+    const threadType = req.params.threadType; // 'post' or 'job'
+    // The userId is passed in the body from the client to verify ownership
+    const userIdFromBody = parseInt(req.body.userId, 10); 
+    
+    // Basic Validation
+    if (isNaN(threadId) || isNaN(userIdFromBody) || !['post', 'job'].includes(threadType)) {
+        return res.status(400).json({ message: 'Invalid thread ID, type, or user ID provided.' });
+    }
+
+    const table = threadType === 'post' ? 'posts' : 'jobs';
+    const threadIdKey = threadType === 'post' ? 'post_id' : 'job_id';
+
+    // 1. Delete associated responses
+    const SQL_DELETE_RESPONSES = `DELETE FROM responses WHERE ${threadIdKey} = ?`;
+    // 2. Delete associated bookmarks
+    const SQL_DELETE_BOOKMARKS = `DELETE FROM bookmarks WHERE ${threadIdKey} = ?`;
+    // 3. Delete the thread itself, ensuring user_id matches for authorization
+    const SQL_DELETE_THREAD = `DELETE FROM ${table} WHERE id = ? AND user_id = ?`;
+
+    db.beginTransaction(err => {
+        if (err) return res.status(500).json({ message: 'Transaction start failed.' });
+
+        // Step 1: Delete Responses
+        db.query(SQL_DELETE_RESPONSES, [threadId], (err) => {
+            if (err) return db.rollback(() => { 
+                console.error("Database error deleting responses:", err);
+                res.status(500).json({ message: 'Failed to delete associated responses.' });
+            });
+
+            // Step 2: Delete Bookmarks
+            db.query(SQL_DELETE_BOOKMARKS, [threadId], (err) => {
+                if (err) return db.rollback(() => { 
+                    console.error("Database error deleting bookmarks:", err);
+                    res.status(500).json({ message: 'Failed to delete associated bookmarks.' });
+                });
+
+                // Step 3: Delete the Post/Job
+                db.query(SQL_DELETE_THREAD, [threadId, userIdFromBody], (err, result) => {
+                    if (err) {
+                        return db.rollback(() => {
+                            console.error("Database error deleting thread:", err);
+                            res.status(500).json({ message: `Failed to delete ${threadType}.` });
+                        });
+                    }
+
+                    if (result.affectedRows === 0) {
+                        return db.rollback(() => {
+                            // No rows deleted means unauthorized or thread not found
+                            res.status(403).json({ message: 'Thread could not be deleted. It may not exist, or you are not the author.' });
+                        });
+                    }
+
+                    // Success: Commit Transaction
+                    db.commit(commitErr => {
+                        if (commitErr) return db.rollback(() => {
+                            console.error("Transaction Commit Error:", commitErr);
+                            res.status(500).json({ message: 'Failed to complete thread deletion.' });
+                        });
+                        
+                        // Success JSON Response
+                        res.status(200).json({ message: `${threadType} deleted successfully.`, deletedId: threadId });
+                    });
+                });
+            });
+        });
+    });
+});
+
 app.post('/api/threads', (req, res) => {
     const { userId, postContent, postType, postCategory, mediaUrls, contactNumber } = req.body; 
 
@@ -1878,6 +1949,162 @@ app.get('/api/admin/jobs/all', (req, res) => {
 });
 
 
+app.post('/api/admin/news', (req, res) => {
+    const { 
+        title, category, content, featured_image_url, 
+        valid_until, posted_by, target_audience, attachments_json 
+    } = req.body;
+
+    // Basic validation
+    if (!title || !category || !content || !posted_by) {
+        return res.status(400).json({ message: 'Missing required news fields.' });
+    }
+
+    const SQL_INSERT_NEWS = `
+        INSERT INTO barangay_news 
+        (title, category, content, featured_image_url, valid_until, posted_by, target_audience, attachments_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
+        title, category, content, featured_image_url || null, 
+        valid_until || null, posted_by, target_audience || null, attachments_json || null
+    ];
+
+    db.query(SQL_INSERT_NEWS, values, (err, result) => {
+        if (err) {
+            console.error("Database error adding news:", err);
+            return res.status(500).json({ message: 'Failed to add news item.' });
+        }
+        res.status(201).json({ message: 'News item added successfully', newsId: result.insertId });
+    });
+});
+
+// 2. GET: Fetch All News Items (for Admin)
+app.get('/api/admin/news', (req, res) => {
+    // Fetch all news items, including deleted ones (for admin view/restore logic, if needed)
+    // We'll filter only non-deleted ones for simplicity in this initial fetch.
+    const SQL_FETCH_ALL_NEWS = `
+        SELECT 
+            id, title, category, content, featured_image_url, 
+            DATE_FORMAT(date_published, '%Y-%m-%d %H:%i:%s') as date_published, 
+            valid_until, posted_by, target_audience, attachments_json, 
+            is_deleted
+        FROM barangay_news
+        WHERE is_deleted = FALSE
+        ORDER BY date_published DESC
+    `;
+
+    db.query(SQL_FETCH_ALL_NEWS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching all news for admin:", err);
+            return res.status(500).json({ message: 'Failed to fetch news listings.' });
+        }
+        
+        // Helper function to format attachments_json from string to array
+        const formatAttachments = (row) => {
+            let attachments = [];
+            if (row.attachments_json) {
+                try {
+                    attachments = JSON.parse(row.attachments_json);
+                } catch (e) {
+                    console.warn("Could not parse attachments_json:", row.attachments_json);
+                }
+            }
+            return attachments;
+        };
+
+        const formattedResults = results.map(row => ({
+            ...row,
+            attachments: formatAttachments(row),
+            // Remove the raw JSON string from the final output
+            attachments_json: undefined 
+        }));
+
+        res.json(formattedResults);
+    });
+});
+
+// 3. PUT: Update News Item
+app.put('/api/admin/news/:id', (req, res) => {
+    const newsId = req.params.id;
+    const { 
+        title, category, content, featured_image_url, 
+        valid_until, posted_by, target_audience, attachments_json 
+    } = req.body;
+
+    if (!title || !category || !content || !posted_by) {
+        return res.status(400).json({ message: 'Missing required news fields.' });
+    }
+
+    const SQL_UPDATE_NEWS = `
+        UPDATE barangay_news SET 
+            title = ?, category = ?, content = ?, featured_image_url = ?, 
+            valid_until = ?, posted_by = ?, target_audience = ?, attachments_json = ?
+        WHERE id = ? AND is_deleted = FALSE
+    `;
+
+    const values = [
+        title, category, content, featured_image_url || null, 
+        valid_until || null, posted_by, target_audience || null, attachments_json || null,
+        newsId
+    ];
+
+    db.query(SQL_UPDATE_NEWS, values, (err, result) => {
+        if (err) {
+            console.error("Database error updating news:", err);
+            return res.status(500).json({ message: 'Failed to update news item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'News item not found or already deleted.' });
+        }
+        res.json({ message: 'News item updated successfully' });
+    });
+});
+
+// 4. DELETE: Soft Delete News Item
+app.delete('/api/admin/news/:id', (req, res) => {
+    const newsId = req.params.id;
+    
+    // Perform a soft delete
+    const SQL_DELETE_NEWS = `
+        UPDATE barangay_news SET is_deleted = TRUE 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_DELETE_NEWS, [newsId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting news:", err);
+            return res.status(500).json({ message: 'Failed to delete news item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'News item not found.' });
+        }
+        res.json({ message: 'News item successfully deleted.' });
+    });
+});
+
+app.get('/api/news', (req, res) => {
+    // The query is identical to the admin version, excluding 'is_deleted' for safety 
+    // but relies on 'is_deleted = FALSE' to only show active news.
+    const SQL_FETCH_ALL_NEWS = `
+        SELECT id, title, category, content, featured_image_url, date_published, 
+        valid_until, posted_by, target_audience, attachments_json 
+        FROM barangay_news 
+        WHERE is_deleted = FALSE 
+        ORDER BY date_published DESC
+    `;
+    
+    db.query(SQL_FETCH_ALL_NEWS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching public news:", err);
+            return res.status(500).json({ message: 'Failed to fetch news.' });
+        }
+        
+        // Pass the results directly to the frontend
+        res.status(200).json(results);
+    });
+});
 
 
 

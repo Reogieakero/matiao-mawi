@@ -10,6 +10,7 @@ import SavedPage from './pages/SavedPage';
 import SearchResultsPage from './pages/SearchResultsPage'; 
 import ProfilePage from './pages/ProfilePage'; 
 import DocumentsPage from './pages/DocumentsPage'; 
+import NewsPage from './pages/NewsPage';
 import ServicesPage from './pages/ServicesPage'; 
 import HotlinesPage from './pages/HotlinesPage';
 import FindJobsPage from './pages/FindJobsPage'; 
@@ -24,6 +25,7 @@ import AdminDashboardPage from './admin/AdminDashboardPage';
 import AdminOfficialsPage from './admin/AdminOfficialsPage'; 
 import AdminContentManagementPage from './admin/AdminContentManagementPage';
 import AdminJobsPage from './admin/AdminJobsPage';
+import AdminNewsPage from './admin/AdminNewsPage';
 
 
 
@@ -202,7 +204,7 @@ const App = () => {
                                     
                                     {/* Placeholder and other static routes */}
                                     <Route path="/announcements" element={<Placeholder title="Announcements" />} />
-                                    <Route path="/news" element={<Placeholder title="News" />} />
+                                    <Route path="/news" element={<NewsPage/>} />
                                     <Route path="/services" element={<ServicesPage userName={currentUser?.name} userEmail={currentUser?.email} profilePictureUrl={currentUser?.profilePictureUrl} />} />
                                     
                                     <Route 
@@ -241,7 +243,7 @@ const App = () => {
                         <Route path="/officials" element={<AdminOfficialsPage />} /> 
                         <Route path="/content-management" element={<AdminContentManagementPage />} />
                         <Route path="/jobs" element={<AdminJobsPage />} />
-                        <Route path="/news" element={<Placeholder title="Admin News Management" />} />
+                        <Route path="/news" element={<AdminNewsPage/>} />
                         <Route path="/announcements" element={<Placeholder title="Admin Announcements" />} />
                         <Route path="/documents" element={<Placeholder title="Admin Documents Requests" />} />
                         <Route path="/services" element={<Placeholder title="Admin Services Management" />} />

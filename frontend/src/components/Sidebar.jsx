@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Bell, File, Settings, Bookmark } from 'lucide-react'; // Import Bookmark
+import { Home, FileText, Bell, File, Settings, Bookmark, Rss } from 'lucide-react'; // Import Bookmark
 
 // Define job categories (matching those in HomePage.jsx)
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
@@ -60,7 +60,7 @@ const Sidebar = ({ refetchTrigger }) => {
     const navItems = [
         { name: 'Home', path: '/home', icon: <Home size={20} /> },
         { name: 'Saved', path: '/saved', icon: <Bookmark size={20} /> }, // NEW SAVED ITEM
-        { name: 'News', path: '/news', icon: <FileText size={20} /> },
+        { name: 'News', path: '/news', icon: <Rss size={20} /> },
         { name: 'Announcements', path: '/announcements', icon: <Bell size={20} /> },
         { name: 'Documents', path: '/documents', icon: <File size={20} /> },
         { name: 'Services', path: '/services', icon: <Settings size={20} /> },
