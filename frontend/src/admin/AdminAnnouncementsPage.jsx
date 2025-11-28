@@ -282,14 +282,14 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
         <div style={modalStyles.backdrop}>
             <div style={modalStyles.modal}>
                 <Trash2 size={32} style={{ color: '#EF4444', marginBottom: '15px' }} />
-                <h3 style={modalStyles.title}>Confirm Archiving Announcement</h3>
+                <h3 style={modalStyles.title}>Confirm Deleteing Announcement</h3>
                 <p style={modalStyles.body}>
                     Are you sure you want to delete the announcement: "{title}"? 
                     It will be removed from public view but remain in the admin list.
                 </p>
                 <div style={modalStyles.buttonGroup}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>Cancel</button>
-                    <button onClick={onConfirm} style={modalStyles.confirmButton}>Yes, Archive It</button>
+                    <button onClick={onConfirm} style={modalStyles.confirmButton}>Yes, Delete It</button>
                 </div>
             </div>
         </div>
