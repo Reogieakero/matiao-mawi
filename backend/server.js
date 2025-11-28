@@ -2211,6 +2211,49 @@ app.delete('/api/admin/announcements/:id', (req, res) => {
 });
 
 
+app.get('/api/announcements', (req, res) => {
+    // Selects all non-deleted announcements, ordered by publish date
+    const SQL_FETCH_ALL_ANNOUNCEMENTS = `
+        SELECT 
+            id, title, category, content, featured_image_url, 
+            date_published, valid_until, posted_by, target_audience, attachments_json 
+        FROM barangay_announcements 
+        WHERE is_deleted = FALSE
+        ORDER BY date_published DESC
+    `;
+
+    db.query(SQL_FETCH_ALL_ANNOUNCEMENTS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching public announcements:", err);
+            return res.status(500).json({ message: 'Failed to fetch announcement listings.' });
+        }
+
+        // Helper function to format attachments_json from string to array
+        const formatAttachments = (row) => {
+            let attachments = [];
+            if (row.attachments_json) {
+                try {
+                    attachments = JSON.parse(row.attachments_json);
+                } catch (e) {
+                    console.warn("Could not parse attachments_json in public route:", row.attachments_json);
+                }
+            }
+            return attachments;
+        };
+
+        const formattedResults = results.map(row => ({
+            ...row, 
+            attachments: formatAttachments(row),
+            // Remove the raw JSON string from the final output
+            attachments_json: undefined 
+        }));
+
+        res.status(200).json(formattedResults);
+    });
+});
+
+
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

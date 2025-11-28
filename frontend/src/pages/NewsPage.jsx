@@ -463,8 +463,8 @@ const styles = {
     }
 };
 
-// --- Component: News Card (Modified to include Read More button) ---
-const NewsCard = ({ newsItem, onReadMore }) => { // Added onReadMore prop
+// --- Component: News Card (Modified to include Read More button and full card click) ---
+const NewsCard = ({ newsItem, onReadMore }) => { 
     const [isHovered, setIsHovered] = useState(false);
     const tagColor = getCategoryColor(newsItem.category);
     const TagIcon = tagColor.icon;
@@ -472,12 +472,11 @@ const NewsCard = ({ newsItem, onReadMore }) => { // Added onReadMore prop
     // Simple placeholder for content snippet
     const snippet = newsItem.content.substring(0, 100) + (newsItem.content.length > 100 ? '...' : '');
 
-    // Card click now just sets hover state, the button handles the action
+    // Card click handler: Opens the modal if the click target is not the button itself
     const handleCardClick = (e) => {
-        // Prevent card click from interfering with button click
-        if (e.target.tagName !== 'BUTTON') {
-            // Optional: You can still open the modal here if you want the entire card to be clickable
-            // onReadMore(newsItem);
+        // Only open the modal if the clicked element is not a button or a descendant of a button
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) { 
+            onReadMore(newsItem);
         }
     };
 
@@ -489,7 +488,7 @@ const NewsCard = ({ newsItem, onReadMore }) => { // Added onReadMore prop
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={handleCardClick}
+            onClick={handleCardClick} // This handles the full card click
         >
             {newsItem.featured_image_url ? (
                 <img 
@@ -511,7 +510,8 @@ const NewsCard = ({ newsItem, onReadMore }) => { // Added onReadMore prop
                 
                 <button 
                     style={styles.readMoreButton}
-                    onClick={() => onReadMore(newsItem)} // Use the passed-in function
+                    // This button click is explicitly handled here
+                    onClick={() => onReadMore(newsItem)} 
                 >
                     <Eye size={16} style={{ marginRight: '6px' }} /> Read More
                 </button>

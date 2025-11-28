@@ -11,6 +11,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ProfilePage from './pages/ProfilePage'; 
 import DocumentsPage from './pages/DocumentsPage'; 
 import NewsPage from './pages/NewsPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import ServicesPage from './pages/ServicesPage'; 
 import HotlinesPage from './pages/HotlinesPage';
 import FindJobsPage from './pages/FindJobsPage'; 
@@ -205,7 +206,7 @@ const App = () => {
                                     />
                                     
                                     {/* Placeholder and other static routes */}
-                                    <Route path="/announcements" element={<Placeholder title="Announcements" />} />
+                                    <Route path="/announcements" element={<AnnouncementsPage />} />
                                     <Route path="/news" element={<NewsPage/>} />
                                     <Route path="/services" element={<ServicesPage userName={currentUser?.name} userEmail={currentUser?.email} profilePictureUrl={currentUser?.profilePictureUrl} />} />
                                     
