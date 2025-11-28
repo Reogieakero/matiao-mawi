@@ -26,6 +26,8 @@ import AdminOfficialsPage from './admin/AdminOfficialsPage';
 import AdminContentManagementPage from './admin/AdminContentManagementPage';
 import AdminJobsPage from './admin/AdminJobsPage';
 import AdminNewsPage from './admin/AdminNewsPage';
+import AdminAnnouncementsPage from './admin/AdminAnnouncementsPage';
+
 
 
 
@@ -244,7 +246,7 @@ const App = () => {
                         <Route path="/content-management" element={<AdminContentManagementPage />} />
                         <Route path="/jobs" element={<AdminJobsPage />} />
                         <Route path="/news" element={<AdminNewsPage/>} />
-                        <Route path="/announcements" element={<Placeholder title="Admin Announcements" />} />
+                        <Route path="/announcements" element={<AdminAnnouncementsPage/>} />
                         <Route path="/documents" element={<Placeholder title="Admin Documents Requests" />} />
                         <Route path="/services" element={<Placeholder title="Admin Services Management" />} />
                         <Route path="/hotlines" element={<Placeholder title="Admin Hotlines Management" />} />

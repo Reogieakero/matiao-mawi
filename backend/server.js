@@ -102,6 +102,8 @@ const documentStorage = multer.diskStorage({
     }
 });
 
+
+
 // =========================================================
 // UPDATED: Multer instance for the Document Application Route
 // Only handles 'requirements' files. Payment is now handled via text fields.
@@ -2106,6 +2108,107 @@ app.get('/api/news', (req, res) => {
     });
 });
 
+
+
+// --- ADMIN ANNOUNCEMENT ROUTES ---
+
+// 1. GET ALL ANNOUNCEMENTS (For Admin Dashboard)
+app.get('/api/admin/announcements', (req, res) => {
+    const SQL_FETCH_ALL_ANNOUNCEMENTS = `
+        SELECT id, title, category, content, featured_image_url, date_published, 
+        valid_until, posted_by, target_audience, attachments_json, is_deleted
+        FROM barangay_announcements 
+        ORDER BY date_published DESC
+    `;
+    
+    db.query(SQL_FETCH_ALL_ANNOUNCEMENTS, (err, results) => {
+        if (err) {
+            console.error("Database error fetching admin announcements:", err);
+            return res.status(500).json({ message: 'Failed to fetch announcement items.' });
+        }
+        res.json(results);
+    });
+});
+
+// 2. CREATE NEW ANNOUNCEMENT (Add)
+app.post('/api/admin/announcements', (req, res) => {
+    const { 
+        title, category, content, featured_image_url, 
+        valid_until, posted_by, target_audience, attachments_json 
+    } = req.body;
+    
+    const SQL_INSERT_ANNOUNCEMENT = `
+        INSERT INTO barangay_announcements 
+        (title, category, content, featured_image_url, valid_until, posted_by, target_audience, attachments_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.query(SQL_INSERT_ANNOUNCEMENT, [
+        title, category, content, featured_image_url, 
+        valid_until || null, posted_by, target_audience, attachments_json || null 
+    ], (err, result) => {
+        if (err) {
+            console.error("Database error creating announcement:", err);
+            return res.status(500).json({ message: 'Failed to create new announcement.' });
+        }
+        res.status(201).json({ 
+            message: 'Announcement successfully created.', 
+            id: result.insertId 
+        });
+    });
+});
+
+// 3. UPDATE ANNOUNCEMENT (Edit)
+app.put('/api/admin/announcements/:id', (req, res) => {
+    const announcementId = req.params.id;
+    const { 
+        title, category, content, featured_image_url, 
+        valid_until, posted_by, target_audience, attachments_json 
+    } = req.body;
+
+    const SQL_UPDATE_ANNOUNCEMENT = `
+        UPDATE barangay_announcements 
+        SET title = ?, category = ?, content = ?, featured_image_url = ?, 
+            valid_until = ?, posted_by = ?, target_audience = ?, attachments_json = ?
+        WHERE id = ?
+    `;
+
+    db.query(SQL_UPDATE_ANNOUNCEMENT, [
+        title, category, content, featured_image_url, 
+        valid_until || null, posted_by, target_audience, attachments_json || null,
+        announcementId
+    ], (err, result) => {
+        if (err) {
+            console.error("Database error updating announcement:", err);
+            return res.status(500).json({ message: 'Failed to update announcement item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Announcement item not found.' });
+        }
+        res.json({ message: 'Announcement item successfully updated.' });
+    });
+});
+
+// 4. DELETE/ARCHIVE ANNOUNCEMENT (Soft Delete)
+app.delete('/api/admin/announcements/:id', (req, res) => {
+    const announcementId = req.params.id;
+
+    const SQL_DELETE_ANNOUNCEMENT = `
+        UPDATE barangay_announcements SET is_deleted = TRUE 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_DELETE_ANNOUNCEMENT, [announcementId], (err, result) => {
+        if (err) {
+            console.error("Database error archiving announcement:", err);
+            return res.status(500).json({ message: 'Failed to archive announcement item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Announcement item not found.' });
+        }
+        res.json({ message: 'Announcement item successfully archived.' });
+    });
+});
 
 
 app.listen(PORT, () => {
