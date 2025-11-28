@@ -482,7 +482,7 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
         <div style={styles.backdrop}>
             <div style={styles.modal}>
                 <h3 style={styles.header}>
-                    {isEdit ? 'Edit Barangay News' : ' News'}
+                    {isEdit ? 'Edit Barangay News' : 'Add New Barangay News'}
                 </h3>
                 <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#6B7280' }}>&times;</button>
                 
@@ -598,8 +598,7 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
     );
 };
 
-
-// --- Main AdminNewsPage Component (Card View) ---
+// --- Main AdminNewsPage Component ---
 const AdminNewsPage = () => {
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -612,15 +611,18 @@ const AdminNewsPage = () => {
     // State for dedicated View Modal 
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedNewsForView, setSelectedNewsForView] = useState(null);
-
-    // NEW STATE: State for Delete Confirmation Modal
+    
+    // State for Delete Confirmation Modal
     const [deleteModal, setDeleteModal] = useState({ show: false, newsId: null, title: '' });
-
 
     const [error, setError] = useState('');
 
     const [messageModal, setMessageModal] = useState({ show: false, title: '', body: '', isSuccess: true });
     
+    // NEW STATE: State for Card Hover Effect
+    const [hoveredCardId, setHoveredCardId] = useState(null);
+
+
     // --- Data Fetching ---
     const fetchNews = async () => {
         setLoading(true);
@@ -630,7 +632,7 @@ const AdminNewsPage = () => {
             setNews(response.data);
         } catch (err) {
             console.error("Failed to fetch news:", err);
-            setError('Failed to load news listings. Check server connection and API route.');
+            setError('Failed to load news listings. Check server connection and API route (admin/news).');
         } finally {
             setLoading(false);
         }
@@ -652,7 +654,6 @@ const AdminNewsPage = () => {
         setSelectedNewsForView(null);
     };
 
-
     // --- Actions ---
     const handleAddNews = () => {
         setEditingNews(null);
@@ -663,40 +664,48 @@ const AdminNewsPage = () => {
         setEditingNews(newsItem);
         setIsModalOpen(true);
     };
-
+    
     // --- ACTION: Open dedicated view modal ---
     const handleViewDetails = (newsItem) => {
         setSelectedNewsForView(newsItem);
         setIsViewModalOpen(true);
     };
 
-    // MODIFIED: Open custom confirmation modal
+
     const handleDeleteNews = (id, title) => {
         setDeleteModal({ show: true, newsId: id, title: title });
     };
 
-    // NEW FUNCTION: Executes deletion after confirmation
+    // Note: This delete implementation is a soft delete (removed from view but remains in admin list). 
+    // This assumes the API updates the 'is_deleted' flag or similar.
     const confirmDelete = async () => {
         const id = deleteModal.newsId;
-        // Close the confirmation modal
-        setDeleteModal({ show: false, newsId: null, title: '' }); 
-        
+        setDeleteModal({ show: false, newsId: null, title: '' }); // Close confirmation modal
+
         try {
-            // Original API call logic from handleDeleteNews
+            // Assumes the DELETE API endpoint performs a SOFT DELETE or archive
             await axios.delete(`${API_BASE_URL}/admin/news/${id}`);
+            
+            // To reflect deletion immediately without refetching all data (assuming soft delete):
+            setNews(prev => prev.map(item => 
+                item.id === id ? { ...item, is_deleted: true } : item
+            ));
             
             setMessageModal({
                 show: true,
                 title: 'Success!',
-                body: 'News item successfully archived (removed from public view).',
+                body: `News item ID ${id} was marked as deleted/archived.`,
                 isSuccess: true
             });
-            fetchNews(); 
+            // If the server performed a hard delete, you would use:
+            // setNews(prev => prev.filter(item => item.id !== id));
+            // In a real application, you'd refetch or update the state based on the server response.
+
         } catch (err) {
             setMessageModal({
                 show: true,
                 title: 'Error',
-                body: `Failed to archive news item ID: ${id}.`,
+                body: `Failed to delete news item ID: ${id}.`,
                 isSuccess: false
             });
             console.error(err);
@@ -711,16 +720,19 @@ const AdminNewsPage = () => {
             body: `News item has been successfully ${action}.`,
             isSuccess: true
         });
-        fetchNews();
+        fetchNews(); // Refresh the list
     };
 
     // --- Filtering Logic ---
     const filteredNews = useMemo(() => {
         return news.filter(n => 
-            n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            n.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            n.posted_by.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            n.content.toLowerCase().includes(searchTerm.toLowerCase())
+            // Only show news that are NOT marked as deleted/archived (is_deleted: false or null/undefined)
+            !n.is_deleted && (
+                n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                n.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                n.posted_by.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                n.content.toLowerCase().includes(searchTerm.toLowerCase())
+            )
         );
     }, [news, searchTerm]);
 
@@ -729,7 +741,7 @@ const AdminNewsPage = () => {
     const styles = {
         pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-        title: { color: '#1F2937', fontSize: '28px', margin: 0, display: 'flex', alignItems: 'center' },
+        title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
         addButton: { 
             display: 'flex', alignItems: 'center', padding: '10px 20px', 
             backgroundColor: '#6366F1', color: 'white', border: 'none', 
@@ -752,6 +764,7 @@ const AdminNewsPage = () => {
             gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
             gap: '30px',
         },
+        // MODIFIED: Added cursor and transitions for hover simulation
         card: {
             backgroundColor: 'white',
             borderRadius: '12px',
@@ -759,10 +772,8 @@ const AdminNewsPage = () => {
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            transition: 'transform 0.2s',
-            // ':hover': {
-            //     transform: 'translateY(-3px)',
-            // }
+            transition: 'transform 0.2s, box-shadow 0.2s', // Smooth transition for hover effect
+            cursor: 'pointer', // Indicates clickability
         },
         cardImage: {
             width: '100%',
@@ -837,7 +848,7 @@ const AdminNewsPage = () => {
     return (
         <div style={styles.pageContainer}>
             <div style={styles.header}>
-                <h1 style={styles.title}><Newspaper size={30} style={{ marginRight: '10px' }} /> Manage Barangay News</h1>
+                <h1 style={styles.title}>Manage Barangay News</h1>
                 <button style={styles.addButton} onClick={handleAddNews}>
                     <Plus size={20} style={{ marginRight: '5px' }} /> Add New News
                 </button>
@@ -863,9 +874,27 @@ const AdminNewsPage = () => {
                     filteredNews.map((n) => {
                         const tagColor = getCategoryColor(n.category);
                         const TagIcon = tagColor.icon;
-                        
+
+                        // NEW: Dynamic styles for hover effect
+                        const isHovered = n.id === hoveredCardId;
+                        const cardStyle = {
+                            ...styles.card,
+                            transform: isHovered ? 'translateY(-3px)' : 'translateY(0)',
+                            boxShadow: isHovered 
+                                ? '0 8px 20px rgba(0, 0, 0, 0.15)' 
+                                : '0 4px 12px rgba(0, 0, 0, 0.08)',
+                        };
+
                         return (
-                            <div key={n.id} style={styles.card}>
+                            <div 
+                                key={n.id} 
+                                // NEW: Apply dynamic style and event handlers
+                                style={cardStyle}
+                                onMouseEnter={() => setHoveredCardId(n.id)}
+                                onMouseLeave={() => setHoveredCardId(null)}
+                                // NEW: Make the entire card clickable to open the view modal
+                                onClick={() => handleViewDetails(n)} 
+                            >
                                 <img 
                                     src={n.featured_image_url || 'https://via.placeholder.com/400x200?text=No+Image+Provided'} 
                                     alt={n.title} 
@@ -886,7 +915,8 @@ const AdminNewsPage = () => {
                                         {/* Read More Button (opens dedicated view modal) */}
                                         <button 
                                             style={styles.readMoreButton} 
-                                            onClick={() => handleViewDetails(n)}
+                                            // IMPORTANT: Stop propagation to prevent double-click handler (card + button)
+                                            onClick={(e) => { e.stopPropagation(); handleViewDetails(n); }}
                                             title="View Full Details"
                                         >
                                             <Eye size={16} style={{ marginRight: '6px' }} /> Read More
@@ -896,16 +926,18 @@ const AdminNewsPage = () => {
                                             {/* Edit Button (opens form modal) */}
                                             <button 
                                                 style={styles.actionButton('#3B82F6')} 
-                                                onClick={() => handleEditNews(n)}
+                                                // IMPORTANT: Stop propagation
+                                                onClick={(e) => { e.stopPropagation(); handleEditNews(n); }}
                                                 title="Edit News"
                                             >
                                                 <Edit size={16} />
                                             </button>
-                                            {/* Delete Button (Calls new modal logic) */}
+                                            {/* Delete Button (Opens custom confirmation modal) */}
                                             <button 
                                                 style={styles.actionButton('#EF4444')} 
-                                                onClick={() => handleDeleteNews(n.id, n.title)}
-                                                title="Delete News (Archive)"
+                                                // IMPORTANT: Stop propagation
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteNews(n.id, n.title); }}
+                                                title="Delete News (Soft Delete)"
                                             >
                                                 <Trash2 size={16} />
                                             </button>

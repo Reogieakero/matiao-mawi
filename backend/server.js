@@ -2191,22 +2191,30 @@ app.put('/api/admin/announcements/:id', (req, res) => {
 
 // 4. DELETE/ARCHIVE ANNOUNCEMENT (Soft Delete)
 app.delete('/api/admin/announcements/:id', (req, res) => {
+    // NOTE: You should add authentication/authorization middleware here 
+    // to ensure only admins can access this route.
+
     const announcementId = req.params.id;
 
-    const SQL_DELETE_ANNOUNCEMENT = `
-        UPDATE barangay_announcements SET is_deleted = TRUE 
+    // 🛑 IMPORTANT: This SQL statement performs a PERMANENT DELETE 
+    // which removes the record entirely. There is no archiving.
+    const SQL_HARD_DELETE_ANNOUNCEMENT = `
+        DELETE FROM barangay_announcements
         WHERE id = ?
     `;
 
-    db.query(SQL_DELETE_ANNOUNCEMENT, [announcementId], (err, result) => {
+    db.query(SQL_HARD_DELETE_ANNOUNCEMENT, [announcementId], (err, result) => {
         if (err) {
-            console.error("Database error archiving announcement:", err);
-            return res.status(500).json({ message: 'Failed to archive announcement item.' });
+            console.error("Database error performing hard delete on announcement:", err);
+            return res.status(500).json({ message: 'Failed to permanently delete announcement.' });
         }
+
         if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Announcement item not found.' });
+            return res.status(404).json({ message: 'Announcement not found.' });
         }
-        res.json({ message: 'Announcement item successfully archived.' });
+
+        // Send a success status back to the frontend
+        res.status(200).json({ message: 'Announcement permanently deleted successfully.' });
     });
 });
 

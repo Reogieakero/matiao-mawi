@@ -248,7 +248,7 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     );
 };
 
-// --- NEW: Custom Delete Confirmation Modal ---
+// --- MODIFIED: Custom Delete Confirmation Modal (Hard Delete Messaging) ---
 const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
     if (!show) return null;
 
@@ -263,7 +263,8 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
             width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)', 
             position: 'relative', textAlign: 'center'
         },
-        title: { fontSize: '20px', fontWeight: '700', margin: '0 0 10px 0', color: '#DC2626' },
+        // MODIFIED TITLE COLOR FOR CONSISTENCY
+        title: { fontSize: '20px', fontWeight: '700', margin: '0 0 10px 0', color: '#DC2626' }, 
         body: { fontSize: '16px', color: '#374151', marginBottom: '20px' },
         buttonGroup: { display: 'flex', justifyContent: 'space-between', gap: '10px' },
         cancelButton: { 
@@ -282,20 +283,20 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
         <div style={modalStyles.backdrop}>
             <div style={modalStyles.modal}>
                 <Trash2 size={32} style={{ color: '#EF4444', marginBottom: '15px' }} />
-                <h3 style={modalStyles.title}>Confirm Deleteing Announcement</h3>
+                <h3 style={modalStyles.title}>Confirm PERMANENT Deletion</h3>
                 <p style={modalStyles.body}>
-                    Are you sure you want to delete the announcement: "{title}"? 
-                    It will be removed from public view but remain in the admin list.
+                    Are you sure you want to **permanently delete** this announcement: "{title}"? 
+                    This action **cannot be undone** and will remove it from the system entirely.
                 </p>
                 <div style={modalStyles.buttonGroup}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>Cancel</button>
-                    <button onClick={onConfirm} style={modalStyles.confirmButton}>Yes, Delete It</button>
+                    <button onClick={onConfirm} style={modalStyles.confirmButton}>Yes, Permanently Delete</button>
                 </div>
             </div>
         </div>
     );
 };
-// --- END NEW COMPONENT ---
+// --- END MODIFIED COMPONENT ---
 
 
 // --- Announcement Form Modal Component (Modified from NewsFormModal) ---
@@ -618,6 +619,9 @@ const AdminAnnouncementPage = () => {
     // NEW STATE: State for Delete Confirmation Modal
     const [deleteModal, setDeleteModal] = useState({ show: false, announcementId: null, title: '' });
 
+    // NEW STATE: State for Card Hover Effect (Crucial for inline hover implementation)
+    const [hoveredCardId, setHoveredCardId] = useState(null);
+
 
     const [error, setError] = useState('');
 
@@ -678,27 +682,31 @@ const AdminAnnouncementPage = () => {
         setDeleteModal({ show: true, announcementId: id, title: title });
     };
 
-    // NEW FUNCTION: Executes deletion after confirmation
+    // MODIFIED FUNCTION: Executes PERMANENT deletion and updates state instantly
     const confirmDelete = async () => {
         const id = deleteModal.announcementId;
         // Close the confirmation modal
         setDeleteModal({ show: false, announcementId: null, title: '' }); 
 
         try {
-            // Updated API endpoint for delete (Soft Delete/Archive)
+            // Call the DELETE API endpoint (assumed to be a HARD DELETE on server side)
             await axios.delete(`${API_BASE_URL}/admin/announcements/${id}`);
+            
+            // 🔑 CRUCIAL CHANGE: AUTOMATIC REMOVAL from the page (no archiving/refetch)
+            setAnnouncements(prev => prev.filter(item => item.id !== id));
+            
             setMessageModal({
                 show: true,
                 title: 'Success!',
-                body: 'Announcement successfully archived (removed from public view).',
+                body: `Announcement ID ${id} was permanently deleted and removed from the list.`,
                 isSuccess: true
             });
-            fetchAnnouncements(); 
+            // Removed: fetchAnnouncements(); 
         } catch (err) {
             setMessageModal({
                 show: true,
                 title: 'Error',
-                body: `Failed to archive announcement ID: ${id}.`,
+                body: `Failed to permanently delete announcement ID: ${id}.`,
                 isSuccess: false
             });
             console.error(err);
@@ -731,7 +739,7 @@ const AdminAnnouncementPage = () => {
     const styles = {
         pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-        title: { color: '#1F2937', fontSize: '28px', margin: 0, display: 'flex', alignItems: 'center' },
+        title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
         addButton: { 
             display: 'flex', alignItems: 'center', padding: '10px 20px', 
             backgroundColor: '#6366F1', color: 'white', border: 'none', 
@@ -754,6 +762,7 @@ const AdminAnnouncementPage = () => {
             gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
             gap: '30px',
         },
+        // MODIFIED: Added cursor and transitions for hover simulation
         card: {
             backgroundColor: 'white',
             borderRadius: '12px',
@@ -761,11 +770,8 @@ const AdminAnnouncementPage = () => {
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            transition: 'transform 0.2s',
-            // In a real project, use a CSS library for this hover effect
-            // ':hover': {
-            //     transform: 'translateY(-3px)',
-            // }
+            transition: 'transform 0.2s, box-shadow 0.2s', // Smooth transition
+            cursor: 'pointer', // Indicates clickability
         },
         cardImage: {
             width: '100%',
@@ -841,7 +847,7 @@ const AdminAnnouncementPage = () => {
         <div style={styles.pageContainer}>
             <div style={styles.header}>
                 {/* Updated Icon and Title */}
-                <h1 style={styles.title}><Volume2 size={30} style={{ marginRight: '10px' }} /> Manage Barangay Announcements</h1>
+                <h1 style={styles.title}> Manage Barangay Announcements</h1>
                 <button style={styles.addButton} onClick={handleAddAnnouncement}>
                     <Plus size={20} style={{ marginRight: '5px' }} /> Add New Announcement
                 </button>
@@ -867,9 +873,27 @@ const AdminAnnouncementPage = () => {
                     filteredAnnouncements.map((n) => {
                         const tagColor = getCategoryColor(n.category);
                         const TagIcon = tagColor.icon;
+
+                        // NEW: Dynamic styles for hover effect
+                        const isHovered = n.id === hoveredCardId;
+                        const cardStyle = {
+                            ...styles.card,
+                            transform: isHovered ? 'translateY(-3px)' : 'translateY(0)',
+                            boxShadow: isHovered 
+                                ? '0 8px 20px rgba(0, 0, 0, 0.15)' 
+                                : '0 4px 12px rgba(0, 0, 0, 0.08)',
+                        };
                         
                         return (
-                            <div key={n.id} style={styles.card}>
+                            <div 
+                                key={n.id} 
+                                // NEW: Apply dynamic style and event handlers
+                                style={cardStyle}
+                                onMouseEnter={() => setHoveredCardId(n.id)}
+                                onMouseLeave={() => setHoveredCardId(null)}
+                                // NEW: Make the entire card clickable to open the view modal
+                                onClick={() => handleViewDetails(n)} 
+                            >
                                 <img 
                                     src={n.featured_image_url || 'https://via.placeholder.com/400x200?text=No+Image+Provided'} 
                                     alt={n.title} 
@@ -890,7 +914,8 @@ const AdminAnnouncementPage = () => {
                                         {/* Read More Button (opens dedicated view modal) */}
                                         <button 
                                             style={styles.readMoreButton} 
-                                            onClick={() => handleViewDetails(n)}
+                                            // 🔑 IMPORTANT: Stop propagation to prevent double-click handler (card + button)
+                                            onClick={(e) => { e.stopPropagation(); handleViewDetails(n); }}
                                             title="View Full Details"
                                         >
                                             <Eye size={16} style={{ marginRight: '6px' }} /> Read More
@@ -900,7 +925,8 @@ const AdminAnnouncementPage = () => {
                                             {/* Edit Button (opens form modal) */}
                                             <button 
                                                 style={styles.actionButton('#3B82F6')} 
-                                                onClick={() => handleEditAnnouncement(n)}
+                                                // 🔑 IMPORTANT: Stop propagation 
+                                                onClick={(e) => { e.stopPropagation(); handleEditAnnouncement(n); }}
                                                 title="Edit Announcement"
                                             >
                                                 <Edit size={16} />
@@ -908,8 +934,9 @@ const AdminAnnouncementPage = () => {
                                             {/* Delete Button (Opens custom confirmation modal) */}
                                             <button 
                                                 style={styles.actionButton('#EF4444')} 
-                                                onClick={() => handleDeleteAnnouncement(n.id, n.title)}
-                                                title="Delete Announcement (Archive)"
+                                                // 🔑 IMPORTANT: Stop propagation
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteAnnouncement(n.id, n.title); }}
+                                                title="Permanently Delete Announcement"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -964,7 +991,7 @@ const AdminAnnouncementPage = () => {
             <DeleteConfirmationModal
                 show={deleteModal.show}
                 title={deleteModal.title}
-                onConfirm={confirmDelete}
+                onConfirm={confirmDelete} // Calls the function that filters state instantly
                 onCancel={() => setDeleteModal({ ...deleteModal, show: false })}
             />
 

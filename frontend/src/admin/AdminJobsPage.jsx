@@ -553,7 +553,7 @@ const AdminJobPage = () => {
             
             {/* Combined Header with Button */}
             <div style={styles.pageHeader}> 
-                <h1 style={styles.pageTitle}><Briefcase size={28} style={{marginRight: '10px'}} /> Job Listings Management</h1>
+                <h1 style={styles.pageTitle}> Job Listings Management</h1>
                 <button style={styles.postNewJobButton} onClick={() => setIsPostModalOpen(true)}>
                     <Plus size={18} style={{ marginRight: '8px' }} /> Post New Job
                 </button>
@@ -801,7 +801,7 @@ const cardStyles = {
 const styles = {
     pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh', },
     pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }, 
-    pageTitle: { fontSize: '28px', fontWeight: '800', color: '#1F2937', display: 'flex', alignItems: 'center' },
+    pageTitle: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
     pageSubtitle: { fontSize: '15px', color: '#6B7280', marginBottom: '25px', borderBottom: '1px solid #E5E7EB', paddingBottom: '15px' },
     errorText: { color: '#DC2626', fontWeight: '600', padding: '15px', backgroundColor: '#FEE2E2', borderRadius: '8px', marginBottom: '20px', borderLeft: '5px solid #DC2626' },
     loadingText: { textAlign: 'center', padding: '50px', color: '#6B7280' },
