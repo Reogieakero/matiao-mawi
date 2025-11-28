@@ -248,6 +248,55 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     );
 };
 
+// --- NEW: Custom Delete Confirmation Modal ---
+const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
+    if (!show) return null;
+
+    const modalStyles = {
+        backdrop: {
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.6)', zIndex: 1000, 
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+        },
+        modal: {
+            backgroundColor: '#FFFFFF', padding: '30px', borderRadius: '12px', 
+            width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)', 
+            position: 'relative', textAlign: 'center'
+        },
+        title: { fontSize: '20px', fontWeight: '700', margin: '0 0 10px 0', color: '#DC2626' },
+        body: { fontSize: '16px', color: '#374151', marginBottom: '20px' },
+        buttonGroup: { display: 'flex', justifyContent: 'space-between', gap: '10px' },
+        cancelButton: { 
+            padding: '10px 15px', backgroundColor: '#9CA3AF', color: 'white', 
+            border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
+            transition: 'background-color 0.2s', flexGrow: 1
+        },
+        confirmButton: { 
+            padding: '10px 15px', backgroundColor: '#EF4444', color: 'white', 
+            border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
+            transition: 'background-color 0.2s', flexGrow: 1
+        }
+    };
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={modalStyles.modal}>
+                <Trash2 size={32} style={{ color: '#EF4444', marginBottom: '15px' }} />
+                <h3 style={modalStyles.title}>Confirm Archiving Announcement</h3>
+                <p style={modalStyles.body}>
+                    Are you sure you want to delete the announcement: "{title}"? 
+                    It will be removed from public view but remain in the admin list.
+                </p>
+                <div style={modalStyles.buttonGroup}>
+                    <button onClick={onCancel} style={modalStyles.cancelButton}>Cancel</button>
+                    <button onClick={onConfirm} style={modalStyles.confirmButton}>Yes, Archive It</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- END NEW COMPONENT ---
+
 
 // --- Announcement Form Modal Component (Modified from NewsFormModal) ---
 const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
@@ -382,11 +431,12 @@ const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
         padding: '12px', border: '1px solid #D1D5DB', borderRadius: '8px', 
         fontSize: '15px', boxSizing: 'border-box', width: '100%',
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        ':focus': {
-            borderColor: '#6366F1',
-            boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
-            outline: 'none',
-        }
+        // In a real project, use styled-components or CSS for pseudo-classes
+        // ':focus': { 
+        //     borderColor: '#6366F1',
+        //     boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
+        //     outline: 'none',
+        // }
     };
     
     const styles = {
@@ -564,6 +614,10 @@ const AdminAnnouncementPage = () => {
     // State for dedicated View Modal 
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedAnnouncementForView, setSelectedAnnouncementForView] = useState(null);
+    
+    // NEW STATE: State for Delete Confirmation Modal
+    const [deleteModal, setDeleteModal] = useState({ show: false, announcementId: null, title: '' });
+
 
     const [error, setError] = useState('');
 
@@ -619,17 +673,24 @@ const AdminAnnouncementPage = () => {
         setIsViewModalOpen(true);
     };
 
-    const handleDeleteAnnouncement = async (id) => {
-        if (!window.confirm("Are you sure you want to ARCHIVE this announcement? It will be removed from public view.")) {
-            return;
-        }
+    // MODIFIED: Open custom confirmation modal
+    const handleDeleteAnnouncement = (id, title) => {
+        setDeleteModal({ show: true, announcementId: id, title: title });
+    };
+
+    // NEW FUNCTION: Executes deletion after confirmation
+    const confirmDelete = async () => {
+        const id = deleteModal.announcementId;
+        // Close the confirmation modal
+        setDeleteModal({ show: false, announcementId: null, title: '' }); 
+
         try {
-            // Updated API endpoint for delete
+            // Updated API endpoint for delete (Soft Delete/Archive)
             await axios.delete(`${API_BASE_URL}/admin/announcements/${id}`);
             setMessageModal({
                 show: true,
                 title: 'Success!',
-                body: 'Announcement successfully archived.',
+                body: 'Announcement successfully archived (removed from public view).',
                 isSuccess: true
             });
             fetchAnnouncements(); 
@@ -637,7 +698,7 @@ const AdminAnnouncementPage = () => {
             setMessageModal({
                 show: true,
                 title: 'Error',
-                body: 'Failed to archive announcement.',
+                body: `Failed to archive announcement ID: ${id}.`,
                 isSuccess: false
             });
             console.error(err);
@@ -701,9 +762,10 @@ const AdminAnnouncementPage = () => {
             display: 'flex',
             flexDirection: 'column',
             transition: 'transform 0.2s',
-            ':hover': {
-                transform: 'translateY(-3px)',
-            }
+            // In a real project, use a CSS library for this hover effect
+            // ':hover': {
+            //     transform: 'translateY(-3px)',
+            // }
         },
         cardImage: {
             width: '100%',
@@ -843,10 +905,10 @@ const AdminAnnouncementPage = () => {
                                             >
                                                 <Edit size={16} />
                                             </button>
-                                            {/* Delete Button */}
+                                            {/* Delete Button (Opens custom confirmation modal) */}
                                             <button 
                                                 style={styles.actionButton('#EF4444')} 
-                                                onClick={() => handleDeleteAnnouncement(n.id)}
+                                                onClick={() => handleDeleteAnnouncement(n.id, n.title)}
                                                 title="Delete Announcement (Archive)"
                                             >
                                                 <Trash2 size={16} />
@@ -898,6 +960,14 @@ const AdminAnnouncementPage = () => {
                 onClose={handleCloseViewModal}
             />
             
+            {/* DELETE CONFIRMATION MODAL */}
+            <DeleteConfirmationModal
+                show={deleteModal.show}
+                title={deleteModal.title}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteModal({ ...deleteModal, show: false })}
+            />
+
             <AdminMessageModal
                 show={messageModal.show}
                 title={messageModal.title}
