@@ -3,10 +3,17 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { 
-    Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX, Edit
+    Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX, Edit, XCircle
 } from 'lucide-react';
 
-// --- Constants ---
+// --- Constants (COPIED FROM AdminJobPage.jsx for consistency) ---
+const PRIMARY_BLUE_DARK = '#2563eb';
+const PRIMARY_BLUE = '#1e40af';
+const PRIMARY_BLUE_LIGHT_HOVER = '#1d4ed8'; // Used for hover on main blue buttons
+const RED_DARK_HOVER = '#B91C1C';
+const RED_LIGHT = '#DC2626';
+const TEXT_MUTED = '#64748b'; 
+
 const OFFICIAL_CATEGORIES = [
     'Barangay Official', 'SK Official', 'Staff', 'Tanod', 'Other'
 ];
@@ -45,34 +52,31 @@ const getPositionsForCategory = (category) => {
         case 'SK Official':
             return SK_POSITIONS;
         default:
-            // Ensure Staff/Tanod/Other categories map to a single position of the same name
+            // Check if the category is one of the explicit position categories
             const explicitPosition = OTHER_POSITIONS.includes(category) ? category : null;
+            // If it matches 'Staff', 'Tanod', or 'Other', return just that as the position list
             return explicitPosition ? [explicitPosition] : OTHER_POSITIONS;
     }
 };
 
 // --- VALIDATION HELPER FUNCTION ---
 const isValidPhilippineNumber = (number) => {
-    // If the field is empty (optional), it is valid.
     if (!number) return true; 
-    
-    // Clean the number by removing spaces, hyphens, and parentheses
     const cleanedNumber = number.replace(/[\s\-\(\)]/g, ''); 
-    
     return PHILIPPINE_MOBILE_REGEX.test(cleanedNumber);
 };
 
-// --- Helper Components ---
-
-const SuccessAlert = ({ message, style }) => {
-    if (!message) return null;
-    return (
-        <div style={{...styles.successAlert, ...style}}>
-            <CheckCircle size={20} style={{ marginRight: '10px' }} />
-            {message}
-        </div>
-    );
+// --- UTILITY FUNCTIONS ---
+// Helper function for hover effects on confirmation/message buttons
+const handleModalButtonHover = (e, isSuccess) => {
+    if (isSuccess) {
+        e.currentTarget.style.backgroundColor = PRIMARY_BLUE_DARK;
+    } else {
+        e.currentTarget.style.backgroundColor = RED_DARK_HOVER; // Darker red for hover
+    }
 };
+
+// --- Helper Components ---
 
 const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     if (!show || !official) return null;
@@ -90,10 +94,20 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
                     This action is irreversible. The official's record will be removed.
                 </p>
                 <div style={modalStyles.footer}>
-                    <button onClick={onCancel} style={modalStyles.cancelButton}>
+                    <button 
+                        onClick={onCancel} 
+                        style={modalStyles.cancelButton}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D1D5DB'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                    >
                         Cancel
                     </button>
-                    <button onClick={onConfirm} style={modalStyles.deleteButton}>
+                    <button 
+                        onClick={onConfirm} 
+                        style={modalStyles.deleteButton}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = RED_DARK_HOVER}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = RED_LIGHT}
+                    >
                         Yes, Delete Official
                     </button>
                 </div>
@@ -102,18 +116,49 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     );
 };
 
-// --- START: NEW CUSTOM SELECT COMPONENT ---
+// --- MessageModal Component (Now with hover handlers) ---
+const MessageModal = React.memo(({ message, isSuccess, closeMessageModal }) => {
+    if (!message) return null;
+
+    const baseButtonStyle = isSuccess ? messageModalStyles.successButton : messageModalStyles.errorButton;
+
+    return (
+        <div style={messageModalStyles.backdrop} onClick={closeMessageModal}>
+            <div style={messageModalStyles.modal} onClick={e => e.stopPropagation()}>
+                <button style={messageModalStyles.closeButton} onClick={closeMessageModal}>&times;</button>
+                <div style={messageModalStyles.content(isSuccess)}>
+                    {isSuccess ? <CheckCircle size={24} style={{ marginRight: '10px' }} /> : <XCircle size={24} style={{ marginRight: '10px' }} />}
+                    <h4 style={messageModalStyles.title}>{isSuccess ? 'Success!' : 'Error'}</h4>
+                </div>
+                <p style={messageModalStyles.body}>{message}</p>
+                <button 
+                    onClick={closeMessageModal} 
+                    style={baseButtonStyle}
+                    onMouseEnter={(e) => handleModalButtonHover(e, isSuccess)}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isSuccess ? PRIMARY_BLUE : '#EF4444'}
+                > 
+                    OK 
+                </button>
+            </div>
+        </div>
+    );
+});
+// --- END: MessageModal Component ---
+
+
+// --- CustomSelect Component (Fixed Hover/Focus styles) ---
 const CustomSelect = ({ label, name, value, options, onChange, required = false, isConditional = false, style = {} }) => {
     const [isOpen, setIsOpen] = useState(false);
-    // Find index of current value for keyboard navigation
     const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
     const containerRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
 
     // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (containerRef.current && !containerRef.current.contains(event.target)) {
                 setIsOpen(false);
+                setIsFocused(false);
             }
         };
 
@@ -161,7 +206,7 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         }
     }, [isOpen, options, activeIndex, name, onChange]);
 
-    // Update activeIndex when options or value changes externally (e.g., category change)
+    // Update activeIndex when options or value changes externally
     useEffect(() => {
         setActiveIndex(options.findIndex(opt => opt === value));
     }, [options, value]);
@@ -169,13 +214,11 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
     const handleSelect = (selectedValue) => {
         onChange({ target: { name, value: selectedValue } });
         setIsOpen(false);
-        // Restore focus to the custom select button
         if (containerRef.current) {
             containerRef.current.querySelector('button').focus();
         }
     };
 
-    // Custom select styles based on addModalStyles.input
     const selectDisplayStyles = {
         ...addModalStyles.input,
         display: 'flex',
@@ -184,14 +227,15 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         paddingRight: '10px',
         cursor: 'pointer',
         fontWeight: '500',
-        // Change text color if value is empty (like a placeholder)
         color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
         transition: 'border-color 0.2s, box-shadow 0.2s',
         marginBottom: '15px', 
-        ...(isConditional ? { marginBottom: '0' } : {}), // for conditional rendering
+        ...(isConditional ? { marginBottom: '0' } : {}), 
+        // Dynamic focus styles
+        borderColor: isFocused || isOpen ? '#6366F1' : '#D1D5DB',
+        boxShadow: isFocused || isOpen ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
     };
     
-    // Pro-level dropdown list styles (to address user's request for radius and design)
     const listContainerStyles = {
         position: 'absolute',
         top: '100%',
@@ -200,33 +244,42 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         zIndex: 10,
         backgroundColor: '#FFFFFF',
         marginTop: '4px',
-        borderRadius: '8px', // Added radius
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Added shadow
+        borderRadius: '8px', 
+        boxShadow: '0 0 15px -3px rgba(0, 0, 0, 0.1)', // Adjusted shadow
         border: '1px solid #E5E7EB',
         maxHeight: '200px',
         overflowY: 'auto',
     };
     
+    // Dynamic List Item Styles - hover handled via onMouseEnter/Leave
     const listItemStyles = (index) => ({
         padding: '10px 15px',
         fontSize: '15px',
         color: '#1F2937',
         cursor: 'pointer',
         transition: 'background-color 0.1s',
-        // Active item gets a different color
         backgroundColor: index === activeIndex ? '#F3F4F6' : (options[index] === value ? '#EFF6FF' : 'white'),
         fontWeight: options[index] === value ? '700' : '400',
-        ':hover': {
-            backgroundColor: '#F3F4F6',
-        }
     });
+
+    const handleListHover = (e, index) => {
+        setActiveIndex(index);
+        e.currentTarget.style.backgroundColor = '#F3F4F6';
+    }
+
+    const handleListLeave = (e, index) => {
+        if (index !== activeIndex) {
+            e.currentTarget.style.backgroundColor = options[index] === value ? '#EFF6FF' : 'white';
+        }
+    }
+
 
     return (
         <div 
             ref={containerRef} 
             style={{ 
                 position: 'relative', 
-                marginBottom: isConditional ? '15px' : '0', // Control margin for the div
+                marginBottom: isConditional ? '15px' : '0', 
                 ...style
             }}
             onKeyDown={handleKeyDown}
@@ -235,6 +288,10 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = isFocused || isOpen ? '#6366F1' : '#D1D5DB'}
                 style={selectDisplayStyles}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
@@ -254,9 +311,11 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
                                 aria-selected={option === value}
                                 style={listItemStyles(index)}
                                 onClick={() => handleSelect(option)}
-                                // Use ref logic to ensure the active/focused item scrolls into view
+                                onMouseEnter={(e) => handleListHover(e, index)}
+                                onMouseLeave={(e) => handleListLeave(e, index)}
                                 ref={(el) => {
                                     if (index === activeIndex && el && isOpen) {
+                                        // Scroll into view logic remains, as it's for keyboard nav
                                         el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                                     }
                                 }}
@@ -270,17 +329,13 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         </div>
     );
 };
-// --- END: NEW CUSTOM SELECT COMPONENT ---
+// --- END: CustomSelect Component ---
 
 
 const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const [formData, setFormData] = useState({
-        firstName: '',
-        middleInitial: '',
-        lastName: '',
-        contactNumber: '',
-        category: OFFICIAL_CATEGORIES[0],
-        status: OFFICIAL_STATUSES[0],
+        firstName: '', middleInitial: '', lastName: '', contactNumber: '',
+        category: OFFICIAL_CATEGORIES[0], status: OFFICIAL_STATUSES[0],
         position: getPositionsForCategory(OFFICIAL_CATEGORIES[0])[0], 
         committee: COMMITTEES[0],
     });
@@ -289,6 +344,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null); 
     const [contactNumError, setContactNumError] = useState(null); 
+    const fileInputRef = useRef(null); // Ref for picture upload div
 
     useEffect(() => {
         if (!show) {
@@ -302,6 +358,9 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
             setError(null); 
             setContactNumError(null);
             setLoading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''; // Clear file input
+            }
         }
     }, [show]);
 
@@ -321,11 +380,10 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                 committee: COMMITTEES[0], 
             });
         } else if (name === 'position' && (formData.category === 'Staff' || formData.category === 'Tanod' || formData.category === 'Other')) {
-            // Logic to sync category and position if they are the same value (for non-official roles)
              setFormData({ 
                 ...formData, 
                 [name]: value,
-                category: value // Set category to position value
+                category: value 
             });
         }
         else {
@@ -404,7 +462,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         <div style={modalStyles.backdrop}>
             <div style={{...modalStyles.modal, width: '90%', maxWidth: '600px'}}>
                 <h3 style={modalStyles.header}>
-                    <UserPlus size={24} style={{ marginRight: '10px', color: '#1e40af' }} />
+                    <UserPlus size={24} style={{ marginRight: '10px', color: '#6366F1' }} />
                     Add New Barangay Official
                 </h3>
                 <form onSubmit={handleSubmit}>
@@ -413,7 +471,12 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                     <div style={addModalStyles.grid}>
                         <div style={addModalStyles.picUploadContainer}>
                             <p style={addModalStyles.label}>Profile Picture (Optional)</p>
-                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('add-official-pic-upload').click()}>
+                            <div 
+                                style={addModalStyles.picPreview} 
+                                onClick={() => document.getElementById('add-official-pic-upload').click()}
+                                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#D1D5DB'}
+                            >
                                 {previewUrl ? (
                                     <img src={previewUrl} alt="Preview" style={addModalStyles.picImage} />
                                 ) : (
@@ -428,6 +491,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                     accept="image/*" 
                                     onChange={handleFileChange} 
                                     style={{ display: 'none' }} 
+                                    ref={fileInputRef}
                                 />
                             </div>
                             <p style={addModalStyles.hint}>Max 2MB. Only image files.</p>
@@ -436,9 +500,25 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                         <div style={addModalStyles.detailsContainer}>
                             <p style={addModalStyles.label}>Full Name *</p>
                             <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
-                                <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} style={addModalStyles.input} required />
-                                <input type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} style={addModalStyles.input} maxLength="1" />
-                                <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} style={addModalStyles.input} required />
+                                {/* Inputs with dynamic focus handling */}
+                                <input 
+                                    type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} 
+                                    style={addModalStyles.input} required 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
+                                <input 
+                                    type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} 
+                                    style={addModalStyles.input} maxLength="1" 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
+                                <input 
+                                    type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} 
+                                    style={addModalStyles.input} required 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
                             </div>
 
                             <p style={addModalStyles.label}>Contact Number (Optional)</p>
@@ -449,10 +529,11 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 value={formData.contactNumber} 
                                 onChange={handleInputChange} 
                                 style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
+                                onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
                             />
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Category" 
                                 name="category" 
@@ -462,7 +543,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 required
                             />
 
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Position" 
                                 name="position" 
@@ -473,18 +553,16 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                             />
 
                             {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
-                                // REPLACED <select> WITH CUSTOMSELECT
                                 <CustomSelect 
                                     label="Committee (Mandatory for Kagawads)" 
                                     name="committee" 
                                     value={formData.committee} 
                                     options={COMMITTEES} 
                                     onChange={handleInputChange}
-                                    isConditional={true} // For spacing
+                                    isConditional={true} 
                                 />
                             )}
 
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Status" 
                                 name="status" 
@@ -497,10 +575,23 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                     </div>
 
                     <div style={{...modalStyles.footer, marginTop: '20px'}}>
-                        <button type="button" onClick={onHide} style={modalStyles.cancelButton} disabled={loading}>
+                        <button 
+                            type="button" 
+                            onClick={onHide} 
+                            style={modalStyles.cancelButton} 
+                            disabled={loading}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D1D5DB'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                        >
                             Cancel
                         </button>
-                        <button type="submit" style={addModalStyles.addButton} disabled={loading}>
+                        <button 
+                            type="submit" 
+                            style={addModalStyles.addButton} 
+                            disabled={loading}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE_LIGHT_HOVER}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE}
+                        >
                             {loading ? 'Adding...' : 'Add Official'}
                         </button>
                     </div>
@@ -529,6 +620,7 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [contactNumError, setContactNumError] = useState(null);
+    const fileInputRef = useRef(null); // Ref for picture upload div
 
     useEffect(() => {
         if (show && official) {
@@ -548,6 +640,9 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             setError(null);
             setContactNumError(null);
             setLoading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''; // Clear file input
+            }
         }
     }, [show, official]);
 
@@ -567,7 +662,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                 committee: COMMITTEES[0], 
             });
         } else if (name === 'position' && (formData.category === 'Staff' || formData.category === 'Tanod' || formData.category === 'Other')) {
-            // Logic to sync category and position if they are the same value (for non-official roles)
              setFormData({ 
                 ...formData, 
                 [name]: value,
@@ -589,7 +683,8 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     };
 
     const handlePictureUpload = async (fileToUpload) => {
-        setLoading(true);
+        // Note: The original logic set setLoading(true) *inside* this function, then *inside* handleSubmit. 
+        // I'm keeping the setLoading(true) in handleSubmit and only handling the try/catch/throw here for clarity.
         const uploadFormData = new FormData();
         uploadFormData.append('official_picture', fileToUpload); 
 
@@ -597,12 +692,10 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             const response = await axios.post('http://localhost:5000/api/admin/officials/upload-picture', uploadFormData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
-            setLoading(false);
             return response.data.profilePictureUrl;
         } catch (err) {
             console.error("Profile picture upload failed:", err);
             setError('Failed to upload profile picture.');
-            setLoading(false);
             throw new Error('Upload failed'); 
         }
     };
@@ -611,7 +704,9 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
         setFile(null); 
         setPreviewUrl(null); 
         setProfilePictureUrl(null); 
-        document.getElementById('edit-official-pic-upload').value = null; 
+        if (fileInputRef.current) {
+            fileInputRef.current.value = null; // Clear file input
+        }
         setError(null);
         setContactNumError(null);
     };
@@ -643,7 +738,8 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             const response = await axios.put(`http://localhost:5000/api/admin/officials/${official.id}`, payload);
             
             onOfficialUpdated(response.data.official);
-            onHide();
+            // onHide() is called inside onOfficialUpdated in the main component, but let's call it here too for safety/consistency with AddModal
+            onHide(); 
 
         } catch (err) {
             console.error("Edit official failed:", err.response ? err.response.data : err);
@@ -656,8 +752,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     if (!show || !official) return null;
 
     const currentPositions = getPositionsForCategory(formData.category);
-    
-    // FIX: Define picToDisplay here. It prioritizes the new file preview, then falls back to the existing URL.
     const picToDisplay = previewUrl || profilePictureUrl;
 
     return (
@@ -673,7 +767,12 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                     <div style={addModalStyles.grid}>
                         <div style={addModalStyles.picUploadContainer}>
                             <p style={addModalStyles.label}>Profile Picture (Optional)</p>
-                            <div style={addModalStyles.picPreview} onClick={() => document.getElementById('edit-official-pic-upload').click()}>
+                            <div 
+                                style={addModalStyles.picPreview} 
+                                onClick={() => document.getElementById('edit-official-pic-upload').click()}
+                                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#D1D5DB'}
+                            >
                                 {picToDisplay ? (
                                     <img src={picToDisplay} alt="Preview" style={addModalStyles.picImage} />
                                 ) : (
@@ -688,11 +787,18 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                                     accept="image/*" 
                                     onChange={handleFileChange} 
                                     style={{ display: 'none' }} 
+                                    ref={fileInputRef}
                                 />
                             </div>
                             <p style={addModalStyles.hint}>Max 2MB. Only image files.</p>
                             {(picToDisplay || file) && (
-                                <button type="button" onClick={handleRemovePicture} style={{...styles.secondaryButton, marginTop: '10px', display: 'flex', alignItems: 'center'}}>
+                                <button 
+                                    type="button" 
+                                    onClick={handleRemovePicture} 
+                                    style={{...styles.secondaryButton, marginTop: '10px', display: 'flex', alignItems: 'center'}}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                                >
                                     <UserX size={16} style={{marginRight: '5px'}}/> Remove Picture
                                 </button>
                             )}
@@ -701,9 +807,25 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                         <div style={addModalStyles.detailsContainer}>
                             <p style={addModalStyles.label}>Full Name *</p>
                             <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
-                                <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} style={addModalStyles.input} required />
-                                <input type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} style={addModalStyles.input} maxLength="1" />
-                                <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} style={addModalStyles.input} required />
+                                {/* Inputs with dynamic focus handling */}
+                                <input 
+                                    type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} 
+                                    style={addModalStyles.input} required 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
+                                <input 
+                                    type="text" name="middleInitial" placeholder="M.I." value={formData.middleInitial} onChange={handleInputChange} 
+                                    style={addModalStyles.input} maxLength="1" 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
+                                <input 
+                                    type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} 
+                                    style={addModalStyles.input} required 
+                                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                    onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
                             </div>
 
                             <p style={addModalStyles.label}>Contact Number (Optional)</p>
@@ -714,10 +836,11 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                                 value={formData.contactNumber} 
                                 onChange={handleInputChange} 
                                 style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
+                                onFocus={(e) => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.boxShadow = 'none'; }}
                             />
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Category" 
                                 name="category" 
@@ -727,7 +850,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                                 required
                             />
 
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Position" 
                                 name="position" 
@@ -738,18 +860,16 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                             />
 
                             {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
-                                // REPLACED <select> WITH CUSTOMSELECT
                                 <CustomSelect 
                                     label="Committee (Mandatory for Kagawads)" 
                                     name="committee" 
                                     value={formData.committee} 
                                     options={COMMITTEES} 
                                     onChange={handleInputChange}
-                                    isConditional={true} // For spacing
+                                    isConditional={true} 
                                 />
                             )}
                             
-                            {/* REPLACED <select> WITH CUSTOMSELECT */}
                             <CustomSelect 
                                 label="Status" 
                                 name="status" 
@@ -763,10 +883,23 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                     </div>
 
                     <div style={modalStyles.footer}>
-                        <button type="button" onClick={onHide} style={modalStyles.cancelButton} disabled={loading}>
+                        <button 
+                            type="button" 
+                            onClick={onHide} 
+                            style={modalStyles.cancelButton} 
+                            disabled={loading}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D1D5DB'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                        >
                             Cancel
                         </button>
-                        <button type="submit" style={addModalStyles.addButton} disabled={loading}>
+                        <button 
+                            type="submit" 
+                            style={addModalStyles.addButton} 
+                            disabled={loading}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE_LIGHT_HOVER}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE}
+                        >
                             {loading ? 'Updating...' : 'Save Changes'}
                             {!loading && <CheckCircle size={18} style={{ marginLeft: '10px' }} />}
                         </button>
@@ -777,18 +910,17 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     );
 };
 
-// --- ENHANCED STATUS DROPDOWN COMPONENT (Used in the main table) ---
+// --- ENHANCED STATUS DROPDOWN COMPONENT (Fixed Hover styles) ---
 const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, officialId }) => {
     const dropdownRef = useRef(null);
-    // State to track the keyboard-focused item index
     const [activeIndex, setActiveIndex] = useState(statuses.findIndex(s => s === currentStatus));
 
-    // 1. Auto-focus and scroll the active item into view on mount
     useEffect(() => {
+        // Focus on mount for keyboard accessibility
         if (dropdownRef.current) {
             dropdownRef.current.focus();
 
-            // Optional: Scroll active item into view
+            // Scroll active item into view
             const activeItem = dropdownRef.current.querySelector(`[data-status="${currentStatus}"]`);
             if (activeItem && activeItem.scrollIntoView) {
                 activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -796,8 +928,8 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
         }
     }, [currentStatus]);
 
-    // 2. Handle click outside (close dropdown)
     useEffect(() => {
+        // Handle click outside
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 onClose();
@@ -810,7 +942,6 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
         };
     }, [onClose]);
 
-    // 3. Handle keyboard navigation and selection
     const handleKeyDown = useCallback((e) => {
         switch (e.key) {
             case 'ArrowDown':
@@ -822,11 +953,11 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
                 setActiveIndex(prevIndex => (prevIndex - 1 + statuses.length) % statuses.length);
                 break;
             case 'Enter':
-            case ' ': // Spacebar also selects
+            case ' ': 
                 e.preventDefault();
                 const selectedStatus = statuses[activeIndex];
                 if (selectedStatus) {
-                    onStatusChange(selectedStatus); // This also calls onClose internally
+                    onStatusChange(selectedStatus); 
                 }
                 break;
             case 'Escape':
@@ -855,14 +986,48 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
 
     const handleSelect = (status) => {
         onStatusChange(status);
-        // onClose() is called inside onStatusChange logic in the parent component
     };
+
+    const getListItemStyle = (status, index) => {
+        let baseStyle = {
+            ...styles.dropdownListItem,
+            borderLeft: status === currentStatus ? '4px solid #1e40af' : 'none',
+            paddingLeft: status === currentStatus ? '11px' : '15px', 
+            fontWeight: status === currentStatus ? '700' : '500',
+        };
+
+        // Keyboard/mouse active index
+        if (index === activeIndex) {
+            baseStyle.backgroundColor = '#E5E7EB';
+        } else if (status === currentStatus) {
+            // Currently selected status background
+            baseStyle.backgroundColor = '#EFF6FF';
+        } else {
+            baseStyle.backgroundColor = 'white';
+        }
+
+        return baseStyle;
+    };
+
+    const handleListItemHover = (e, index) => {
+        // Update active index on hover for visual feedback
+        setActiveIndex(index);
+        e.currentTarget.style.backgroundColor = '#F3F4F6';
+    }
+
+    const handleListItemLeave = (e, status, index) => {
+        // Reset background if it's not the keyboard active index
+        if (index !== activeIndex) {
+            e.currentTarget.style.backgroundColor = status === currentStatus ? '#EFF6FF' : 'white';
+        } else {
+             e.currentTarget.style.backgroundColor = '#E5E7EB'; // Ensure active index retains its base color
+        }
+    }
 
     return (
         <div 
             ref={dropdownRef} 
             style={styles.dropdownContainer}
-            // TabIndex for programmatic focus
             tabIndex={-1} 
             onKeyDown={handleKeyDown}
         >
@@ -873,17 +1038,11 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
                         id={`status-${officialId}-${status}`}
                         role="option"
                         aria-selected={status === currentStatus}
-                        data-status={status} // Used for scrolling
-                        style={{
-                            ...styles.dropdownListItem,
-                            // Highlight based on keyboard activeIndex
-                            backgroundColor: index === activeIndex ? '#E5E7EB' : (status === currentStatus ? '#EFF6FF' : 'white'), 
-                            // Add border to distinguish the current status visually from the list
-                            borderLeft: status === currentStatus ? '4px solid #1e40af' : 'none',
-                            paddingLeft: status === currentStatus ? '11px' : '15px', // Adjust padding for border
-                            fontWeight: status === currentStatus ? '700' : '500',
-                        }}
+                        data-status={status} 
+                        style={getListItemStyle(status, index)}
                         onClick={() => handleSelect(status)}
+                        onMouseEnter={(e) => handleListItemHover(e, index)}
+                        onMouseLeave={(e) => handleListItemLeave(e, status, index)}
                     >
                         <span style={{...styles.statusBadge, ...getStatusBadgeStyle(status), minWidth: '90px'}}>
                             {status}
@@ -909,16 +1068,21 @@ const AdminOfficialsPage = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [officialToDelete, setOfficialToDelete] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [successMessage, setSuccessMessage] = useState(null); 
+    
+    // UPDATED STATE FOR MESSAGE MODAL
+    const [message, setMessage] = useState(null); 
+    const [isSuccess, setIsSuccess] = useState(false);
     
     const [showEditModal, setShowEditModal] = useState(false);
     const [officialToEdit, setOfficialToEdit] = useState(null);
     
-    // State to track the ID of the official whose status dropdown is open
     const [editingStatusId, setEditingStatusId] = useState(null);
-    // Ref to store the DOM element that opened the dropdown, allowing focus to be restored
     const statusDisplayRef = useRef(null); 
 
+    const closeMessageModal = useCallback(() => {
+        setMessage(null);
+        setIsSuccess(false);
+    }, []);
 
     const fetchOfficials = async () => {
         setLoading(true);
@@ -956,25 +1120,33 @@ const AdminOfficialsPage = () => {
         if (!officialToDelete) return;
         setShowDeleteModal(false);
         setError(null);
-        setSuccessMessage(null);
+        setMessage(null); // Clear previous message
         const officialName = `${officialToDelete.first_name} ${officialToDelete.last_name}`;
         const officialId = officialToDelete.id;
         try {
             await axios.delete(`http://localhost:5000/api/admin/officials/${officialId}`);
             setOfficials(prev => prev.filter(o => o.id !== officialId));
-            setSuccessMessage(`Official ${officialName} deleted successfully.`);
-            setTimeout(() => setSuccessMessage(null), 5000);
+            
+            // --- UPDATED MESSAGE LOGIC ---
+            setMessage(`Official ${officialName} successfully deleted.`);
+            setIsSuccess(true);
+            // -----------------------------
+            
         } catch (err) {
             console.error(`Error deleting official ${officialId}:`, err);
-            setError(err.response?.data?.message || 'Failed to delete official.');
-            setTimeout(() => setError(null), 5000);
+            // Set error message in the modal
+            setMessage(err.response?.data?.message || 'Failed to delete official.');
+            setIsSuccess(false);
         }
     };
 
     const handleOfficialAdded = (newOfficial) => {
         setOfficials(prev => [newOfficial, ...prev]);
-        setSuccessMessage(`Official ${newOfficial.first_name} ${newOfficial.last_name} added successfully!`);
-        setTimeout(() => setSuccessMessage(null), 5000);
+        
+        // --- UPDATED MESSAGE LOGIC ---
+        setMessage(`Official ${newOfficial.first_name} ${newOfficial.last_name} successfully added!`);
+        setIsSuccess(true);
+        // -----------------------------
     };
 
     const handleEditClick = (official) => {
@@ -991,39 +1163,37 @@ const AdminOfficialsPage = () => {
         );
         setShowEditModal(false);
         setOfficialToEdit(null);
-        setSuccessMessage(`Official ${updatedOfficial.first_name} ${updatedOfficial.last_name} updated successfully.`);
-        setTimeout(() => setSuccessMessage(null), 5000);
+        
+        // --- UPDATED MESSAGE LOGIC ---
+        setMessage(`Official ${updatedOfficial.first_name} ${updatedOfficial.last_name} successfully updated.`);
+        setIsSuccess(true);
+        // -----------------------------
     };
 
-    // New handler to close the dropdown and restore focus to the trigger element
     const closeAndRefocus = useCallback(() => {
         const idToFocus = statusDisplayRef.current;
         setEditingStatusId(null);
-        // Restore focus to the element that opened the dropdown
         if (idToFocus) {
-             // Find the element by the stored ref (which is the element's ID)
             const elementToFocus = document.getElementById(idToFocus);
             if (elementToFocus) {
                 elementToFocus.focus();
             }
         }
-        statusDisplayRef.current = null; // Clear the ref
+        statusDisplayRef.current = null; 
     }, []);
 
 
     const handleStatusUpdate = async (officialId, statusValue) => {
         const currentStatus = officials.find(o => o.id === officialId)?.status;
         
-        // 1. Close dropdown immediately, regardless of whether status changed or not
-        // This makes the UI feel fast and responsive.
         closeAndRefocus();
 
         if (statusValue === currentStatus) {
-            return; // No change, just close and return
+            return; 
         }
 
         setError(null);
-        setSuccessMessage(null);
+        setMessage(null); 
 
         try {
             await axios.put(`http://localhost:5000/api/admin/officials/${officialId}/status`, {
@@ -1034,13 +1204,16 @@ const AdminOfficialsPage = () => {
                 o.id === officialId ? { ...o, status: statusValue } : o
             ));
             
-            setSuccessMessage(`Status for Official ID ${officialId} updated successfully to '${statusValue}'.`);
-            setTimeout(() => setSuccessMessage(null), 5000);
+            // --- UPDATED MESSAGE LOGIC ---
+            setMessage(`Status for Official ID ${officialId} successfully updated to '${statusValue}'.`);
+            setIsSuccess(true);
+            // -----------------------------
 
         } catch (err) {
             console.error(`Error updating status for official ${officialId}:`, err.response ? err.response.data : err);
-            setError(err.response?.data?.message || 'Failed to update official status.');
-            setTimeout(() => setError(null), 5000);
+            // Set error message in the modal
+            setMessage(err.response?.data?.message || 'Failed to update official status.');
+            setIsSuccess(false);
         }
     };
 
@@ -1112,7 +1285,7 @@ const AdminOfficialsPage = () => {
         }
     };
 
-    if (loading) return <div style={styles.center}><p style={{ color: '#2563eb', fontSize: '18px' }}>🚀 Loading Officials Data...</p></div>;
+    if (loading) return <div style={styles.center}><p style={{ color: PRIMARY_BLUE_DARK, fontSize: '18px' }}>🚀 Loading Officials Data...</p></div>;
 
     return (
         <div style={styles.container}>
@@ -1132,13 +1305,17 @@ const AdminOfficialsPage = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <button onClick={() => setShowAddModal(true)} style={styles.addButton}>
+                <button 
+                    onClick={() => setShowAddModal(true)} 
+                    style={styles.addButton}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE_LIGHT_HOVER}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = PRIMARY_BLUE}
+                >
                     <Plus size={20} style={{ marginRight: '5px' }} />
                     Add New Official
                 </button>
             </div>
 
-            {successMessage && <SuccessAlert message={successMessage} />}
             {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>Error: {error}</p></div>}
 
             <div style={styles.tableWrapper}>
@@ -1159,7 +1336,12 @@ const AdminOfficialsPage = () => {
                     </thead>
                     <tbody>
                         {filteredAndSortedOfficials.map(official => (
-                            <tr key={official.id} style={styles.tableRow}>
+                            <tr 
+                                key={official.id} 
+                                style={styles.tableRow}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                            >
                                 <td style={styles.tableData}>{official.id}</td>
                                 <td style={styles.tableData}>
                                     {official.profile_picture_url ? (
@@ -1190,7 +1372,6 @@ const AdminOfficialsPage = () => {
                                     </span>
                                 </td>
 
-                                {/* MODIFIED TD FOR CUSTOM DROPDOWN */}
                                 <td 
                                     key={`status-cell-${official.id}`} 
                                     style={{
@@ -1206,19 +1387,17 @@ const AdminOfficialsPage = () => {
                                             currentStatus={official.status}
                                             statuses={OFFICIAL_STATUSES}
                                             onStatusChange={(newStatus) => handleStatusUpdate(official.id, newStatus)}
-                                            onClose={closeAndRefocus} // Pass the close and refocus function
+                                            onClose={closeAndRefocus} 
                                         />
                                     ) : (
                                         <div 
-                                            id={`status-display-${official.id}`} // Unique ID for focus return
+                                            id={`status-display-${official.id}`} 
                                             style={styles.clickableStatusDisplay} 
                                             title="Click to edit status"
-                                            // Make it focusable when closed for keyboard users to activate
                                             tabIndex={0} 
                                             role="button"
                                             onClick={(e) => {
                                                 setEditingStatusId(official.id);
-                                                // Store the ID of the element clicked to restore focus later
                                                 statusDisplayRef.current = e.currentTarget.id; 
                                             }}
                                             onKeyDown={(e) => {
@@ -1228,6 +1407,20 @@ const AdminOfficialsPage = () => {
                                                     statusDisplayRef.current = e.currentTarget.id; 
                                                 }
                                             }}
+                                            onFocus={(e) => {
+                                                e.currentTarget.style.outline = '2px solid #6366F1';
+                                                e.currentTarget.style.outlineOffset = '2px';
+                                            }}
+                                            onBlur={(e) => {
+                                                e.currentTarget.style.outline = 'none';
+                                                e.currentTarget.style.outlineOffset = 'none';
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#F3F4F6';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                            }}
                                         >
                                             <span style={{...styles.statusBadge, ...getStatusBadgeStyle(official.status)}}>
                                                 {official.status}
@@ -1236,7 +1429,6 @@ const AdminOfficialsPage = () => {
                                         </div>
                                     )}
                                 </td>
-                                {/* END MODIFIED TD */}
                                 
                                 <td style={styles.tableData}>{official.contact_number || 'N/A'}</td>
                                 <td style={styles.tableData}>{new Date(official.created_at).toLocaleDateString()}</td>
@@ -1253,10 +1445,18 @@ const AdminOfficialsPage = () => {
                                         onClick={() => handleEditClick(official)} 
                                         style={{...styles.actionButton, marginRight: '10px'}} 
                                         title="Edit Official"
+                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                     >
                                         <Edit size={18} color="#2563EB" /> 
                                     </button>
-                                    <button onClick={() => handleDeleteClick(official)} style={styles.actionButton} title="Delete Official" >
+                                    <button 
+                                        onClick={() => handleDeleteClick(official)} 
+                                        style={styles.actionButton} 
+                                        title="Delete Official"
+                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'} 
+                                    >
                                         <Trash2 size={18} color="#DC2626" />
                                     </button>
                                 </td>
@@ -1289,11 +1489,17 @@ const AdminOfficialsPage = () => {
                 onHide={() => setShowEditModal(false)}
                 onOfficialUpdated={handleOfficialUpdated}
             />
+            {/* MessageModal (The new component) */}
+            <MessageModal
+                message={message}
+                isSuccess={isSuccess}
+                closeMessageModal={closeMessageModal}
+            />
         </div>
     );
 };
 
-// --- Styles (no changes needed here, CustomSelect handles its own list styles) ---
+// --- Styles (Refactored to remove non-working pseudo-classes) ---
 
 const styles = {
     container: {
@@ -1344,8 +1550,9 @@ const styles = {
         fontSize: '15px',
         backgroundColor: 'transparent',
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     addButton: {
-        backgroundColor: '#1e40af', 
+        backgroundColor: PRIMARY_BLUE, 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '8px',
@@ -1356,10 +1563,8 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#1d4ed8',
-        }
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     secondaryButton: {
         backgroundColor: '#F3F4F6', 
         color: '#4B5563',
@@ -1370,9 +1575,6 @@ const styles = {
         fontWeight: '600',
         fontSize: '14px',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#E5E7EB',
-        }
     },
     tableWrapper: {
         backgroundColor: '#FFFFFF',
@@ -1396,12 +1598,10 @@ const styles = {
         letterSpacing: '0.05em',
         borderBottom: '2px solid #E5E7EB',
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     tableRow: {
         borderBottom: '1px solid #E5E7EB',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#F9FAFB',
-        }
     },
     tableData: {
         padding: '15px 20px',
@@ -1423,6 +1623,7 @@ const styles = {
         minWidth: '80px',
         textAlign: 'center',
     },
+    // Focus/Hover handled via onFocus/onBlur/onMouseEnter/onMouseLeave props in JSX
     clickableStatusDisplay: {
         display: 'flex',
         alignItems: 'center',
@@ -1432,33 +1633,14 @@ const styles = {
         padding: '5px',
         borderRadius: '6px',
         transition: 'background-color 0.1s',
-        // Style when focused (via keyboard/tab)
-        ':focus': {
-            outline: '2px solid #6366F1',
-            outlineOffset: '2px',
-        },
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     actionButton: {
         background: 'none',
         border: 'none',
         cursor: 'pointer',
         padding: '5px',
         transition: 'transform 0.1s',
-        ':hover': {
-            transform: 'scale(1.1)',
-        }
-    },
-    successAlert: {
-        display: 'flex',
-        alignItems: 'center',
-        padding: '15px',
-        backgroundColor: '#D1FAE5',
-        color: '#047857',
-        border: '1px solid #6EE7B7',
-        borderRadius: '8px',
-        fontWeight: '600',
-        fontSize: '15px',
-        marginBottom: '15px',
     },
     errorAlert: {
         display: 'flex',
@@ -1489,7 +1671,6 @@ const styles = {
         alignItems: 'center',
         border: '1px solid #E5E7EB',
     },
-    // --- Styles for the Table Status Dropdown (already custom) ---
     dropdownContainer: {
         position: 'absolute',
         top: '100%', 
@@ -1512,6 +1693,7 @@ const styles = {
         maxHeight: '200px', 
         overflowY: 'auto',
     },
+    // Hover and active styles handled dynamically in StatusDropdown component
     dropdownListItem: {
         cursor: 'pointer',
         fontSize: '14px',
@@ -1521,9 +1703,6 @@ const styles = {
         alignItems: 'center',
         padding: '8px 15px',
         transition: 'background-color 0.1s, border-left 0.1s',
-        ':hover': {
-            backgroundColor: '#F3F4F6',
-        }
     }
 };
 
@@ -1582,6 +1761,7 @@ const modalStyles = {
         paddingTop: '15px',
         borderTop: '1px solid #E5E7EB',
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     cancelButton: {
         backgroundColor: '#E5E7EB',
         color: '#4B5563',
@@ -1592,12 +1772,10 @@ const modalStyles = {
         fontWeight: '600',
         fontSize: '15px',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#D1D5DB',
-        }
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     deleteButton: {
-        backgroundColor: '#DC2626',
+        backgroundColor: RED_LIGHT,
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '6px',
@@ -1606,16 +1784,54 @@ const modalStyles = {
         fontWeight: '600',
         fontSize: '15px',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#B91C1C',
-        }
+    },
+};
+
+const messageModalStyles = {
+    backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center' },
+    modal: { 
+        backgroundColor: 'white', 
+        padding: '30px', 
+        borderRadius: '12px', 
+        width: '90%', 
+        maxWidth: '400px', 
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', // Adjusted shadow from original messageModalStyles 
+        position: 'relative', 
+        textAlign: 'center' 
+    },
+    closeButton: { position: 'absolute', top: '10px', right: '10px', fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none', color: TEXT_MUTED },
+    content: (isSuccess) => ({ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', color: isSuccess ? PRIMARY_BLUE : RED_LIGHT, }),
+    title: { fontSize: '22px', fontWeight: '700', margin: 0, },
+    body: { fontSize: '16px', color: '#374151', marginBottom: '20px', },
+    successButton: { 
+        width: '100%', 
+        padding: '10px', 
+        backgroundColor: PRIMARY_BLUE, 
+        color: 'white', 
+        border: 'none', 
+        borderRadius: '6px', 
+        fontWeight: '600', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s', 
+    },
+    errorButton: { 
+        width: '100%', 
+        padding: '10px', 
+        backgroundColor: '#EF4444', 
+        color: 'white', 
+        border: 'none', 
+        borderRadius: '6px', 
+        fontWeight: '600', 
+        cursor: 'pointer', 
+        transition: 'background-color 0.2s', 
     },
 };
 
 const addModalStyles = {
     ...modalStyles,
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     addButton: {
-        backgroundColor: '#1e40af', 
+        backgroundColor: PRIMARY_BLUE, 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '6px',
@@ -1626,9 +1842,6 @@ const addModalStyles = {
         display: 'flex',
         alignItems: 'center',
         transition: 'background-color 0.2s',
-        ':hover': {
-            backgroundColor: '#1d4ed8',
-        }
     },
     grid: {
         display: 'grid',
@@ -1645,6 +1858,7 @@ const addModalStyles = {
         fontWeight: '600',
         fontSize: '14px',
     },
+    // Focus/Hover handled via onFocus/onBlur/onMouseEnter/onMouseLeave props in JSX
     input: {
         width: '100%',
         padding: '10px',
@@ -1652,12 +1866,8 @@ const addModalStyles = {
         borderRadius: '6px',
         fontSize: '15px',
         boxSizing: 'border-box',
-        backgroundColor: '#FFFFFF', // Explicitly white background for contrast
-        ':focus': {
-            borderColor: '#6366F1',
-            boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
-            outline: 'none',
-        }
+        backgroundColor: '#FFFFFF', 
+        transition: 'border-color 0.2s, box-shadow 0.2s', // Added transition for smooth effect
     },
     validationError: {
         fontSize: '12px',
@@ -1674,6 +1884,7 @@ const addModalStyles = {
         backgroundColor: '#F9FAFB',
         borderRadius: '8px',
     },
+    // Hover handled via onMouseEnter/onMouseLeave props in JSX
     picPreview: {
         width: '120px',
         height: '120px',
@@ -1687,9 +1898,6 @@ const addModalStyles = {
         border: '3px dashed #D1D5DB',
         overflow: 'hidden',
         transition: 'border-color 0.2s',
-        ':hover': {
-            borderColor: '#6366F1',
-        }
     },
     picImage: {
         width: '100%',
