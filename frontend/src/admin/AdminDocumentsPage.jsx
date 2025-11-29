@@ -152,6 +152,7 @@ const DocumentViewModal = ({ show, document, onClose }) => {
                         {document.requirementsFilePaths.map((path, index) => (
                             <li key={index} style={modalStyles.listItem}>
                                 <a 
+                                    // Assuming path is a public URL (e.g., /uploads/file.pdf)
                                     href={path} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
@@ -207,7 +208,7 @@ const SelectFormModal = ({ show, document, onClose, onSelect }) => {
         // Pass the document ID and the selected form file name to the main component handler
         await onSelect(document.id, selectedForm); 
         // Note: Loading state is managed by the parent component's onSelect handler
-        setLoading(false); 
+        // The parent component handles setting setLoading(false) after the operation.
     };
 
     const modalStyles = {
@@ -436,12 +437,12 @@ const AdminDocumentsPage = () => {
         
         try {
             // 1. Send request, expecting a binary file response (Blob/Buffer)
+            // CRITICAL CORRECTION: Using the ID in the URL path (matching the backend route)
             const response = await axios.post(
-                `${API_BASE_URL}/admin/documents/generate-and-approve`, 
+                `${API_BASE_URL}/admin/documents/generate-and-approve/${documentId}`, 
                 {
-                    documentId: documentId,
                     templateFileName: selectedFormTemplate, 
-                    newStatus: 'Approved' 
+                    newStatus: 'Approved' // Optional data to send, main data is templateFileName
                 },
                 {
                     // CRUCIAL: Tell axios to expect a binary file (PDF blob)
@@ -480,7 +481,7 @@ const AdminDocumentsPage = () => {
             
             setMessageModal({
                 show: true,
-                title: 'Document Approved & Generated!',
+                title: 'Document Approved & Generated! ✅',
                 body: `Document **#${documentId}** approved. File **${fileName}** downloaded successfully.`,
                 isSuccess: true,
             });
@@ -522,7 +523,7 @@ const AdminDocumentsPage = () => {
     // --- Filtering and Sorting ---
     const sortedDocuments = useMemo(() => {
         let sortableItems = [...documents];
-        // ... (Sorting logic retained from your code)
+        
         if (sortConfig.key) {
             sortableItems.sort((a, b) => {
                 let aValue = a[sortConfig.key];
@@ -549,7 +550,7 @@ const AdminDocumentsPage = () => {
     }, [documents, sortConfig]);
 
     const filteredDocuments = useMemo(() => {
-        // ... (Filtering logic retained from your code)
+        
         return sortedDocuments.filter(doc => {
             const matchesSearch = doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   doc.documentType.toLowerCase().includes(searchTerm.toLowerCase()) ||
