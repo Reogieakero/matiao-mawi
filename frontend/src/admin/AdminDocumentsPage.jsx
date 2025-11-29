@@ -50,7 +50,6 @@ const getStatusBadge = (status) => {
 
 // --- Shared Styles (Inline styles) ---
 const styles = {
-    container: { padding: '20px', minHeight: '100vh', backgroundColor: 'white' }, 
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
     title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px',},
     controls: { display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px', padding: '10px 0', borderBottom: '1px solid #E5E7EB' }, 

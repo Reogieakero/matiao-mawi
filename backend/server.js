@@ -2501,6 +2501,156 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
 });
 
 
+// =========================================================
+// --- NEW API ENDPOINTS FOR ADMIN SERVICES MANAGEMENT ---
+// =========================================================
+
+// 1. POST /api/admin/services - Create a new service
+app.post('/api/admin/services', (req, res) => {
+    // NOTE: You should add authentication/authorization middleware here
+    const { 
+        title, category, description, featured_image_url, 
+        contact_person, contact_number, availability, department, requirements_list 
+    } = req.body;
+
+    if (!title || !category || !description || !contact_person || !availability || !department) {
+        return res.status(400).json({ message: 'Missing required service fields.' });
+    }
+
+    const SQL_INSERT = `
+        INSERT INTO barangay_services 
+        (title, category, description, featured_image_url, contact_person, contact_number, availability, department, requirements_list, is_deleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)
+    `;
+    
+    const params = [
+        title, category, description, featured_image_url || null, 
+        contact_person, contact_number || null, availability, department, requirements_list || null
+    ];
+
+    db.query(SQL_INSERT, params, (err, result) => {
+        if (err) {
+            console.error("Database error adding service:", err);
+            return res.status(500).json({ message: 'Failed to add new service.' });
+        }
+        
+        const newServiceId = result.insertId;
+        // Fetch the newly created record to return to the client
+        const SQL_FETCH_NEW = `
+            SELECT id, title, category, description, featured_image_url, contact_person, contact_number, availability, department, requirements_list, created_at, is_deleted
+            FROM barangay_services WHERE id = ?
+        `;
+        db.query(SQL_FETCH_NEW, [newServiceId], (fetchErr, fetchResults) => {
+            if (fetchErr || fetchResults.length === 0) {
+                console.error("Database error fetching newly created service:", fetchErr);
+                return res.status(500).json({ message: 'Service added, but failed to retrieve details.' });
+            }
+             // Send back the created service object
+            res.status(201).json({ 
+                message: 'Service added successfully!', 
+                service: { 
+                    ...fetchResults[0],
+                    // Convert date to match the format expected by the frontend formatDate function
+                    created_at: fetchResults[0].created_at ? new Date(fetchResults[0].created_at).toISOString() : null 
+                }
+            });
+        });
+    });
+});
+
+// 2. GET /api/admin/services - Fetch all services for admin
+app.get('/api/admin/services', (req, res) => {
+    // Fetch all service items, including deleted ones (optional, using is_deleted = FALSE for active)
+    const SQL_FETCH_ALL_SERVICES = `
+        SELECT id, title, category, description, featured_image_url, contact_person, contact_number, availability, department, requirements_list, created_at, is_deleted
+        FROM barangay_services 
+        WHERE is_deleted = FALSE 
+        ORDER BY created_at DESC
+    `;
+
+    db.query(SQL_FETCH_ALL_SERVICES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching all services for admin:", err);
+            return res.status(500).json({ message: 'Failed to fetch services listings.' });
+        }
+        // Format results: ensure dates are compatible and pass through
+        const formattedResults = results.map(row => ({
+            ...row,
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null // Convert to ISO string
+        }));
+        
+        res.status(200).json(formattedResults);
+    });
+});
+
+// 3. PUT /api/admin/services/:id - Update an existing service
+app.put('/api/admin/services/:id', (req, res) => {
+    const serviceId = parseInt(req.params.id, 10);
+    if (isNaN(serviceId)) {
+        return res.status(400).json({ message: 'Invalid Service ID.' });
+    }
+    
+    const { 
+        title, category, description, featured_image_url, 
+        contact_person, contact_number, availability, department, requirements_list
+    } = req.body;
+
+    if (!title || !category || !description || !contact_person || !availability || !department) {
+        return res.status(400).json({ message: 'Missing required service fields.' });
+    }
+
+    const SQL_UPDATE = `
+        UPDATE barangay_services SET 
+        title = ?, category = ?, description = ?, featured_image_url = ?, 
+        contact_person = ?, contact_number = ?, availability = ?, department = ?, requirements_list = ?
+        WHERE id = ?
+    `;
+
+    const params = [
+        title, category, description, featured_image_url || null, 
+        contact_person, contact_number || null, availability, department, requirements_list || null,
+        serviceId
+    ];
+
+    db.query(SQL_UPDATE, params, (err, result) => {
+        if (err) {
+            console.error("Database error updating service:", err);
+            return res.status(500).json({ message: 'Failed to update service item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Service item not found or no changes made.' });
+        }
+        res.json({ message: 'Service item successfully updated.' });
+    });
+});
+
+// 4. DELETE /api/admin/services/:id - Soft Delete a service
+app.delete('/api/admin/services/:id', (req, res) => {
+    const serviceId = parseInt(req.params.id, 10);
+    if (isNaN(serviceId)) {
+        return res.status(400).json({ message: 'Invalid Service ID.' });
+    }
+
+    // Perform a soft delete by setting is_deleted to TRUE
+    const SQL_SOFT_DELETE = `
+        UPDATE barangay_services 
+        SET is_deleted = TRUE 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_SOFT_DELETE, [serviceId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting service:", err);
+            return res.status(500).json({ message: 'Failed to delete service item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Service item not found.' });
+        }
+        res.json({ message: 'Service item successfully deleted (archived).' });
+    });
+});
+
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

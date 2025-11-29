@@ -29,6 +29,7 @@ import AdminJobsPage from './admin/AdminJobsPage';
 import AdminNewsPage from './admin/AdminNewsPage';
 import AdminAnnouncementsPage from './admin/AdminAnnouncementsPage';
 import AdminDocumentsPage from './admin/AdminDocumentsPage';
+import AdminServicesPage from './admin/AdminServicesPage';
 
 
 
@@ -250,7 +251,7 @@ const App = () => {
                         <Route path="/news" element={<AdminNewsPage/>} />
                         <Route path="/announcements" element={<AdminAnnouncementsPage/>} />
                         <Route path="/documents" element={<AdminDocumentsPage />} />
-                        <Route path="/services" element={<Placeholder title="Admin Services Management" />} />
+                        <Route path="/services" element={<AdminServicesPage />} />
                         <Route path="/hotlines" element={<Placeholder title="Admin Hotlines Management" />} />
                         <Route path="/contacts" element={<Placeholder title="Admin Contacts Management" />} />
                         
