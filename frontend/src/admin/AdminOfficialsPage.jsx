@@ -45,7 +45,9 @@ const getPositionsForCategory = (category) => {
         case 'SK Official':
             return SK_POSITIONS;
         default:
-            return OTHER_POSITIONS.includes(category) ? [category] : OTHER_POSITIONS;
+            // Ensure Staff/Tanod/Other categories map to a single position of the same name
+            const explicitPosition = OTHER_POSITIONS.includes(category) ? category : null;
+            return explicitPosition ? [explicitPosition] : OTHER_POSITIONS;
     }
 };
 
@@ -100,40 +102,175 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     );
 };
 
-// --- NEW EDIT CONFIRMATION MODAL ---
-const EditConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
-    if (!show || !official) return null;
-    const fullName = `${official.first_name} ${official.last_name}`;
+// --- START: NEW CUSTOM SELECT COMPONENT ---
+const CustomSelect = ({ label, name, value, options, onChange, required = false, isConditional = false, style = {} }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    // Find index of current value for keyboard navigation
+    const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
+    const containerRef = useRef(null);
+
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Handle Keyboard Navigation
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsOpen(true);
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex + 1) % options.length);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex - 1 + options.length) % options.length);
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                const selectedValue = options[activeIndex];
+                if (selectedValue) {
+                    onChange({ target: { name, value: selectedValue } });
+                    setIsOpen(false);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setIsOpen(false);
+                if (containerRef.current) {
+                    containerRef.current.querySelector('button').focus();
+                }
+                break;
+            default:
+                break;
+        }
+    }, [isOpen, options, activeIndex, name, onChange]);
+
+    // Update activeIndex when options or value changes externally (e.g., category change)
+    useEffect(() => {
+        setActiveIndex(options.findIndex(opt => opt === value));
+    }, [options, value]);
+
+    const handleSelect = (selectedValue) => {
+        onChange({ target: { name, value: selectedValue } });
+        setIsOpen(false);
+        // Restore focus to the custom select button
+        if (containerRef.current) {
+            containerRef.current.querySelector('button').focus();
+        }
+    };
+
+    // Custom select styles based on addModalStyles.input
+    const selectDisplayStyles = {
+        ...addModalStyles.input,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingRight: '10px',
+        cursor: 'pointer',
+        fontWeight: '500',
+        // Change text color if value is empty (like a placeholder)
+        color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        marginBottom: '15px', 
+        ...(isConditional ? { marginBottom: '0' } : {}), // for conditional rendering
+    };
+    
+    // Pro-level dropdown list styles (to address user's request for radius and design)
+    const listContainerStyles = {
+        position: 'absolute',
+        top: '100%',
+        left: '0',
+        right: '0',
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        marginTop: '4px',
+        borderRadius: '8px', // Added radius
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Added shadow
+        border: '1px solid #E5E7EB',
+        maxHeight: '200px',
+        overflowY: 'auto',
+    };
+    
+    const listItemStyles = (index) => ({
+        padding: '10px 15px',
+        fontSize: '15px',
+        color: '#1F2937',
+        cursor: 'pointer',
+        transition: 'background-color 0.1s',
+        // Active item gets a different color
+        backgroundColor: index === activeIndex ? '#F3F4F6' : (options[index] === value ? '#EFF6FF' : 'white'),
+        fontWeight: options[index] === value ? '700' : '400',
+        ':hover': {
+            backgroundColor: '#F3F4F6',
+        }
+    });
 
     return (
-        <div style={modalStyles.backdrop}>
-            <div style={modalStyles.modal}>
-                <h3 style={modalStyles.header}>Confirm Edit</h3>
-                <p style={modalStyles.body}>
-                    Are you sure you want to edit the details for the official: 
-                    <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} ID: {official.id} ?</strong>
-                </p>
-                <p style={{
-                    ...modalStyles.warning, 
-                    backgroundColor: '#FEF9C3', 
-                    color: '#A16207', 
-                    border: '1px solid #FCD34D'
-                }}>
-                    Proceeding will open the full edit form for this official.
-                </p>
-                <div style={modalStyles.footer}>
-                    <button onClick={onCancel} style={modalStyles.cancelButton}>
-                        Cancel
-                    </button>
-                    <button onClick={onConfirm} style={addModalStyles.addButton}>
-                        Yes, Proceed to Edit
-                    </button>
+        <div 
+            ref={containerRef} 
+            style={{ 
+                position: 'relative', 
+                marginBottom: isConditional ? '15px' : '0', // Control margin for the div
+                ...style
+            }}
+            onKeyDown={handleKeyDown}
+        >
+            <p style={addModalStyles.label}>{label} {required ? '*' : ''}</p>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={selectDisplayStyles}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label={`Current ${label}: ${value}`}
+            >
+                {value || `Select ${label}...`}
+                {isOpen ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+            </button>
+
+            {isOpen && (
+                <div style={listContainerStyles} role="listbox">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {options.map((option, index) => (
+                            <li
+                                key={option}
+                                role="option"
+                                aria-selected={option === value}
+                                style={listItemStyles(index)}
+                                onClick={() => handleSelect(option)}
+                                // Use ref logic to ensure the active/focused item scrolls into view
+                                ref={(el) => {
+                                    if (index === activeIndex && el && isOpen) {
+                                        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                                    }
+                                }}
+                            >
+                                {option}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
-// --- END NEW EDIT CONFIRMATION MODAL ---
+// --- END: NEW CUSTOM SELECT COMPONENT ---
 
 
 const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
@@ -183,7 +320,15 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                 position: newPositions[0], 
                 committee: COMMITTEES[0], 
             });
-        } else {
+        } else if (name === 'position' && (formData.category === 'Staff' || formData.category === 'Tanod' || formData.category === 'Other')) {
+            // Logic to sync category and position if they are the same value (for non-official roles)
+             setFormData({ 
+                ...formData, 
+                [name]: value,
+                category: value // Set category to position value
+            });
+        }
+        else {
             setFormData({ ...formData, [name]: value });
         }
     };
@@ -307,39 +452,47 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                             />
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Category" 
+                                name="category" 
+                                value={formData.category} 
+                                options={OFFICIAL_CATEGORIES} 
+                                onChange={handleInputChange} 
+                                required
+                            />
 
-                            <p style={addModalStyles.label}>Category *</p>
-                            <select name="category" value={formData.category} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {OFFICIAL_CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-
-                            <p style={addModalStyles.label}>Position *</p>
-                            <select name="position" value={formData.position} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {currentPositions.map(pos => (
-                                    <option key={pos} value={pos}>{pos}</option>
-                                ))}
-                            </select>
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Position" 
+                                name="position" 
+                                value={formData.position} 
+                                options={currentPositions} 
+                                onChange={handleInputChange} 
+                                required
+                            />
 
                             {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
-                                <>
-                                    <p style={addModalStyles.label}>Committee (Mandatory for Kagawads)</p>
-                                    <select name="committee" value={formData.committee} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}}>
-                                        {COMMITTEES.map(comm => (
-                                            <option key={comm} value={comm}>{comm}</option>
-                                        ))}
-                                    </select>
-                                </>
+                                // REPLACED <select> WITH CUSTOMSELECT
+                                <CustomSelect 
+                                    label="Committee (Mandatory for Kagawads)" 
+                                    name="committee" 
+                                    value={formData.committee} 
+                                    options={COMMITTEES} 
+                                    onChange={handleInputChange}
+                                    isConditional={true} // For spacing
+                                />
                             )}
 
-                            <p style={addModalStyles.label}>Status *</p>
-                            <select name="status" value={formData.status} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {OFFICIAL_STATUSES.map(stat => (
-                                    <option key={stat} value={stat}>{stat}</option>
-                                ))}
-                            </select>
-
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Status" 
+                                name="status" 
+                                value={formData.status} 
+                                options={OFFICIAL_STATUSES} 
+                                onChange={handleInputChange} 
+                                required
+                            />
                         </div>
                     </div>
 
@@ -413,7 +566,15 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                 position: newPositions[0], 
                 committee: COMMITTEES[0], 
             });
-        } else {
+        } else if (name === 'position' && (formData.category === 'Staff' || formData.category === 'Tanod' || formData.category === 'Other')) {
+            // Logic to sync category and position if they are the same value (for non-official roles)
+             setFormData({ 
+                ...formData, 
+                [name]: value,
+                category: value
+            });
+        } 
+        else {
             setFormData({ ...formData, [name]: value });
         }
     };
@@ -482,8 +643,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             const response = await axios.put(`http://localhost:5000/api/admin/officials/${official.id}`, payload);
             
             onOfficialUpdated(response.data.official);
-            // onHide() is called inside onOfficialUpdated in parent, but good practice to call it here if not, 
-            // but for now, rely on parent component.
             onHide();
 
         } catch (err) {
@@ -497,7 +656,9 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     if (!show || !official) return null;
 
     const currentPositions = getPositionsForCategory(formData.category);
-    const picToDisplay = previewUrl || profilePictureUrl; 
+    
+    // FIX: Define picToDisplay here. It prioritizes the new file preview, then falls back to the existing URL.
+    const picToDisplay = previewUrl || profilePictureUrl;
 
     return (
         <div style={modalStyles.backdrop}>
@@ -556,38 +717,47 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                             />
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Category" 
+                                name="category" 
+                                value={formData.category} 
+                                options={OFFICIAL_CATEGORIES} 
+                                onChange={handleInputChange} 
+                                required
+                            />
 
-                            <p style={addModalStyles.label}>Category *</p>
-                            <select name="category" value={formData.category} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {OFFICIAL_CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-
-                            <p style={addModalStyles.label}>Position *</p>
-                            <select name="position" value={formData.position} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {currentPositions.map(pos => (
-                                    <option key={pos} value={pos}>{pos}</option>
-                                ))}
-                            </select>
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Position" 
+                                name="position" 
+                                value={formData.position} 
+                                options={currentPositions} 
+                                onChange={handleInputChange} 
+                                required
+                            />
 
                             {(formData.category === 'Barangay Official' || formData.category === 'SK Official') && (
-                                <>
-                                    <p style={addModalStyles.label}>Committee (Mandatory for Kagawads)</p>
-                                    <select name="committee" value={formData.committee} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}}>
-                                        {COMMITTEES.map(com => (
-                                            <option key={com} value={com}>{com}</option>
-                                        ))}
-                                    </select>
-                                </>
+                                // REPLACED <select> WITH CUSTOMSELECT
+                                <CustomSelect 
+                                    label="Committee (Mandatory for Kagawads)" 
+                                    name="committee" 
+                                    value={formData.committee} 
+                                    options={COMMITTEES} 
+                                    onChange={handleInputChange}
+                                    isConditional={true} // For spacing
+                                />
                             )}
                             
-                            <p style={addModalStyles.label}>Status *</p>
-                            <select name="status" value={formData.status} onChange={handleInputChange} style={{...addModalStyles.input, marginBottom: '15px'}} required>
-                                {OFFICIAL_STATUSES.map(stat => (
-                                    <option key={stat} value={stat}>{stat}</option>
-                                ))}
-                            </select>
+                            {/* REPLACED <select> WITH CUSTOMSELECT */}
+                            <CustomSelect 
+                                label="Status" 
+                                name="status" 
+                                value={formData.status} 
+                                options={OFFICIAL_STATUSES} 
+                                onChange={handleInputChange} 
+                                required
+                            />
 
                         </div>
                     </div>
@@ -607,7 +777,7 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     );
 };
 
-// --- ENHANCED STATUS DROPDOWN COMPONENT (Unchanged) ---
+// --- ENHANCED STATUS DROPDOWN COMPONENT (Used in the main table) ---
 const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, officialId }) => {
     const dropdownRef = useRef(null);
     // State to track the keyboard-focused item index
@@ -743,8 +913,6 @@ const AdminOfficialsPage = () => {
     
     const [showEditModal, setShowEditModal] = useState(false);
     const [officialToEdit, setOfficialToEdit] = useState(null);
-    // NEW STATE FOR EDIT CONFIRMATION MODAL
-    const [showEditConfirmModal, setShowEditConfirmModal] = useState(false); 
     
     // State to track the ID of the official whose status dropdown is open
     const [editingStatusId, setEditingStatusId] = useState(null);
@@ -809,18 +977,11 @@ const AdminOfficialsPage = () => {
         setTimeout(() => setSuccessMessage(null), 5000);
     };
 
-    // MODIFIED: Show confirmation modal first
     const handleEditClick = (official) => {
         setOfficialToEdit(official);
-        setShowEditConfirmModal(true); // <--- Show confirmation first
+        setShowEditModal(true);
     };
-    
-    // NEW: Function to proceed to the main edit modal
-    const confirmEdit = () => {
-        setShowEditConfirmModal(false); // Hide confirmation
-        setShowEditModal(true);         // Show main edit modal
-    };
-    
+
     const handleOfficialUpdated = (updatedOfficial) => {
         setOfficials(prev => 
             prev.map(o => (o.id === updatedOfficial.id ? { 
@@ -829,7 +990,7 @@ const AdminOfficialsPage = () => {
             } : o))
         );
         setShowEditModal(false);
-        setOfficialToEdit(null); // Clear the official state
+        setOfficialToEdit(null);
         setSuccessMessage(`Official ${updatedOfficial.first_name} ${updatedOfficial.last_name} updated successfully.`);
         setTimeout(() => setSuccessMessage(null), 5000);
     };
@@ -1117,38 +1278,22 @@ const AdminOfficialsPage = () => {
                 onConfirm={confirmDelete} 
                 onCancel={() => setShowDeleteModal(false)} 
             />
-            
-            {/* NEW EDIT CONFIRMATION MODAL */}
-            <EditConfirmationModal 
-                show={showEditConfirmModal} 
-                official={officialToEdit}
-                onConfirm={confirmEdit}
-                onCancel={() => {
-                    setShowEditConfirmModal(false);
-                    setOfficialToEdit(null); // Clear state when cancelling
-                }}
-            />
-            
             <AddOfficialModal 
                 show={showAddModal} 
                 onHide={() => setShowAddModal(false)} 
                 onOfficialAdded={handleOfficialAdded} 
             />
-            
             <EditOfficialModal 
                 show={showEditModal}
                 official={officialToEdit}
-                onHide={() => {
-                    setShowEditModal(false);
-                    setOfficialToEdit(null); // Clear state when hiding the main modal
-                }}
+                onHide={() => setShowEditModal(false)}
                 onOfficialUpdated={handleOfficialUpdated}
             />
         </div>
     );
 };
 
-// --- Styles (Unchanged) ---
+// --- Styles (no changes needed here, CustomSelect handles its own list styles) ---
 
 const styles = {
     container: {
@@ -1344,7 +1489,7 @@ const styles = {
         alignItems: 'center',
         border: '1px solid #E5E7EB',
     },
-    // --- UPDATED STYLES FOR PRO-LEVEL DROPDOWN ---
+    // --- Styles for the Table Status Dropdown (already custom) ---
     dropdownContainer: {
         position: 'absolute',
         top: '100%', 
@@ -1357,14 +1502,14 @@ const styles = {
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
         border: '1px solid #E5E7EB',
         marginTop: '5px',
-        outline: 'none', // Remove default focus outline
+        outline: 'none', 
         padding: '5px 0',
     },
     dropdownList: {
         listStyle: 'none',
         margin: 0,
         padding: 0,
-        maxHeight: '200px', // Optional: for many statuses
+        maxHeight: '200px', 
         overflowY: 'auto',
     },
     dropdownListItem: {
@@ -1376,7 +1521,6 @@ const styles = {
         alignItems: 'center',
         padding: '8px 15px',
         transition: 'background-color 0.1s, border-left 0.1s',
-        // General hover style for all items
         ':hover': {
             backgroundColor: '#F3F4F6',
         }
@@ -1508,6 +1652,7 @@ const addModalStyles = {
         borderRadius: '6px',
         fontSize: '15px',
         boxSizing: 'border-box',
+        backgroundColor: '#FFFFFF', // Explicitly white background for contrast
         ':focus': {
             borderColor: '#6366F1',
             boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',

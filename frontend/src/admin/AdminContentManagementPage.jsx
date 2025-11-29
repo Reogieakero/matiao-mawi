@@ -1,6 +1,6 @@
 // frontend/src/admin/AdminContentManagementPage.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { 
     Search, ChevronDown, ChevronUp, Eye, MessageSquare, Briefcase, FileText, CheckCircle
@@ -27,6 +27,197 @@ const SuccessAlert = ({ message, style }) => {
         </div>
     );
 };
+
+// --- START: CUSTOM SELECT COMPONENT (Copied from AdminOfficialsPage for consistent design) ---
+
+// Base styles for CustomSelect derived from AdminOfficialsPage modal styles
+const selectBaseStyles = {
+    // Mimics addModalStyles.label
+    label: { color: '#374151', marginBottom: '5px', marginTop: '10px', fontWeight: '600', fontSize: '14px', },
+    // Mimics addModalStyles.input
+    input: {
+        width: '100%',
+        padding: '10px',
+        border: '1px solid #D1D5DB', 
+        borderRadius: '8px',
+        fontSize: '16px',
+        boxSizing: 'border-box',
+        outline: 'none',
+        backgroundColor: '#FFFFFF', 
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        ':focus': {
+            borderColor: '#6366F1',
+            boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
+            outline: 'none',
+        }
+    },
+};
+
+const CustomSelect = ({ label, name, value, options, onChange, required = false, style = {} }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
+    const containerRef = useRef(null);
+
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Handle Keyboard Navigation
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsOpen(true);
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex + 1) % options.length);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex - 1 + options.length) % options.length);
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                const selectedValue = options[activeIndex];
+                if (selectedValue) {
+                    onChange({ target: { name, value: selectedValue } });
+                    setIsOpen(false);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setIsOpen(false);
+                if (containerRef.current) {
+                    containerRef.current.querySelector('button').focus();
+                }
+                break;
+            default:
+                break;
+        }
+    }, [isOpen, options, activeIndex, name, onChange]);
+
+    // Update activeIndex when options or value changes externally
+    useEffect(() => {
+        setActiveIndex(options.findIndex(opt => opt === value));
+    }, [options, value]);
+
+    const handleSelect = (selectedValue) => {
+        onChange({ target: { name, value: selectedValue } });
+        setIsOpen(false);
+        if (containerRef.current) {
+            containerRef.current.querySelector('button').focus();
+        }
+    };
+
+    // Custom select button/display styles
+    const selectDisplayStyles = {
+        ...selectBaseStyles.input,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingRight: '10px',
+        cursor: 'pointer',
+        fontWeight: '500',
+        color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        marginBottom: '0', // Keep dropdown compact for the filter bar
+    };
+    
+    // Pro-level dropdown list styles
+    const listContainerStyles = {
+        position: 'absolute',
+        top: '100%',
+        left: '0',
+        right: '0',
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        marginTop: '4px',
+        borderRadius: '8px', 
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', 
+        border: '1px solid #E5E7EB',
+        maxHeight: '200px',
+        overflowY: 'auto',
+    };
+    
+    const listItemStyles = (index) => ({
+        padding: '10px 15px',
+        fontSize: '15px',
+        color: '#1F2937',
+        cursor: 'pointer',
+        transition: 'background-color 0.1s',
+        backgroundColor: index === activeIndex ? '#F3F4F6' : (options[index] === value ? '#EFF6FF' : 'white'),
+        fontWeight: options[index] === value ? '700' : '400',
+        ':hover': {
+            backgroundColor: '#F3F4F6',
+        }
+    });
+
+    return (
+        <div 
+            ref={containerRef} 
+            style={{ 
+                position: 'relative', 
+                minWidth: '200px', // Ensure it has a reasonable minimum width
+                ...style
+            }}
+            onKeyDown={handleKeyDown}
+        >
+            <p style={{...selectBaseStyles.label, marginTop: '0', marginBottom: '5px'}}>
+                {label} {required ? '*' : ''}
+            </p>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={selectDisplayStyles}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label={`Current ${label}: ${value}`}
+            >
+                {value || `Select ${label}...`}
+                {isOpen ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+            </button>
+
+            {isOpen && (
+                <div style={listContainerStyles} role="listbox">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {options.map((option, index) => (
+                            <li
+                                key={option}
+                                role="option"
+                                aria-selected={option === value}
+                                style={listItemStyles(index)}
+                                onClick={() => handleSelect(option)}
+                                ref={(el) => {
+                                    if (index === activeIndex && el && isOpen) {
+                                        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                                    }
+                                }}
+                            >
+                                {option}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+};
+// --- END: CUSTOM SELECT COMPONENT ---
+
 
 // --- Main Component ---
 const AdminContentManagementPage = () => {
@@ -171,6 +362,10 @@ const AdminContentManagementPage = () => {
         const isPost = selectedContent.content_type === 'Post';
         const typeText = isPost ? 'Thread' : 'Job Listing';
         const responsesLabel = isPost ? 'Responses' : 'Responses';
+        
+        // Define blue colors for the badge
+        const threadColor = '#BFDBFE'; // Light Blue
+        const jobColor = '#60A5FA'; // Medium Blue
 
         return (
             <div style={modalStyles.backdrop}>
@@ -179,7 +374,7 @@ const AdminContentManagementPage = () => {
                         <h3 style={modalStyles.header}>
                              {isPost ? <MessageSquare size={24} style={{marginRight: '10px'}} /> : <Briefcase size={24} style={{marginRight: '10px'}} />}
                             {selectedContent.title} 
-                            <span style={styles.badge(isPost ? '#10B981' : '#F59E0B')}>
+                            <span style={styles.badge(isPost ? threadColor : jobColor)}>
                                 {typeText}
                             </span>
                         </h3>
@@ -218,6 +413,7 @@ const AdminContentManagementPage = () => {
                             </div>
                         ))}
                     </div>
+
                     {/* Deletion button removed */}
                 </div>
             </div>
@@ -229,35 +425,32 @@ const AdminContentManagementPage = () => {
         <div style={styles.pageContainer}>
             <h1 style={styles.pageTitle}>Content Management</h1>
             <p style={styles.pageSubtitle}>Manage and moderate all community threads and job listings, including their responses/applications.</p>
-            
             {/* SuccessAlert removed */}
             {error && <p style={styles.errorText}>{error}</p>}
-
+            
             <div style={styles.controlBar}>
                 {/* Search Input */}
                 <div style={styles.searchContainer}>
                     <Search size={20} style={styles.searchIcon} />
-                    <input
-                        type="text"
-                        placeholder="Search by title, author, or type..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={styles.searchInput}
+                    <input 
+                        type="text" 
+                        placeholder="Search by title, author, or type..." 
+                        value={searchQuery} 
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                        style={styles.searchInput} 
                     />
                 </div>
 
-                {/* Content Type Filter (NEW) */}
-                <div style={styles.filterContainer}>
-                    <label style={styles.filterLabel}>Filter By:</label>
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        style={styles.filterSelect}
-                    >
-                        <option value="All">All Content</option>
-                        <option value="Thread">Threads</option>
-                        <option value="Job">Job Listings</option>
-                    </select>
+                {/* Content Type Filter (NEW) - REPLACED WITH CUSTOM SELECT */}
+                <div style={styles.filterContainer}> 
+                    <CustomSelect 
+                        label="Filter By Content Type" 
+                        name="filterType" 
+                        value={filterType} 
+                        options={['All', 'Thread', 'Job']} 
+                        onChange={(e) => setFilterType(e.target.value)} 
+                        required={false}
+                    />
                 </div>
             </div>
 
@@ -268,60 +461,57 @@ const AdminContentManagementPage = () => {
                     <table style={styles.table}>
                         <thead style={styles.tableHeader}>
                             <tr>
-                                <th style={styles.th}>ID</th>
-                                <th style={styles.th} onClick={() => handleSort('title')}>
+                                <th onClick={() => handleSort('id')} style={{...styles.tableHeaderCell, cursor: 'pointer', width: '60px'}}>
+                                    ID {renderSortIcon('id')}
+                                </th>
+                                <th onClick={() => handleSort('title')} style={{...styles.tableHeaderCell, cursor: 'pointer'}}>
                                     Title {renderSortIcon('title')}
                                 </th>
-                                <th style={styles.th} onClick={() => handleSort('content_type')}>
-                                    Type {renderSortIcon('content_type')}
-                                </th>
-                                <th style={styles.th} onClick={() => handleSort('author_name')}>
+                                <th onClick={() => handleSort('author_name')} style={{...styles.tableHeaderCell, cursor: 'pointer', width: '150px'}}>
                                     Author {renderSortIcon('author_name')}
                                 </th>
-                                <th style={styles.th} onClick={() => handleSort('created_at')}>
-                                    Date Posted {renderSortIcon('created_at')}
+                                <th onClick={() => handleSort('content_type')} style={{...styles.tableHeaderCell, cursor: 'pointer', width: '120px'}}>
+                                    Type {renderSortIcon('content_type')}
                                 </th>
-                                <th style={styles.th} onClick={() => handleSort('response_count')}>
-                                    Responses {renderSortIcon('response_count')}
+                                <th onClick={() => handleSort('created_at')} style={{...styles.tableHeaderCell, cursor: 'pointer', width: '150px'}}>
+                                    Posted On {renderSortIcon('created_at')}
                                 </th>
-                                <th style={{...styles.th, width: '150px'}}>Actions</th>
+                                <th style={{...styles.tableHeaderCell, width: '100px', textAlign: 'center'}}>
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredAndSortedContent.length === 0 ? (
-                                <tr>
-                                    <td colSpan="7" style={styles.emptyTableText}>No content found matching your criteria.</td>
+                            {filteredAndSortedContent.map(item => (
+                                <tr key={item.id} style={styles.tableRow}>
+                                    <td style={styles.tableData}>{item.id}</td>
+                                    <td style={{...styles.tableData, fontWeight: '600'}}>{item.title}</td>
+                                    <td style={styles.tableData}>{item.author_name || 'N/A'}</td>
+                                    <td style={styles.tableData}>
+                                        <span style={styles.badge(item.content_type === 'Post' ? '#BFDBFE' : '#60A5FA')}>
+                                            {item.content_type === 'Post' ? 'Thread' : 'Job'}
+                                        </span>
+                                    </td>
+                                    <td style={styles.tableData}>{formatDate(item.created_at)}</td>
+                                    <td style={{...styles.tableData, textAlign: 'center'}}>
+                                        <button 
+                                            onClick={() => handleViewResponses(item)}
+                                            style={styles.actionButton}
+                                            title="View Responses"
+                                        >
+                                            <Eye size={18} />
+                                        </button>
+                                        {/* Delete button removed */}
+                                    </td>
                                 </tr>
-                            ) : (
-                                filteredAndSortedContent.map((item) => (
-                                    <tr key={item.id} style={styles.tr}>
-                                        <td style={styles.td}>{item.id}</td>
-                                        <td style={styles.td}>{item.title}</td>
-                                        <td style={styles.td}>
-                                            <span style={styles.badge(item.content_type === 'Post' ? '#10B981' : '#F59E0B')}>
-                                                {item.content_type === 'Post' ? 'Thread' : 'Job'}
-                                            </span>
-                                        </td>
-                                        <td style={styles.td}>{item.author_name || 'N/A'}</td>
-                                        <td style={styles.td}>{formatDate(item.created_at)}</td>
-                                        <td style={{...styles.td, fontWeight: '700'}}>{item.response_count}</td>
-                                        <td style={styles.td}>
-                                            <div style={styles.actionsCell}>
-                                                <button 
-                                                    style={styles.actionButton}
-                                                    title={`View ${item.content_type === 'Post' ? 'Responses' : 'Applications'}`}
-                                                    onClick={() => handleViewResponses(item)}
-                                                >
-                                                    <Eye size={18} />
-                                                </button>
-                                                {/* Delete button removed */}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
+                            ))}
                         </tbody>
                     </table>
+                    {filteredAndSortedContent.length === 0 && (
+                         <div style={styles.noResults}>
+                            <p>No content found matching your criteria.</p>
+                        </div>
+                    )}
                 </div>
             )}
             
@@ -330,56 +520,279 @@ const AdminContentManagementPage = () => {
     );
 };
 
-// --- Styles (Updated for Filter) ---
+// --- Styles ---
 const styles = {
-    pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh', },
-    pageTitle: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
-    pageSubtitle: { fontSize: '16px', color: '#6B7280', marginBottom: '25px', },
-    controlBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '20px' },
-    
-    // Search Styles
-    searchContainer: { position: 'relative', flexGrow: 1, maxWidth: '400px', },
-    searchIcon: { position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#9CA3AF', },
-    searchInput: { width: '100%', padding: '10px 10px 10px 40px', border: '1px solid #D1D5DB', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', outline: 'none', },
-    
-    // Filter Styles (NEW)
-    filterContainer: { display: 'flex', alignItems: 'center', gap: '10px' },
-    filterLabel: { fontSize: '16px', color: '#4B5563', fontWeight: '600' },
-    filterSelect: { padding: '10px', border: '1px solid #D1D5DB', borderRadius: '8px', fontSize: '16px', outline: 'none' },
+    pageContainer: {
+        padding: '30px',
+        height: '100%',
+        overflowY: 'auto',
+        backgroundColor: '#F9FAFB',
+    },
+    pageTitle: {
+        color: '#1F2937',
+        marginBottom: '5px',
+        fontSize: '28px',
+        fontWeight: '700',
+    },
+    pageSubtitle: {
+        color: '#6B7280',
+        fontSize: '15px',
+        marginBottom: '20px',
+    },
+    errorText: {
+        textAlign: 'center',
+        padding: '15px',
+        fontSize: '16px',
+        color: '#DC2626',
+        backgroundColor: '#FEE2E2',
+        border: '1px solid #FCA5A5',
+        borderRadius: '8px',
+        fontWeight: '500',
+        marginBottom: '20px',
+    },
+    loadingText: {
+        textAlign: 'center',
+        padding: '20px',
+        fontSize: '16px',
+        color: '#4B5563',
+    },
 
-    loadingText: { textAlign: 'center', padding: '20px', fontSize: '16px', color: '#4B5563', },
-    errorText: { textAlign: 'center', padding: '20px', fontSize: '16px', color: '#DC2626', backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', marginBottom: '20px', },
-    tableContainer: { backgroundColor: '#FFFFFF', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)', overflowX: 'auto', },
-    table: { width: '100%', borderCollapse: 'separate', borderSpacing: '0', },
-    tableHeader: { backgroundColor: '#F3F4F6', },
-    th: { padding: '15px 20px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#4B5563', cursor: 'pointer', userSelect: 'none', borderBottom: '2px solid #E5E7EB', },
-    tr: { transition: 'background-color 0.1s', },
-    td: { padding: '15px 20px', fontSize: '15px', color: '#374151', borderBottom: '1px solid #E5E7EB', verticalAlign: 'middle', },
-    actionsCell: { display: 'flex', gap: '10px', alignItems: 'center', },
-    actionButton: { backgroundColor: '#EFF6FF', color: '#2563EB', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', },
-    // actionButtonDelete and deleteButton removed
-    badge: (color) => ({ backgroundColor: color === '#10B981' ? '#D1FAE5' : '#FFEDD5', color: color, padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize', display: 'inline-flex', alignSelf: 'center', marginLeft: '10px' }),
-    emptyTableText: { textAlign: 'center', padding: '30px', color: '#6B7280', fontSize: '16px', },
-    successAlert: { display: 'flex', alignItems: 'center', padding: '15px', backgroundColor: '#D1FAE5', color: '#047857', border: '1px solid #6EE7B7', borderRadius: '8px', fontWeight: '600', fontSize: '15px', },
-    contentDetailMeta: { fontSize: '14px', color: '#6B7280', marginBottom: '15px', borderBottom: '1px solid #E5E7EB', paddingBottom: '10px' },
-    contentDetailBody: { fontSize: '16px', color: '#1F2937', lineHeight: '1.6', marginBottom: '20px', maxHeight: '200px', overflowY: 'auto', paddingRight: '10px', },
-    divider: { border: 'none', borderTop: '1px solid #E5E7EB', margin: '20px 0', },
-    responsesHeader: { fontSize: '20px', fontWeight: '700', color: '#1F2937', marginBottom: '15px', display: 'flex', alignItems: 'center', },
-    responsesListContainer: { maxHeight: '300px', overflowY: 'auto', padding: '10px', border: '1px solid #E5E7EB', borderRadius: '8px', backgroundColor: '#F9FAFB', },
-    responseItem: { padding: '15px 15px', borderBottom: '1px solid #E5E7EB', borderRadius: '6px', backgroundColor: '#FFFFFF', marginBottom: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', },
-    responseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', },
-    responseAuthor: { fontSize: '15px', color: '#1F2937', fontWeight: '600', },
-    responseDate: { fontSize: '12px', color: '#9CA3AF', },
-    responseBody: { fontSize: '14px', color: '#4B5563', margin: '0', },
-    noResponsesText: { textAlign: 'center', padding: '20px', color: '#6B7280', fontSize: '15px', },
+    // Control Bar Styles
+    controlBar: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end', // Aligned to bottom because CustomSelect has a label above the input
+        marginBottom: '20px',
+        gap: '20px'
+    },
+    // Search Styles
+    searchContainer: { 
+        position: 'relative', 
+        flexGrow: 1, 
+        maxWidth: '400px',
+    },
+    searchIcon: { 
+        position: 'absolute', 
+        top: '50%', 
+        left: '12px', 
+        transform: 'translateY(-50%)', 
+        color: '#9CA3AF',
+    },
+    searchInput: { 
+        width: '100%', 
+        padding: '10px 10px 10px 40px', 
+        border: '1px solid #D1D5DB', 
+        borderRadius: '8px', 
+        fontSize: '16px', 
+        boxSizing: 'border-box', 
+        outline: 'none',
+    },
+    // Filter Styles (Adjusted to accommodate CustomSelect)
+    filterContainer: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '10px',
+        // The rest of the styling is handled by the CustomSelect component now.
+    }, 
+
+    // Table Styles
+    tableContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: '10px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+        overflow: 'hidden',
+    },
+    table: {
+        width: '100%',
+        borderCollapse: 'collapse',
+    },
+    tableHeader: {
+        backgroundColor: '#F3F4F6',
+    },
+    tableHeaderCell: {
+        padding: '12px 20px',
+        textAlign: 'left',
+        color: '#4B5563',
+        fontSize: '14px',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        borderBottom: '2px solid #E5E7EB',
+    },
+    tableRow: {
+        borderBottom: '1px solid #E5E7EB',
+        transition: 'background-color 0.1s',
+        ':hover': {
+            backgroundColor: '#F9FAFB',
+        }
+    },
+    tableData: {
+        padding: '12px 20px',
+        fontSize: '15px',
+        color: '#374151',
+    },
+    // Action button style updated for yellow shades
+    actionButton: {
+        backgroundColor: '#FEF3C7', // Light yellow background
+        color: '#F59E0B', // Strong yellow/amber icon color
+        border: 'none',
+        borderRadius: '50%',
+        padding: '8px',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background-color 0.2s, transform 0.1s',
+        ':hover': {
+            backgroundColor: '#FDE68A', // Medium yellow hover background
+            transform: 'scale(1.05)'
+        },
+        marginRight: '8px',
+    },
+    badge: (color) => ({
+        padding: '4px 8px',
+        borderRadius: '9999px',
+        fontSize: '12px',
+        fontWeight: '600',
+        backgroundColor: color,
+        // Using a dark blue text color for both blue badges
+        color: '#1E40AF', 
+        opacity: 0.9,
+    }),
+    noResults: {
+        textAlign: 'center',
+        padding: '40px',
+        color: '#6B7280',
+        fontSize: '16px',
+    },
+
+    // Modal Specific Styles
+    contentDetailMeta: {
+        fontSize: '14px',
+        color: '#6B7280',
+        marginBottom: '15px',
+        borderBottom: '1px dashed #E5E7EB',
+        paddingBottom: '10px',
+    },
+    contentDetailBody: {
+        fontSize: '16px',
+        color: '#1F2937',
+        marginBottom: '20px',
+        lineHeight: '1.6',
+        whiteSpace: 'pre-wrap', // Preserve formatting
+        maxHeight: '200px',
+        overflowY: 'auto',
+        paddingRight: '10px',
+    },
+    divider: {
+        border: '0',
+        height: '1px',
+        backgroundColor: '#E5E7EB',
+        margin: '20px 0',
+    },
+    responsesHeader: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: '15px',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    responsesListContainer: {
+        maxHeight: '300px',
+        overflowY: 'auto',
+        padding: '10px',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        backgroundColor: '#F9FAFB',
+    },
+    responseItem: {
+        padding: '15px',
+        borderBottom: '1px solid #E5E7EB',
+        borderRadius: '6px',
+        backgroundColor: '#FFFFFF',
+        marginBottom: '10px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    },
+    responseHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '5px',
+    },
+    responseAuthor: {
+        fontSize: '15px',
+        color: '#1F2937',
+        fontWeight: '600',
+    },
+    responseDate: {
+        fontSize: '12px',
+        color: '#9CA3AF',
+    },
+    responseBody: {
+        fontSize: '14px',
+        color: '#4B5563',
+        margin: '0',
+    },
+    noResponsesText: {
+        textAlign: 'center',
+        padding: '20px',
+        color: '#6B7280',
+        fontSize: '15px',
+    },
 };
 
 const modalStyles = {
-    backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, },
-    modal: { backgroundColor: '#FFFFFF', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '750px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', maxHeight: '90vh', overflowY: 'auto', position: 'relative', },
-    headerContainer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #F3F4F6', paddingBottom: '10px', },
-    header: { fontSize: '24px', fontWeight: '700', color: '#1F2937', margin: 0, display: 'flex', alignItems: 'center', },
-    closeButton: { background: 'none', border: 'none', fontSize: '30px', cursor: 'pointer', color: '#9CA3AF', padding: '5px', },
+    backdrop: { 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        backgroundColor: 'rgba(0, 0, 0, 0.6)', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        zIndex: 1000, 
+    },
+    modal: { 
+        backgroundColor: '#FFFFFF', 
+        padding: '30px', 
+        borderRadius: '12px', 
+        width: '90%', 
+        maxWidth: '750px', 
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', 
+        maxHeight: '90vh', 
+        overflowY: 'auto', 
+        position: 'relative', 
+    },
+    headerContainer: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '15px',
+    },
+    header: {
+        fontSize: '22px',
+        fontWeight: '700',
+        color: '#1F2937',
+        margin: '0',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    closeButton: {
+        background: 'none',
+        border: 'none',
+        fontSize: '30px',
+        color: '#9CA3AF',
+        cursor: 'pointer',
+        lineHeight: '1',
+        padding: '0 5px',
+        transition: 'color 0.2s',
+        ':hover': {
+            color: '#4B5563',
+        },
+    },
+    // Styles for action buttons removed as no actions are defined in the modal
 };
 
 export default AdminContentManagementPage;

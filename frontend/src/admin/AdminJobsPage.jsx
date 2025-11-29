@@ -12,6 +12,15 @@ import {
 // NOTE: Ensure this matches your actual API base URL.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
+// --- COLOR PALETTE DEFINITION (Based on AdminSidebar.jsx and user preference #1e40af) ---
+const PRIMARY_BLUE_DARK = '#2563eb'; // User's preferred color, Active/Text/Header/Borders
+const PRIMARY_BLUE = '#1e40af'; // Blue-600/Indigo Accent for logos, main buttons (used for CTA)
+const LIGHT_ACCENT_BG = 'rgba(30, 64, 175, 0.1)'; // 10% opacity of PRIMARY_BLUE_DARK
+const NEUTRAL_BG = '#f7f9fc'; // Light background
+const NEUTRAL_PAGE_BG = '#F9FAFB'; // Light page background (retained as close to F7F9FC)
+const TEXT_DARK = '#333';
+const TEXT_MUTED = '#64748b'; // Slate-500/Gray-500
+
 // --- Utility Function: Format Date ---
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -327,10 +336,11 @@ const AdminJobPage = () => {
                 onClick={() => setActiveTagFilter(tag)} 
                 style={{
                     ...styles.filterButton, 
-                    backgroundColor: isSelected ? '#059669' : '#F3F4F6', 
-                    color: isSelected ? 'white' : '#4B5563',
+                    // Set selected color to PRIMARY_BLUE
+                    backgroundColor: isSelected ? PRIMARY_BLUE : '#F3F4F6', 
+                    color: isSelected ? 'white' : TEXT_MUTED,
                     fontWeight: isSelected ? '700' : '500',
-                    border: isSelected ? '1px solid #059669' : '1px solid #D1D5DB'
+                    border: isSelected ? `1px solid ${PRIMARY_BLUE}` : '1px solid #D1D5DB'
                 }}
             >
                 {tag}
@@ -344,7 +354,13 @@ const AdminJobPage = () => {
             <div style={cardStyles.header}>
                 <h3 style={cardStyles.title}>{job.title}</h3>
                 <div style={{display: 'flex', alignItems: 'center'}}>
-                    <span style={cardStyles.tag}><Tag size={12} style={{marginRight: '5px'}}/>{job.tag}</span>
+                    <span style={{
+                        ...cardStyles.tag, 
+                        // Text color set to the user's preferred dark blue
+                        color: PRIMARY_BLUE_DARK,
+                        // Background color set to the light accent using the dark blue
+                        backgroundColor: LIGHT_ACCENT_BG,
+                    }}><Tag size={12} style={{marginRight: '5px'}}/>{job.tag}</span>
                 </div>
             </div>
             
@@ -381,10 +397,16 @@ const AdminJobPage = () => {
 
                 <button 
                     onClick={(e) => { e.stopPropagation(); onClick(job); }} 
-                    style={styles.actionButton}
+                    style={{
+                        ...styles.actionButton,
+                        // Action button color set to PRIMARY_BLUE
+                        backgroundColor: PRIMARY_BLUE, 
+                        // Action button hover color set to PRIMARY_BLUE_DARK
+                        ':hover': { backgroundColor: PRIMARY_BLUE_DARK },
+                    }}
                     title="View Details & Applications"
                 >
-                    <Eye size={16} /> View Details
+                     Read More
                 </button>
             </div>
         </div>
@@ -413,24 +435,48 @@ const AdminJobPage = () => {
                         </span>
                     </p>
                     
-                    <div style={styles.detailSection}>
-                        <h4 style={styles.detailSectionHeader}>Job Overview</h4>
+                    <div style={{
+                        ...styles.detailSection,
+                        // Background set to light accent BG
+                        backgroundColor: LIGHT_ACCENT_BG, 
+                        // Border set to dark primary blue
+                        border: `1px solid ${PRIMARY_BLUE_DARK}`,
+                    }}>
+                        <h4 style={{
+                            ...styles.detailSectionHeader, 
+                            // Header text set to dark primary blue
+                            color: PRIMARY_BLUE_DARK,
+                            // Header border set to dark primary blue
+                            borderBottom: `2px solid ${PRIMARY_BLUE_DARK}`,
+                        }}>Job Overview</h4>
                         <p><strong>Category:</strong> {selectedJob.tag}</p>
                         <p style={{marginBottom: '10px'}}>
                             <strong>Contact:</strong> 
                             <Phone size={14} style={styles.iconInline} /> 
-                            <a href={`tel:${selectedJob.contact_number}`} style={styles.contactLink}>
+                            {/* Link color set to PRIMARY_BLUE */}
+                            <a href={`tel:${selectedJob.contact_number}`} style={{...styles.contactLink, color: PRIMARY_BLUE}}>
                                 {selectedJob.contact_number || 'N/A'}
                             </a>
                         </p>
                         <p style={styles.jobBodyText}>{selectedJob.content_body}</p>
                         
                         {selectedJob.media_url && selectedJob.media_url.length > 0 && (
-                            <div style={styles.mediaAttachmentsContainer}>
+                            <div style={{
+                                ...styles.mediaAttachmentsContainer, 
+                                // Border color set to dark primary blue
+                                borderTop: `1px dashed ${PRIMARY_BLUE_DARK}`
+                            }}>
                                 <p style={{fontWeight: '600', color: styles.detailSectionHeader.color}}>Media Attachments:</p>
                                 <div style={styles.mediaLinkList}>
                                     {selectedJob.media_url.map((url, index) => (
-                                        <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={styles.mediaLink}>
+                                        <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={{
+                                            ...styles.mediaLink, 
+                                            // Link text color set to dark primary blue
+                                            color: PRIMARY_BLUE_DARK, 
+                                            // Link background set to light accent BG
+                                            backgroundColor: LIGHT_ACCENT_BG,
+                                            ':hover': { backgroundColor: PRIMARY_BLUE }
+                                        }}>
                                             <ExternalLink size={14} style={styles.iconInline} /> Attachment {index + 1}
                                         </a>
                                     ))}
@@ -441,37 +487,39 @@ const AdminJobPage = () => {
 
                     <div style={styles.detailSection}>
                         <h4 style={styles.responsesHeader}>
-                            <MessageSquare size={20} style={{marginRight: '8px'}} /> Applications ({applications.length}) 
+                            <MessageSquare size={20} style={{marginRight: '8px'}} /> Applications ({applications.length})
                         </h4>
                         <div style={styles.responsesListContainer}>
                             {applicationsLoading && <p style={styles.loadingText}>Loading applications...</p>}
                             {applicationsError && <p style={styles.errorText}>{applicationsError}</p>}
-                            {!applicationsLoading && applications.length === 0 && !applicationsError && (
-                                <p style={styles.noResponsesText}>No applications yet for this job listing.</p>
+                            
+                            {!applicationsLoading && !applicationsError && applications.length === 0 && (
+                                <p style={styles.noResponsesText}>No applications received for this job yet.</p>
                             )}
-                            {!applicationsLoading && applications.map(response => (
-                                <div key={response.id} style={styles.responseItem}>
-                                    <div style={styles.responseHeader}>
-                                        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                            <User size={16} color="#6366F1"/>
-                                            <strong style={styles.responseAuthor}>{response.author_name}</strong>
-                                        </div>
-                                        <span style={styles.responseDate}>{formatDate(response.created_at)}</span>
-                                    </div>
-                                    <p style={styles.responseBody}>
-                                        Application Message: {response.response_content}
-                                    </p>
-                                    {/* Assuming media_url might contain a CV or resume link */}
-                                    {response.media_url && (
-                                        <p style={styles.responseApplicationLink}>
-                                            <ExternalLink size={14} style={styles.iconInline} />
-                                            <a href={response.media_url} target="_blank" rel="noopener noreferrer" style={styles.applicationLink}>
-                                                View Attached CV/Resume
-                                            </a>
+
+                            {!applicationsLoading && applications.length > 0 && (
+                                applications.map(app => (
+                                    <div key={app.id} style={styles.applicationItem}>
+                                        <p style={styles.applicationHeader}>
+                                            <span style={styles.applicationName}><User size={16} style={styles.iconInline} />{app.author_name}</span>
+                                            <span style={styles.applicationDate}><Calendar size={14} style={styles.iconInline} />{formatDate(app.created_at)}</span>
                                         </p>
-                                    )}
-                                </div>
-                            ))}
+                                        <p style={styles.applicationContent}>{app.content_body}</p>
+                                        <div style={styles.applicationFooter}>
+                                            <a href={`tel:${app.contact_number}`} style={{...styles.contactLink, color: PRIMARY_BLUE, fontWeight: '600'}}>
+                                                <Phone size={14} style={styles.iconInline} /> {app.contact_number || 'N/A'}
+                                            </a>
+                                            {app.media_url && app.media_url.length > 0 && (
+                                                app.media_url.map((url, index) => (
+                                                    <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={{...styles.mediaLink, color: PRIMARY_BLUE_DARK}}>
+                                                        <ExternalLink size={14} style={styles.iconInline} /> View Attachment {index + 1}
+                                                    </a>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
@@ -479,37 +527,96 @@ const AdminJobPage = () => {
         );
     };
 
-    // --- NEW: Confirmation Modal Component for Deletion ---
-    const DeleteConfirmationModal = () => {
-        if (!jobIdToDelete) return null;
+    // --- Job Posting Form Modal ---
+    const PostJobModal = () => {
+        // ... (Modal implementation remains the same)
+        if (!isPostModalOpen) return null;
 
         return (
-            <div style={messageModalStyles.backdrop} onClick={closeConfirmationModal}>
-                <div style={messageModalStyles.modal} onClick={e => e.stopPropagation()}>
-                    <button style={messageModalStyles.closeButton} onClick={closeConfirmationModal}>&times;</button>
-                    
-                    <div style={messageModalStyles.content(false)}>
-                        <Trash2 size={24} style={{ marginRight: '10px' }} color="#DC2626" /> 
-                        <h4 style={{ ...messageModalStyles.title, color: '#DC2626' }}>Confirm Deletion</h4>
-                    </div>
-                    
-                    <p style={messageModalStyles.body}>
-                        Are you sure you want to **permanently delete** job ID **{jobIdToDelete}**? 
-                        This action is irreversible and will delete all associated applications.
-                    </p>
-                    
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <div style={modalStyles.backdrop}>
+                <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
+                    <h3 style={styles.modalHeader}>
+                        <Briefcase size={24} style={{ marginRight: '10px' }} />
+                        Post a New Job Opening
+                    </h3>
+                    <button 
+                        onClick={() => setIsPostModalOpen(false)} 
+                        style={styles.modalCloseButton} 
+                    >
+                        <Plus size={24} style={{ transform: 'rotate(45deg)' }} />
+                    </button>
+                    <div style={{ padding: '0 25px 25px' }}>
+                        <input 
+                            type="text" 
+                            placeholder="Job Title (e.g., Barangay Secretary Assistant)"
+                            value={title} 
+                            onChange={(e) => setTitle(e.target.value)} 
+                            style={{...styles.inputField, marginBottom: '15px'}} 
+                        />
+                        <textarea 
+                            placeholder="Describe the job requirements, responsibilities, and benefits..."
+                            value={jobBody} 
+                            onChange={(e) => setJobBody(e.target.value)} 
+                            rows="6" 
+                            style={{...styles.textareaField, marginBottom: '15px'}} 
+                        />
+                        <input 
+                            type="tel" 
+                            placeholder="Contact Number (e.g., 09xxxxxxxxx or +639xxxxxxxxx)"
+                            value={contactNumber} 
+                            onChange={(e) => setContactNumber(e.target.value)} 
+                            style={{...styles.inputField, marginBottom: '15px'}} 
+                        />
+                        
+                        <p style={{ fontWeight: '600', color: '#4B5563', marginBottom: '8px' }}>Job Category:</p>
+                        <div style={styles.categoryContainer}>
+                            {JOB_TAG_OPTIONS.slice(1).map(tag => ( // Skip 'All'
+                                <button 
+                                    key={tag} 
+                                    onClick={() => setSelectedTag(tag)} 
+                                    style={{
+                                        ...styles.tagButton,
+                                        // Tag button border set to dark primary blue or primary blue
+                                        border: selectedTag === tag ? `1px solid ${PRIMARY_BLUE_DARK}` : `1px solid ${PRIMARY_BLUE}`,
+                                        // Tag button background/color set to primary blue or light accent BG
+                                        backgroundColor: selectedTag === tag ? PRIMARY_BLUE : LIGHT_ACCENT_BG,
+                                        color: selectedTag === tag ? '#ffffff' : PRIMARY_BLUE,
+                                        // Spread active style for hover in absence of true CSS-in-JS
+                                        ...(selectedTag === tag ? styles.tagButtonActive : {})
+                                    }}
+                                >
+                                    {tag}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <div style={styles.fileUploadContainer}>
+                            <input type="file" id="job-media-upload" accept="image/*,video/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                            <label htmlFor="job-media-upload" style={styles.fileUploadLabel}>
+                                {selectedFile ? selectedFile.name : 'Upload Featured Image/Video (Optional)'}
+                            </label>
+                            {selectedFile && (
+                                <button 
+                                    onClick={() => setSelectedFile(null)} 
+                                    style={styles.clearFileButton}
+                                >
+                                    Clear File
+                                </button>
+                            )}
+                        </div>
+
+                        {error && <p style={styles.formErrorText}>{error}</p>}
+                        
                         <button 
-                            onClick={closeConfirmationModal} 
-                            style={{ ...messageModalStyles.successButton, flex: 1, backgroundColor: '#6B7280', ':hover': { backgroundColor: '#4B5563' } }} 
+                            onClick={handlePostJobSubmit} 
+                            style={{
+                                ...styles.submitButton, 
+                                backgroundColor: PRIMARY_BLUE,
+                                ':hover': { backgroundColor: PRIMARY_BLUE_DARK },
+                            }}
+                            disabled={isUploadingFile}
                         >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={() => executeDeleteJob(jobIdToDelete)} 
-                            style={{ ...messageModalStyles.errorButton, flex: 1 }} 
-                        >
-                            Delete Permanently
+                            {isUploadingFile ? 'Uploading Media...' : 'Post Job'}
                         </button>
                     </div>
                 </div>
@@ -518,58 +625,633 @@ const AdminJobPage = () => {
     };
 
 
+    // --- Delete Confirmation Modal Component (UPDATED TO MATCH NEWS PAGE) ---
+    const DeleteConfirmationModal = () => {
+        if (!jobIdToDelete) return null;
+
+        // NEW STYLES for the confirmation buttons based on AdminNewsPage.jsx
+        const confirmationButtonStyles = {
+            confirmButton: { 
+                padding: '10px 15px', backgroundColor: '#EF4444', color: 'white', 
+                border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
+                transition: 'background-color 0.2s', flexGrow: 1,
+                ':hover': { backgroundColor: '#DC2626' }
+            },
+            cancelButton: { 
+                padding: '10px 15px', backgroundColor: '#9CA3AF', color: 'white', 
+                border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
+                transition: 'background-color 0.2s', flexGrow: 1,
+                ':hover': { backgroundColor: '#6B7280' }
+            }
+        };
+
+        return (
+            <div style={messageModalStyles.backdrop} onClick={closeConfirmationModal}>
+                <div style={messageModalStyles.modal} onClick={e => e.stopPropagation()}>
+                    <div style={messageModalStyles.content(false)}>
+                        {/* UPDATED ICON COLOR AND MARGIN */}
+                        <Trash2 size={32} style={{ color: '#EF4444', marginBottom: '15px' }} />
+                        <h4 style={{ ...messageModalStyles.title, color: '#DC2626' }}>Confirm Deletion</h4>
+                    </div>
+                    <p style={messageModalStyles.body}>
+                        Are you sure you want to permanently delete job ID {jobIdToDelete}? 
+                        This action is irreversible and will delete all associated applications.
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        {/* UPDATED BUTTON STYLE */}
+                        <button 
+                            onClick={closeConfirmationModal} 
+                            style={confirmationButtonStyles.cancelButton}
+                        > 
+                            Cancel 
+                        </button>
+                        {/* UPDATED BUTTON STYLE */}
+                        <button 
+                            onClick={() => executeDeleteJob(jobIdToDelete)} 
+                            style={confirmationButtonStyles.confirmButton}
+                        > 
+                            Delete Permanently 
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     // --- Message/Confirmation Modal Component ---
     const MessageModal = () => {
         if (!message) return null;
-
+        // ... (Modal implementation remains the same)
         return (
             <div style={messageModalStyles.backdrop} onClick={closeMessageModal}>
                 <div style={messageModalStyles.modal} onClick={e => e.stopPropagation()}>
                     <button style={messageModalStyles.closeButton} onClick={closeMessageModal}>&times;</button>
-                    
                     <div style={messageModalStyles.content(isSuccess)}>
-                        {isSuccess 
-                            ? <CheckCircle size={24} style={{ marginRight: '10px' }} /> 
-                            : <XCircle size={24} style={{ marginRight: '10px' }} />}
+                        {isSuccess ? <CheckCircle size={24} style={{ marginRight: '10px' }} /> : <XCircle size={24} style={{ marginRight: '10px' }} />}
                         <h4 style={messageModalStyles.title}>{isSuccess ? 'Success!' : 'Error'}</h4>
                     </div>
-                    
                     <p style={messageModalStyles.body}>{message}</p>
-                    
                     <button 
                         onClick={closeMessageModal} 
                         style={isSuccess ? messageModalStyles.successButton : messageModalStyles.errorButton}
-                    >
-                        OK
+                    > 
+                        OK 
                     </button>
                 </div>
             </div>
         );
     };
 
+    // --- Styles for Modals (Shared) ---
+    const modalStyles = {
+        backdrop: {
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.6)', zIndex: 1000, 
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+        },
+        modal: {
+            backgroundColor: 'white', padding: '30px', borderRadius: '12px', 
+            width: '90%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', position: 'relative'
+        },
+        closeButton: {
+            position: 'absolute', top: '15px', right: '15px', fontSize: '24px', 
+            background: 'none', border: 'none', cursor: 'pointer', color: TEXT_MUTED
+        }
+    };
+
+    // --- Styles for Job Card (UPDATED `deleteButtonFooter`) ---
+    const cardStyles = {
+        card: {
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '25px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            ':hover': { transform: 'translateY(-3px)', boxShadow: `0 6px 20px ${PRIMARY_BLUE}15` },
+        },
+        header: {
+            marginBottom: '15px',
+            paddingBottom: '10px',
+            borderBottom: '1px solid #F3F4F6',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+        },
+        title: {
+            fontSize: '18px',
+            fontWeight: '700',
+            color: '#1F2937',
+        },
+        tag: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            fontSize: '12px',
+            fontWeight: '600',
+            // Colors updated inline in JobCard component
+            padding: '4px 8px',
+            borderRadius: '4px',
+        },
+        body: {
+            flexGrow: 1,
+            marginBottom: '20px',
+        },
+        infoItem: {
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '14px',
+            color: '#4B5563',
+            marginBottom: '8px',
+        },
+        icon: {
+            marginRight: '10px',
+            color: '#6B7280',
+            flexShrink: 0
+        },
+        footer: {
+            display: 'flex',
+            justifyContent: 'flex-end',
+            paddingTop: '10px',
+            borderTop: '1px dashed #E5E7EB',
+            gap: '10px',
+        },
+        // UPDATED DELETE BUTTON STYLE TO MATCH NEWS PAGE RED BUTTON
+        deleteButtonFooter: { 
+            padding: '8px 14px', 
+            backgroundColor: '#EF4444', // Solid Red BG (from News Page confirm button)
+            color: 'white', // White Text
+            border: 'none', // Remove border
+            borderRadius: '6px', 
+            cursor: 'pointer', 
+            fontSize: '14px', 
+            fontWeight: '600', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '6px', 
+            transition: 'background-color 0.2s, transform 0.1s',
+            ':hover': { backgroundColor: '#B91C1C' }, // Darker Red on hover
+            ':active': { transform: 'scale(0.98)' }
+        }
+    };
+
+    // --- Styles (Main Page - Consistent) ---
+    const styles = {
+        pageContainer: {
+            padding: '30px',
+            backgroundColor: NEUTRAL_PAGE_BG, // Retained F9FAFB for a page content area
+            minHeight: '100vh',
+        },
+        pageHeader: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '30px',
+            borderBottom: '2px solid #E5E7EB',
+            paddingBottom: '20px',
+        },
+        pageTitle: {
+            fontSize: '32px',
+            fontWeight: '800',
+            color: TEXT_DARK,
+            margin: 0,
+        },
+        postNewJobButton: {
+            // Post button color set to PRIMARY_BLUE
+            backgroundColor: PRIMARY_BLUE, 
+            color: 'white',
+            border: 'none',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: '700',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'background-color 0.2s',
+            // Post button hover color set to dark primary blue
+            ':hover': { backgroundColor: PRIMARY_BLUE_DARK }
+        },
+        controls: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '30px',
+        },
+        filterContainer: {
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap',
+            maxWidth: '60%',
+        },
+        filterButton: {
+            // Colors updated inline in FilterOption component
+            border: '1px solid #D1D5DB',
+            padding: '8px 15px',
+            borderRadius: '20px',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s, color 0.2s',
+            gap: '4px',
+            whiteSpace: 'nowrap'
+        },
+        searchContainer: {
+            display: 'flex',
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: '300px',
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '0 10px',
+            border: '1px solid #D1D5DB'
+        },
+        searchInput: {
+            border: 'none',
+            padding: '10px 0',
+            fontSize: '16px',
+            width: '100%',
+            outline: 'none',
+        },
+        searchIcon: {
+            color: TEXT_MUTED,
+            marginRight: '8px',
+        },
+        jobGrid: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '30px',
+            paddingBottom: '50px'
+        },
+        loadingText: {
+            fontSize: '18px',
+            color: TEXT_MUTED,
+            textAlign: 'center',
+            gridColumn: '1 / -1'
+        },
+        errorText: {
+            fontSize: '18px',
+            color: '#DC2626',
+            textAlign: 'center',
+            gridColumn: '1 / -1'
+        },
+        noResults: {
+            fontSize: '18px',
+            color: TEXT_MUTED,
+            textAlign: 'center',
+            padding: '50px',
+            border: '1px dashed #D1D5DB',
+            borderRadius: '8px',
+            marginTop: '20px',
+            gridColumn: '1 / -1'
+        },
+        actionButton: {
+            // Colors updated inline in JobCard component
+            color: 'white',
+            border: 'none',
+            padding: '8px 14px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'background-color 0.2s, transform 0.1s',
+            // Hover color updated inline
+            ':active': { transform: 'scale(0.98)' }
+        },
+        // Detail Modal Styles
+        detailTitle: {
+            fontSize: '28px',
+            fontWeight: '800',
+            color: '#1F2937',
+            marginBottom: '5px',
+            display: 'flex',
+            alignItems: 'center'
+        },
+        detailSubtitle: {
+            fontSize: '14px',
+            color: '#6B7280',
+            marginBottom: '25px',
+            paddingBottom: '10px',
+            borderBottom: '1px solid #E5E7EB'
+        },
+        iconInline: {
+            display: 'inline-block',
+            marginRight: '5px',
+            verticalAlign: 'middle'
+        },
+        contactLink: {
+            // Color updated inline in JobDetailModal
+            textDecoration: 'none',
+            marginLeft: '5px',
+            fontWeight: '500'
+        },
+        jobBodyText: {
+            whiteSpace: 'pre-wrap',
+            lineHeight: '1.6',
+            color: '#374151'
+        },
+        detailSection: {
+            // Colors updated inline in JobDetailModal
+            marginBottom: '30px',
+            padding: '20px',
+            borderRadius: '10px',
+        },
+        detailSectionHeader: {
+            // Colors updated inline in JobDetailModal
+            fontSize: '18px',
+            fontWeight: '700',
+            marginBottom: '15px',
+            paddingBottom: '5px'
+        },
+        mediaAttachmentsContainer: {
+            marginTop: '20px',
+            paddingTop: '15px',
+            // Border color updated inline in JobDetailModal
+        },
+        mediaLinkList: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '10px',
+            marginTop: '10px'
+        },
+        mediaLink: {
+            // Colors updated inline in JobDetailModal
+            textDecoration: 'none',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontWeight: '600',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            transition: 'background-color 0.2s, color 0.2s'
+        },
+        responsesHeader: {
+            fontSize: '20px',
+            fontWeight: '700',
+            color: '#1F2937',
+            marginBottom: '15px',
+            display: 'flex',
+            alignItems: 'center'
+        },
+        responsesListContainer: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '15px'
+        },
+        applicationItem: {
+            padding: '15px',
+            border: '1px solid #E5E7EB',
+            borderRadius: '8px',
+            backgroundColor: '#F9FAFB',
+        },
+        applicationHeader: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: '10px',
+            borderBottom: '1px solid #E5E7EB',
+            paddingBottom: '5px',
+        },
+        applicationName: {
+            fontSize: '15px',
+            fontWeight: '600',
+            color: PRIMARY_BLUE_DARK
+        },
+        applicationDate: {
+            fontSize: '12px',
+            color: TEXT_MUTED
+        },
+        applicationContent: {
+            fontSize: '14px',
+            color: '#4B5563',
+            lineHeight: '1.5',
+            whiteSpace: 'pre-wrap',
+            marginBottom: '10px'
+        },
+        applicationFooter: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '15px',
+            marginTop: '10px',
+            paddingTop: '10px',
+            borderTop: '1px dashed #D1D5DB'
+        },
+        noResponsesText: {
+            fontStyle: 'italic',
+            color: TEXT_MUTED,
+            textAlign: 'center',
+            padding: '20px'
+        },
+        // Post Job Modal Styles
+        modalHeader: {
+            fontSize: '24px',
+            fontWeight: '700',
+            color: '#1F2937',
+            borderBottom: '2px solid #E5E7EB',
+            padding: '0 25px 20px',
+            marginBottom: '25px',
+            display: 'flex',
+            alignItems: 'center'
+        },
+        modalCloseButton: {
+            position: 'absolute', top: '15px', right: '15px', 
+            background: 'none', border: 'none', cursor: 'pointer', 
+            display: 'flex', alignItems: 'center', transition: 'background-color 0.2s',
+        },
+        inputField: {
+            width: '100%',
+            padding: '12px',
+            borderRadius: '6px',
+            border: '1px solid #D1D5DB',
+            fontSize: '16px',
+            boxSizing: 'border-box',
+        },
+        textareaField: {
+            width: '100%',
+            padding: '12px',
+            borderRadius: '6px',
+            border: '1px solid #D1D5DB',
+            fontSize: '16px',
+            boxSizing: 'border-box',
+            resize: 'vertical',
+        },
+        categoryContainer: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '10px',
+            marginBottom: '15px'
+        },
+        tagButton: {
+            // Colors updated inline in main Render
+            padding: '8px 14px',
+            borderRadius: '20px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            transition: 'background-color 0.2s, border-color 0.2s',
+        },
+        tagButtonActive: {
+            // Colors updated inline in main Render
+            backgroundColor: PRIMARY_BLUE,
+            color: '#ffffff',
+            borderColor: PRIMARY_BLUE
+        },
+        fileUploadContainer: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px',
+            border: '1px dashed #D1D5DB',
+            borderRadius: '6px',
+            marginBottom: '20px',
+            backgroundColor: NEUTRAL_BG
+        },
+        fileUploadLabel: {
+            flexGrow: 1,
+            padding: '8px 15px',
+            backgroundColor: '#E5E7EB',
+            color: '#4B5563',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500'
+        },
+        clearFileButton: {
+            padding: '8px 15px',
+            backgroundColor: '#FCA5A5',
+            color: '#B91C1C',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500'
+        },
+        submitButton: {
+            width: '100%',
+            padding: '15px',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '18px',
+            fontWeight: '700',
+            transition: 'background-color 0.2s',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        formErrorText: {
+            color: '#DC2626',
+            fontWeight: '600',
+            textAlign: 'center',
+            backgroundColor: '#FEE2E2',
+            padding: '10px',
+            borderRadius: '8px',
+            marginBottom: '15px'
+        }
+    };
+
+    // --- Message Modal Styles (For consistency) ---
+    const messageModalStyles = {
+        backdrop: {
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 2000, 
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+        },
+        modal: {
+            backgroundColor: 'white', padding: '30px', borderRadius: '12px', 
+            width: '90%', maxWidth: '400px', 
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+            position: 'relative',
+            textAlign: 'center'
+        },
+        closeButton: { 
+            position: 'absolute', top: '10px', right: '10px', 
+            fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none', color: TEXT_MUTED
+        },
+        content: (isSuccess) => ({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '15px',
+            // Success color set to PRIMARY_BLUE
+            color: isSuccess ? PRIMARY_BLUE : '#DC2626', 
+        }),
+        title: {
+            fontSize: '22px',
+            fontWeight: '700',
+            margin: 0,
+        },
+        body: {
+            fontSize: '16px',
+            color: '#374151',
+            marginBottom: '20px',
+        },
+        successButton: {
+            width: '100%',
+            padding: '10px',
+            // Success button color set to PRIMARY_BLUE
+            backgroundColor: PRIMARY_BLUE,
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s',
+            // Success button hover set to dark primary blue
+            ':hover': { backgroundColor: PRIMARY_BLUE_DARK }
+        },
+        errorButton: {
+            width: '100%',
+            padding: '10px',
+            backgroundColor: '#EF4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s',
+            ':hover': { backgroundColor: '#DC2626' }
+        }
+    };
+
+
     // --- Main Render ---
     return (
         <div style={styles.pageContainer}>
-            
             {/* Combined Header with Button */}
-            <div style={styles.pageHeader}> 
+            <div style={styles.pageHeader}>
                 <h1 style={styles.pageTitle}> Job Listings Management</h1>
-                <button style={styles.postNewJobButton} onClick={() => setIsPostModalOpen(true)}>
-                    <Plus size={18} style={{ marginRight: '8px' }} /> Post New Job
+                <button 
+                    style={{
+                        ...styles.postNewJobButton,
+                        // Post button color set to PRIMARY_BLUE
+                        backgroundColor: PRIMARY_BLUE,
+                        // Post button hover color set to dark primary blue
+                        ':hover': { backgroundColor: PRIMARY_BLUE_DARK }
+                    }} 
+                    onClick={() => setIsPostModalOpen(true)}
+                >
+                    <Plus size={20} /> Post New Job
                 </button>
             </div>
-            
-            <p style={styles.pageSubtitle}>Review and manage all job posts and their corresponding applications.</p>
-            
-            {error && <p style={styles.errorText}>{error}</p>}
-            
-            <div style={styles.controlBar}>
-                {/* Search Input */}
+
+            {/* Controls: Filters and Search */}
+            <div style={styles.controls}>
+                <div style={styles.filterContainer}>
+                    {JOB_TAG_OPTIONS.map(tag => (
+                        <FilterOption key={tag} tag={tag} />
+                    ))}
+                </div>
+                
                 <div style={styles.searchContainer}>
                     <Search size={20} style={styles.searchIcon} />
-                    <input 
+                    <input
                         type="text"
-                        placeholder="Search by title, author, or tag..."
+                        placeholder="Search jobs, tags, or authors..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={styles.searchInput}
@@ -577,475 +1259,36 @@ const AdminJobPage = () => {
                 </div>
             </div>
 
-            {/* FILTER BAR */}
-            <div style={styles.filterBar}>
-                <span style={styles.sortLabel}>Filter by Type:</span>
-                {JOB_TAG_OPTIONS.map(tag => (
-                    <FilterOption key={tag} tag={tag} />
-                ))}
-            </div>
+            {/* Job Grid */}
+            <div style={styles.jobGrid}>
+                {loading && <p style={styles.loadingText}>Loading job listings...</p>}
+                {error && <p style={styles.errorText}>{error}</p>}
+                
+                {!loading && !error && filteredAndSortedJobs.length === 0 && (
+                    <div style={styles.noResults}>
+                        No job listings found matching your criteria.
+                    </div>
+                )}
 
-            {loading ? (
-                <p style={styles.loadingText}>Loading job listings...</p>
-            ) : filteredAndSortedJobs.length === 0 ? (
-                <p style={styles.noContentText}>No job listings found matching your criteria.</p>
-            ) : (
-                <div style={cardStyles.gridContainer}>
-                    {filteredAndSortedJobs.map(job => (
+                {!loading && filteredAndSortedJobs.length > 0 && (
+                    filteredAndSortedJobs.map(job => (
                         <JobCard 
                             key={job.id} 
                             job={job} 
                             onClick={openDetailModal} 
-                            adminId={ADMIN_POSTING_ID}
+                            adminId={ADMIN_POSTING_ID} // Pass Admin ID for conditional rendering
                         />
-                    ))}
-                </div>
-            )}
+                    ))
+                )}
+            </div>
 
-            {isDetailModalOpen && <JobDetailModal />}
-
-            {/* NEW JOB POST MODAL */}
-            {isPostModalOpen && (
-                <div style={modalStyles.backdrop}>
-                    <div style={{...modalStyles.modal, maxWidth: '600px', padding: '0'}}>
-                        <div style={modalStyles.header}>
-                            <h3 style={{ color: '#1e40af' }}>Create New Job Post (Admin)</h3>
-                            <button 
-                                onClick={() => setIsPostModalOpen(false)} 
-                                style={styles.modalCloseButton}
-                            >
-                                <Plus size={24} style={{ transform: 'rotate(45deg)' }} />
-                            </button>
-                        </div>
-
-                        <div style={{ padding: '0 25px 25px' }}>
-                            <input 
-                                type="text" 
-                                placeholder="Job Title (e.g., Barangay Secretary Assistant)"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                style={{...styles.inputField, marginBottom: '15px'}}
-                            />
-
-                            <textarea
-                                placeholder="Describe the job requirements, responsibilities, and benefits..."
-                                value={jobBody}
-                                onChange={(e) => setJobBody(e.target.value)}
-                                rows="6"
-                                style={{...styles.textareaField, marginBottom: '15px'}}
-                            />
-                            
-                            <input 
-                                type="tel" 
-                                placeholder="Contact Number (e.g., 09xxxxxxxxx or +639xxxxxxxxx)"
-                                value={contactNumber}
-                                onChange={(e) => setContactNumber(e.target.value)}
-                                style={{...styles.inputField, marginBottom: '15px'}}
-                            />
-
-                            <p style={{ fontWeight: '600', color: '#4B5563', marginBottom: '8px' }}>Job Category:</p>
-                            <div style={styles.categoryContainer}>
-                                {JOB_TAG_OPTIONS.slice(1).map(tag => ( // Skip 'All'
-                                    <button 
-                                        key={tag}
-                                        onClick={() => setSelectedTag(tag)}
-                                        style={{ 
-                                            ...styles.tagButton, 
-                                            ...(selectedTag === tag ? styles.tagButtonActive : {}) 
-                                        }}
-                                    >
-                                        {tag}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div style={styles.fileUploadContainer}>
-                                <input 
-                                    type="file" 
-                                    id="job-media-upload"
-                                    onChange={handleFileChange}
-                                    style={{ display: 'none' }}
-                                    accept="image/*"
-                                />
-                                <label htmlFor="job-media-upload" style={styles.fileUploadLabel}>
-                                    {selectedFile ? selectedFile.name : 'Attach Image (Optional, for company logo/banner)'}
-                                </label>
-                                {selectedFile && (
-                                    <button 
-                                        onClick={() => setSelectedFile(null)} 
-                                        style={styles.removeFileButton}
-                                    >
-                                        Remove
-                                    </button>
-                                )}
-                            </div>
-
-
-                            <button 
-                                onClick={handlePostJobSubmit} 
-                                disabled={isUploadingFile}
-                                style={{ 
-                                    ...styles.primaryButton, 
-                                    width: '100%', 
-                                    marginTop: '20px', 
-                                    opacity: isUploadingFile ? 0.6 : 1 
-                                }}
-                            >
-                                {isUploadingFile ? 'Uploading Media...' : 'Post Job'}
-                            </button>
-
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* Render the custom message modal for success/error */}
-            <MessageModal />
-
-            {/* Render the custom confirmation modal for deletion */}
+            {/* Modals */}
+            <JobDetailModal />
+            <PostJobModal />
             <DeleteConfirmationModal />
+            <MessageModal />
         </div>
     );
-};
-
-// --- Card Styles (Unchanged) ---
-const cardStyles = {
-    gridContainer: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '25px',
-        padding: '20px 0',
-    },
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: '12px',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
-        padding: '20px',
-        border: '1px solid #E5E7EB',
-        transition: 'all 0.2s ease-in-out',
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        ':hover': {
-            borderColor: '#6366F1',
-            boxShadow: '0 6px 20px rgba(99, 102, 241, 0.15)',
-            transform: 'translateY(-2px)'
-        }
-    },
-    header: {
-        marginBottom: '15px',
-        paddingBottom: '10px',
-        borderBottom: '1px solid #F3F4F6',
-        display: 'flex', 
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    title: {
-        fontSize: '18px',
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    tag: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        fontSize: '12px',
-        fontWeight: '600',
-        color: '#3730A3',
-        backgroundColor: '#EEF2FF',
-        padding: '4px 8px',
-        borderRadius: '4px',
-    },
-    body: {
-        flexGrow: 1,
-        marginBottom: '20px',
-    },
-    infoItem: {
-        display: 'flex',
-        alignItems: 'center',
-        fontSize: '14px',
-        color: '#4B5563',
-        marginBottom: '8px',
-    },
-    icon: {
-        marginRight: '10px',
-        color: '#6B7280',
-        flexShrink: 0
-    },
-    footer: {
-        display: 'flex',
-        justifyContent: 'flex-end', 
-        paddingTop: '10px',
-        borderTop: '1px dashed #E5E7EB',
-        gap: '10px', 
-    },
-    deleteButtonFooter: {
-        padding: '8px 14px', 
-        backgroundColor: '#FEE2E2', 
-        color: '#EF4444',           
-        border: '1px solid #FCA5A5', 
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        transition: 'all 0.2s',
-        // Styling for hover in JS object literals is complex, often requiring a library like styled-components.
-        // Assuming this is used with a CSS-in-JS solution that handles pseudoclasses.
-    }
-};
-
-// --- Styles (Main Page - Unchanged) ---
-const styles = {
-    pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh', },
-    pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }, 
-    pageTitle: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
-    pageSubtitle: { fontSize: '15px', color: '#6B7280', marginBottom: '25px', borderBottom: '1px solid #E5E7EB', paddingBottom: '15px' },
-    errorText: { color: '#DC2626', fontWeight: '600', padding: '15px', backgroundColor: '#FEE2E2', borderRadius: '8px', marginBottom: '20px', borderLeft: '5px solid #DC2626' },
-    loadingText: { textAlign: 'center', padding: '50px', color: '#6B7280' },
-    noContentText: { textAlign: 'center', padding: '50px', color: '#6B7280', fontSize: '18px' },
-    controlBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', gap: '20px' },
-    searchContainer: { position: 'relative', flexGrow: 1, maxWidth: '450px', },
-    searchIcon: { position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#9CA3AF', },
-    searchInput: { width: '100%', padding: '10px 10px 10px 40px', border: '1px solid #D1D5DB', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s', ':focus': { borderColor: '#6366F1' } },
-    filterBar: { 
-        display: 'flex', 
-        alignItems: 'center', 
-        marginBottom: '30px', 
-        padding: '10px 0',
-        borderBottom: '1px solid #E5E7EB',
-        flexWrap: 'wrap',
-        gap: '10px',
-    },
-    sortLabel: {
-        fontSize: '14px',
-        fontWeight: '700',
-        color: '#4B5563',
-        marginRight: '10px',
-    },
-    filterButton: { 
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '8px 15px',
-        borderRadius: '20px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        transition: 'all 0.2s',
-        gap: '4px',
-    },
-    actionButton: { 
-        backgroundColor: '#6366F1', 
-        color: 'white', 
-        border: 'none', 
-        padding: '8px 14px', 
-        borderRadius: '6px', 
-        cursor: 'pointer', 
-        fontSize: '14px', 
-        fontWeight: '600',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        transition: 'background-color 0.2s, transform 0.1s',
-        ':hover': { backgroundColor: '#4F46E5' },
-        ':active': { transform: 'scale(0.98)' }
-    },
-    detailTitle: { fontSize: '28px', fontWeight: '800', color: '#1F2937', marginBottom: '5px', display: 'flex', alignItems: 'center' },
-    detailSubtitle: { fontSize: '14px', color: '#6B7280', marginBottom: '25px', paddingBottom: '10px', borderBottom: '1px solid #E5E7EB' },
-    iconInline: { display: 'inline-block', marginRight: '5px', verticalAlign: 'middle' },
-    contactLink: { color: '#6366F1', textDecoration: 'none', marginLeft: '5px', fontWeight: '500' },
-    jobBodyText: { whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#374151' },
-    detailSection: { marginBottom: '30px', padding: '20px', backgroundColor: '#EEF2FF', borderRadius: '10px', border: '1px solid #C7D2FE' },
-    detailSectionHeader: { fontSize: '18px', fontWeight: '700', color: '#3730A3', marginBottom: '15px', borderBottom: '2px solid #A5B4FC', paddingBottom: '5px' },
-    mediaAttachmentsContainer: { marginTop: '20px', paddingTop: '15px', borderTop: '1px dashed #A5B4FC' },
-    mediaLinkList: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' },
-    mediaLink: { 
-        color: '#3730A3', 
-        textDecoration: 'none', 
-        fontSize: '14px', 
-        backgroundColor: '#C7D2FE', 
-        padding: '6px 12px', 
-        borderRadius: '6px', 
-        fontWeight: '600',
-        display: 'inline-flex',
-        alignItems: 'center',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#A5B4FC' }
-    },
-    responsesHeader: { fontSize: '20px', fontWeight: '700', color: '#1F2937', marginBottom: '15px', display: 'flex', alignItems: 'center', },
-    responsesListContainer: { maxHeight: '350px', overflowY: 'auto', padding: '15px', border: '1px solid #D1D5DB', borderRadius: '8px', backgroundColor: '#FFFFFF' },
-    responseItem: { border: '1px solid #E5E7EB', borderRadius: '8px', backgroundColor: '#F9FAFB', marginBottom: '15px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', padding: '15px' },
-    responseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '5px', borderBottom: '1px dashed #E5E7EB' },
-    responseAuthor: { fontSize: '16px', color: '#1F2937', fontWeight: '700', },
-    responseDate: { fontSize: '13px', color: '#9CA3AF', },
-    responseBody: { fontSize: '14px', color: '#4B5563', margin: '0 0 10px 0', whiteSpace: 'pre-wrap' },
-    noResponsesText: { textAlign: 'center', padding: '20px', color: '#6B7280', fontSize: '15px', },
-    responseApplicationLink: { marginTop: '10px', fontSize: '14px' },
-    applicationLink: { color: '#059669', textDecoration: 'none', fontWeight: '600', transition: 'color 0.2s', ':hover': { color: '#047857' } },
-    postNewJobButton: {
-        padding: '10px 18px',
-        backgroundColor: '#10B981', // Emerald green
-        color: '#fff',
-        borderRadius: '8px',
-        fontWeight: '600',
-        border: 'none',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#059669' },
-    },
-    inputField: {
-        width: '100%',
-        padding: '12px',
-        borderRadius: '6px',
-        border: '1px solid #D1D5DB',
-        fontSize: '16px',
-        boxSizing: 'border-box',
-    },
-    textareaField: {
-        width: '100%',
-        padding: '12px',
-        borderRadius: '6px',
-        border: '1px solid #D1D5DB',
-        fontSize: '16px',
-        boxSizing: 'border-box',
-        resize: 'vertical',
-    },
-    categoryContainer: {
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        gap: '10px', 
-        marginBottom: '15px' 
-    },
-    tagButton: {
-        padding: '8px 14px',
-        borderRadius: '20px',
-        border: '1px solid #93c5fd',
-        backgroundColor: '#e0f2fe',
-        color: '#3b82f6',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        transition: 'background-color 0.2s, border-color 0.2s',
-    },
-    tagButtonActive: {
-        backgroundColor: '#3b82f6',
-        color: '#ffffff',
-        borderColor: '#3b82f6',
-    },
-    fileUploadContainer: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        marginTop: '15px'
-    },
-    fileUploadLabel: {
-        padding: '10px 15px',
-        backgroundColor: '#F3F4F6',
-        color: '#4B5563',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#E5E7EB' },
-    },
-    removeFileButton: {
-        padding: '8px 12px',
-        backgroundColor: '#EF4444',
-        color: '#fff',
-        borderRadius: '6px',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '14px',
-    },
-    primaryButton: {
-        padding: '12px 20px',
-        backgroundColor: '#3b82f6',
-        color: '#fff',
-        borderRadius: '8px',
-        fontWeight: '700',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#2563EB' },
-    },
-    modalCloseButton: { 
-        background: 'none', 
-        border: 'none', 
-        cursor: 'pointer', 
-        color: '#6b7280',
-        padding: '5px',
-        transition: 'color 0.2s',
-        ':hover': { color: '#1F2937' }
-    }
-};
-
-// --- Modal Styles (Detail/Post Modals) ---
-const modalStyles = {
-    backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, },
-    modal: { backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', width: '90%', maxWidth: '800px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', maxHeight: '90vh', overflowY: 'auto', position: 'relative', },
-    closeButton: { position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '30px', cursor: 'pointer', color: '#9CA3AF', transition: 'color 0.2s', ':hover': { color: '#6B7280' } },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '25px 25px 0 25px' }
-};
-
-// --- Message Modal Styles ---
-const messageModalStyles = {
-    backdrop: { ...modalStyles.backdrop, zIndex: 1001 },
-    modal: {
-        backgroundColor: '#FFFFFF',
-        padding: '30px',
-        borderRadius: '12px',
-        width: '90%',
-        maxWidth: '400px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
-        position: 'relative',
-        textAlign: 'center'
-    },
-    closeButton: { ...modalStyles.closeButton, top: '10px', right: '10px', fontSize: '24px' },
-    content: (isSuccess) => ({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: '15px',
-        color: isSuccess ? '#059669' : '#DC2626',
-    }),
-    title: {
-        fontSize: '22px',
-        fontWeight: '700',
-        margin: 0,
-    },
-    body: {
-        fontSize: '16px',
-        color: '#374151',
-        marginBottom: '20px',
-    },
-    successButton: {
-        width: '100%',
-        padding: '10px',
-        backgroundColor: '#10B981',
-        color: 'white',
-        border: 'none',
-        borderRadius: '6px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#059669' }
-    },
-    errorButton: {
-        width: '100%',
-        padding: '10px',
-        backgroundColor: '#F87171',
-        color: 'white',
-        border: 'none',
-        borderRadius: '6px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s',
-        ':hover': { backgroundColor: '#EF4444' }
-    }
 };
 
 export default AdminJobPage;
