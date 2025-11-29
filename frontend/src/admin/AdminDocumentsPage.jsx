@@ -585,7 +585,7 @@ const AdminDocumentsPage = () => {
         <div style={styles.pageContainer}>
             <div style={styles.header}>
                 <h1 style={styles.title}>Document Applications</h1>
-                <button style={styles.actionButton('#4F46E5')} onClick={fetchDocuments} disabled={loading}>
+                <button style={styles.actionButton('#1e40af')} onClick={fetchDocuments} disabled={loading}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         {loading ? <Loader size={18} className="spinner" /> : <RefreshCcw size={18} />}
                         Fetch All
@@ -677,7 +677,7 @@ const AdminDocumentsPage = () => {
                                     </td>
                                     <td style={styles.td}>
                                         <button 
-                                            style={styles.actionButton('#4F46E5')}
+                                            style={styles.actionButton('#1e40af')}
                                             onClick={() => setViewModal({ show: true, document: doc })}
                                         >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Eye size={16} /> View</div>

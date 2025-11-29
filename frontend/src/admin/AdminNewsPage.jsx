@@ -224,12 +224,12 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
         closeButton: { position: 'absolute', top: '10px', right: '10px', fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none' },
         content: {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            marginBottom: '15px', color: isSuccess ? '#059669' : '#DC2626'
+            marginBottom: '15px', color: isSuccess ? '#1e40af' : '#DC2626'
         },
         title: { fontSize: '22px', fontWeight: '700', margin: 0 },
         body: { fontSize: '16px', color: '#374151', marginBottom: '20px' },
         successButton: { 
-            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#10B981' : '#DC2626', 
+            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#1e40af' : '#DC2626', 
             color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
             transition: 'background-color 0.2s' 
         }
@@ -288,7 +288,7 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
                 <h3 style={modalStyles.title}>Confirm Deleting News Item</h3>
                 <p style={modalStyles.body}>
                     Are you sure you want to delete the news item: "{title}"? 
-                    It will be removed from public view but remain in the admin list.
+                    This action is permanent and will remove it from all lists.
                 </p>
                 <div style={modalStyles.buttonGroup}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>Cancel</button>
@@ -465,7 +465,7 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
             marginTop: '10px', backgroundColor: '#F9FAFB' 
         },
         button: {
-            padding: '14px 20px', backgroundColor: '#6366F1', color: 'white', 
+            padding: '14px 20px', backgroundColor: '#1e40af', color: 'white', 
             border: 'none', borderRadius: '10px', cursor: 'pointer', 
             fontWeight: '700', fontSize: '16px', transition: 'opacity 0.2s, background-color 0.2s'
         },
@@ -676,30 +676,26 @@ const AdminNewsPage = () => {
         setDeleteModal({ show: true, newsId: id, title: title });
     };
 
-    // Note: This delete implementation is a soft delete (removed from view but remains in admin list). 
-    // This assumes the API updates the 'is_deleted' flag or similar.
+    // MODIFIED: Changed delete logic to remove the item from local state immediately (Hard Delete behavior)
     const confirmDelete = async () => {
         const id = deleteModal.newsId;
         setDeleteModal({ show: false, newsId: null, title: '' }); // Close confirmation modal
 
         try {
-            // Assumes the DELETE API endpoint performs a SOFT DELETE or archive
+            // Assumes this API call performs the deletion on the server
             await axios.delete(`${API_BASE_URL}/admin/news/${id}`);
             
-            // To reflect deletion immediately without refetching all data (assuming soft delete):
-            setNews(prev => prev.map(item => 
-                item.id === id ? { ...item, is_deleted: true } : item
-            ));
+            // FIX: Remove the item from the local state immediately for instant UI update
+            setNews(prev => prev.filter(item => item.id !== id));
             
             setMessageModal({
                 show: true,
                 title: 'Success!',
-                body: `News item ID ${id} was marked as deleted/archived.`,
+                body: `News item ID ${id} was successfully deleted.`,
                 isSuccess: true
             });
-            // If the server performed a hard delete, you would use:
-            // setNews(prev => prev.filter(item => item.id !== id));
-            // In a real application, you'd refetch or update the state based on the server response.
+            
+            // NOTE: We don't call fetchNews() here because we updated the state directly.
 
         } catch (err) {
             setMessageModal({
@@ -720,13 +716,18 @@ const AdminNewsPage = () => {
             body: `News item has been successfully ${action}.`,
             isSuccess: true
         });
-        fetchNews(); // Refresh the list
+        // FIX: Only refresh the list if we added or edited, not after a hard delete/filter
+        // If the 'action' is 'added' or 'updated', we refresh.
+        if (action === 'added' || action === 'updated') {
+             fetchNews(); 
+        }
     };
 
     // --- Filtering Logic ---
     const filteredNews = useMemo(() => {
         return news.filter(n => 
-            // Only show news that are NOT marked as deleted/archived (is_deleted: false or null/undefined)
+            // The is_deleted check is kept for compatibility, but the confirmDelete now does a hard-filter.
+            // If the server returns soft-deleted items, this line filters them out.
             !n.is_deleted && (
                 n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 n.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -743,10 +744,7 @@ const AdminNewsPage = () => {
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
         title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
         addButton: { 
-            display: 'flex', alignItems: 'center', padding: '10px 20px', 
-            backgroundColor: '#6366F1', color: 'white', border: 'none', 
-            borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
-            transition: 'background-color 0.2s'
+            backgroundColor: '#1e40af', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background-color 0.2s',
         },
         controls: { 
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
@@ -937,7 +935,7 @@ const AdminNewsPage = () => {
                                                 style={styles.actionButton('#EF4444')} 
                                                 // IMPORTANT: Stop propagation
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteNews(n.id, n.title); }}
-                                                title="Delete News (Soft Delete)"
+                                                title="Delete News (Permanent Removal)"
                                             >
                                                 <Trash2 size={16} />
                                             </button>

@@ -76,7 +76,7 @@ const baseModalStyles = {
     },
     // Buttons (Consistent colors, padding, and border-radius)
     buttonPrimary: { // Save/Add button (Indigo: #6366F1)
-        padding: '10px 20px', backgroundColor: '#6366F1', color: 'white', 
+        padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', 
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s', fontSize: '16px'
     },
@@ -250,7 +250,7 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                             Cancel
                         </button>
                         <button type="submit" style={baseModalStyles.buttonPrimary} disabled={isLoading}>
-                            <Save size={20} style={{marginRight: '5px'}}/> {isLoading ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Hotline')}
+                            {isLoading ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Hotline')}
                         </button>
                     </div>
                 </form>
@@ -299,12 +299,12 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
         closeButton: { position: 'absolute', top: '10px', right: '10px', fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none', color: '#6B7280' },
         content: {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            marginBottom: '15px', color: isSuccess ? '#059669' : '#DC2626'
+            marginBottom: '15px', color: isSuccess ? '#1e40af' : '#DC2626'
         },
         title: { fontSize: '22px', fontWeight: '700', margin: 0 },
         body: { fontSize: '16px', color: '#374151', marginBottom: '20px' },
         successButton: { 
-            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#10B981' : '#DC2626', 
+            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#1e40af' : '#DC2626', 
             color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
             transition: 'background-color 0.2s' 
         }
@@ -530,7 +530,7 @@ const styles = {
     },
     addButton: {
         display: 'flex', alignItems: 'center', padding: '10px 20px', 
-        backgroundColor: '#6366F1', // Indigo primary color
+        backgroundColor: '#1e40af', // Indigo primary color
         color: 'white', border: 'none', borderRadius: '8px', 
         cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s'

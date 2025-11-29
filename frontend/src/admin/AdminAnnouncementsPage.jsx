@@ -222,12 +222,12 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
         closeButton: { position: 'absolute', top: '10px', right: '10px', fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none' },
         content: {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            marginBottom: '15px', color: isSuccess ? '#059669' : '#DC2626'
+            marginBottom: '15px', color: isSuccess ? '#1e40af' : '#DC2626'
         },
         title: { fontSize: '22px', fontWeight: '700', margin: 0 },
         body: { fontSize: '16px', color: '#374151', marginBottom: '20px' },
         successButton: { 
-            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#10B981' : '#DC2626', 
+            width: '100%', padding: '10px', backgroundColor: isSuccess ? '#1e40af' : '#DC2626', 
             color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', 
             transition: 'background-color 0.2s' 
         }
@@ -467,7 +467,7 @@ const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
             marginTop: '10px', backgroundColor: '#F9FAFB' 
         },
         button: {
-            padding: '14px 20px', backgroundColor: '#6366F1', color: 'white', 
+            padding: '14px 20px', backgroundColor: '#1e40af', color: 'white', 
             border: 'none', borderRadius: '10px', cursor: 'pointer', 
             fontWeight: '700', fontSize: '16px', transition: 'opacity 0.2s, background-color 0.2s'
         },
@@ -742,7 +742,7 @@ const AdminAnnouncementPage = () => {
         title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
         addButton: { 
             display: 'flex', alignItems: 'center', padding: '10px 20px', 
-            backgroundColor: '#6366F1', color: 'white', border: 'none', 
+            backgroundColor: '#1e40af', color: 'white', border: 'none', 
             borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
             transition: 'background-color 0.2s'
         },

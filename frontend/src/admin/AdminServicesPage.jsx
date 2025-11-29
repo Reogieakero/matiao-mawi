@@ -136,11 +136,12 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
                     Are you sure you want to delete the service: <strong>{title}</strong>? This action cannot be undone.
                 </p>
                 <div style={baseModalStyles.buttonGroup}>
-                    <button onClick={onConfirm} style={baseModalStyles.confirmButton}>
-                        Yes, Delete
-                    </button>
+                
                     <button onClick={onCancel} style={baseModalStyles.cancelButton}>
                         Cancel
+                    </button>
+                    <button onClick={onConfirm} style={baseModalStyles.confirmButton}>
+                        Yes, Delete
                     </button>
                 </div>
             </div>
@@ -151,10 +152,10 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
 const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     if (!show) return null;
     
-    const icon = isSuccess ? <CheckCircle size={40} color="#059669" /> : <XCircle size={40} color="#DC2626" />;
+    const icon = isSuccess ? <CheckCircle size={40} color="#1e40af" /> : <XCircle size={40} color="#DC2626" />;
     const modalTitleStyle = {
         ...baseModalStyles.title,
-        color: isSuccess ? '#059669' : '#DC2626'
+        color: isSuccess ? '#1e40af' : '#DC2626'
     };
 
     return (
@@ -167,7 +168,7 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
                     onClick={onClose} 
                     style={{ 
                         ...baseModalStyles.cancelButton, 
-                        backgroundColor: isSuccess ? '#10B981' : '#F59E0B' 
+                        backgroundColor: isSuccess ? '#1e40af' : '#F59E0B' 
                     }}
                 >
                     Close
@@ -336,7 +337,7 @@ const ServiceFormModal = ({ show, initialData, onClose, onSave }) => {
         select: baseInputStyle,
         textarea: { ...baseInputStyle, minHeight: '150px', resize: 'vertical' },
         fileSection: { border: '2px dashed #D1D5DB', padding: '20px', borderRadius: '12px', marginTop: '10px', backgroundColor: '#F9FAFB' },
-        button: { padding: '14px 20px', backgroundColor: '#6366F1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', transition: 'opacity 0.2s, background-color 0.2s', fontSize: '16px' },
+        button: { padding: '14px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', transition: 'opacity 0.2s, background-color 0.2s', fontSize: '16px' },
         cancelButton: { ...baseViewModalStyles.closeButton, backgroundColor: '#EF4444', marginTop: '10px', width: 'auto', alignSelf: 'flex-start' },
         filePreview: { marginBottom: '15px' },
         imagePreview: { maxWidth: '200px', margin: '10px 0', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
@@ -606,11 +607,11 @@ const ServiceFormModal = ({ show, initialData, onClose, onSave }) => {
                                 onClick={handleAddRequirement}
                                 style={{ 
                                     ...styles.button, 
-                                    backgroundColor: '#10B981', // Green 
+                                    backgroundColor: '#1e40af', // Green 
                                     padding: '10px 15px',
                                 }}
                             >
-                                <Plus size={18} /> Add
+                                <Plus size={18} /> 
                             </button>
                         </div>
                         <div style={{ marginTop: '10px' }}>
@@ -649,14 +650,7 @@ const ServiceFormModal = ({ show, initialData, onClose, onSave }) => {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
-                        <button 
-                            type="button" 
-                            onClick={onClose} 
-                            style={{ ...styles.cancelButton, backgroundColor: '#6B7280' }}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </button>
+                        
                         <button 
                             type="submit" 
                             style={styles.button} 
@@ -931,7 +925,7 @@ const AdminServicesPage = () => {
             display: 'flex', 
             alignItems: 'center', 
             padding: '10px 20px', 
-            backgroundColor: '#6366F1', // Indigo color 
+            backgroundColor: '#1e40af', // Indigo color 
             color: 'white', 
             border: 'none', 
             borderRadius: '8px', 
