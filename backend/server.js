@@ -2387,6 +2387,7 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         `;
         
         const applicationData = await new Promise((resolve, reject) => {
+            // Replace db.query with your actual database call method
             db.query(SQL_SELECT, [applicationId], (err, result) => {
                 if (err) return reject(err);
                 if (result.length === 0) return reject(new Error('Application data not found.'));
@@ -2394,52 +2395,50 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // Resolve file path
+        // Resolve file path (assuming templates are in a 'forms' directory)
         const templatePath = path.join(__dirname, 'forms', templateFileName); 
         if (!fs.existsSync(templatePath)) {
             return res.status(404).json({ message: `PDF template file not found: ${templateFileName}` });
         }
 
-        // 2. LOAD AND FILL PDF
+        // 2. LOAD AND FILL PDF, THEN FLATTEN
         const templateBytes = fs.readFileSync(templatePath);
         const pdfDoc = await PDFDocument.load(templateBytes);
         const form = pdfDoc.getForm();
 
-        // Data to be filled
+        // Data preparation
         const residentName = applicationData.applicant_name;
         const residentAddress = applicationData.address || 'N/A'; 
         const documentPurpose = applicationData.purpose; 
         const contactNumber = applicationData.contact || 'N/A';
         
-        // Date components
         const currentDay = new Date().getDate().toString();
         const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long' });
         const currentYear = new Date().getFullYear().toString();
 
         // --- PDF FIELD MAPPING LOGIC (CRITICAL SECTION) ---
-        // NOTE: The mapping is based on typical Barangay Clearance structure. 
-        // You MUST confirm this mapping by testing the output PDF.
+        // Based on your diagnostic run: ['text_1vhhu', 'text_2topb', ...]
         const fieldsToFill = {
             // Applicant Details
-            'text_1vhhu': residentName,             // Name of Applicant
-            'text_2topb': residentAddress,          // Address
-            'text_3mtyv': documentPurpose,          // Purpose / Reason
+            'text_1vhhu': residentName,             // Name of Applicant (VERIFY)
+            'text_2topb': residentAddress,          // Address (VERIFY)
+            'text_3mtyv': documentPurpose,          // Purpose / Reason (VERIFY)
             'text_11imkg': contactNumber,           // Contact Number (Assumed)
 
-            // Date of Issue (Separated into Day, Month, Year)
-            'text_4lkmy': currentDay,               // Day (e.g., '29')
-            'text_5nfmg': currentMonth,             // Month (e.g., 'November')
-            'text_6lnpt': currentYear,              // Year (e.g., '2025')
+            // Date of Issue
+            'text_4lkmy': currentDay,               // Day 
+            'text_5nfmg': currentMonth,             // Month 
+            'text_6lnpt': currentYear,              // Year 
             
             // Barangay / Government Details (Static or Official Data)
             'text_7cpbu': 'MAWII',                  // Barangay Name (Static)
-            'text_8ieis': 'Barangay Secretary Name',// Prepared By / Secretary
-            'text_9qual': 'Barangay Captain Name',  // Approved By / Captain
+            'text_8ieis': 'Barangay Secretary Name',// Prepared By / Secretary (Update with actual official)
+            'text_9qual': 'Barangay Captain Name',  // Approved By / Captain (Update with actual official)
             'text_10mkgy': 'Davao City',            // Municipality/City (Static)
             
-            // Remaining Fields (Mapped to N/A or default placeholders)
-            'text_12ccdt': 'N/A - Other Detail',    // Assumed: O.R. Number, Certificate ID, or similar
-            'text_13raqg': 'N/A - Other Detail',    // Assumed: Date Paid or Tax ID, or similar
+            // Remaining Fields 
+            'text_12ccdt': 'N/A',                   // Placeholder for misc ID/Number
+            'text_13raqg': 'N/A',                   // Placeholder for misc Date/Ref
         };
         
         // Apply the values to the PDF fields
@@ -2448,15 +2447,16 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
                 const field = form.getTextField(fieldName);
                 if (field) { 
                     field.setText(value.toString());
-                } else {
-                    console.warn(`Field '${fieldName}' not found in PDF form.`);
                 }
             } catch (e) {
-                // Catches errors if getTextField throws an exception for a non-existent field
-                console.warn(`Error setting field '${fieldName}': ${e.message}`); 
+                // Log and ignore fields not found in this specific template
+                console.warn(`PDF field '${fieldName}' not found or error setting: ${e.message}`); 
             }
         }
         
+        // ⭐ FLATTEN THE FIELDS to prevent further user editing ⭐
+        form.flatten(); 
+
         // Finalize the PDF
         const pdfBytes = await pdfDoc.save();
 
@@ -2467,6 +2467,7 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             WHERE id = ? AND status != 'Approved'
         `;
         await new Promise((resolve, reject) => {
+            // Replace db.query with your actual database call method
             db.query(SQL_UPDATE_STATUS, [applicationId], (err, result) => {
                 if (err) return reject(err);
                 resolve(result);
@@ -2476,7 +2477,7 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         // 4. SERVE THE FILE FOR DOWNLOAD
         const docType = getDocumentName(applicationData.document_id);
         const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        // Use the last name for the filename (simple split)
+        // Use the last name for the filename
         const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
         
         const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
