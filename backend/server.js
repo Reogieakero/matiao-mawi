@@ -1237,6 +1237,39 @@ app.get('/api/admin/dashboard-stats', (req, res) => {
     });
 });
 
+// Fetches counts for News, Announcements, Services, Officials, and Hotlines
+app.get('/api/admin/dashboard-stats-content', (req, res) => {
+    // NOTE: You should add authentication/authorization middleware here if needed
+
+    // All counts should generally exclude soft-deleted items.
+    // Officials count only includes 'Active' members.
+    const SQL_COUNT_QUERIES = `
+        SELECT COUNT(id) AS totalNews FROM barangay_news WHERE is_deleted = FALSE;
+        SELECT COUNT(id) AS totalAnnouncements FROM barangay_announcements WHERE is_deleted = FALSE;
+        SELECT COUNT(id) AS totalServices FROM barangay_services WHERE is_deleted = FALSE;
+        SELECT COUNT(id) AS totalOfficials FROM barangay_officials WHERE status = 'On Site' OR status = 'Working';
+        SELECT COUNT(id) AS totalHotlines FROM barangay_hotlines WHERE is_deleted = FALSE;
+    `;
+
+    db.query(SQL_COUNT_QUERIES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching content stats:", err);
+            return res.status(500).json({ message: 'Failed to fetch content statistics.' });
+        }
+        
+        // results is an array of result sets due to multiple statements
+        const stats = {
+            totalNews: results[0][0].totalNews,
+            totalAnnouncements: results[1][0].totalAnnouncements,
+            totalServices: results[2][0].totalServices,
+            totalOfficials: results[3][0].totalOfficials,
+            totalHotlines: results[4][0].totalHotlines,
+        };
+
+        res.status(200).json(stats);
+    });
+});
+
 app.get('/api/admin/users', (req, res) => {
     const SQL_SELECT_USERS = `
         SELECT 
@@ -2650,7 +2683,148 @@ app.delete('/api/admin/services/:id', (req, res) => {
     });
 });
 
+app.get('/api/services', (req, res) => {
+    // The query fetches all fields required for public display, filtering out soft-deleted items.
+    const SQL_FETCH_ALL_SERVICES = `
+        SELECT 
+            id, title, description, category, requirements_list, contact_person, 
+            contact_number, availability, department, featured_image_url, 
+            created_at, updated_at 
+        FROM barangay_services 
+        WHERE is_deleted = FALSE 
+        ORDER BY category, title ASC
+    `;
 
+    db.query(SQL_FETCH_ALL_SERVICES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching public services:", err);
+            return res.status(500).json({ message: 'Failed to fetch barangay services.' });
+        }
+        
+        // Return the raw results. The frontend will handle parsing the requirements_list.
+        res.status(200).json(results);
+    });
+});
+
+// ===================================
+// HOTLINE MANAGEMENT API ROUTES
+// ===================================
+
+// GET: Fetch all active hotlines
+app.get('/api/hotlines', (req, res) => {
+    const SQL_FETCH_ALL_HOTLINES = `
+        SELECT 
+            id, title, hotline_number, description, category, 
+            created_at, updated_at 
+        FROM barangay_hotlines 
+        WHERE is_deleted = FALSE 
+        ORDER BY category, title ASC
+    `;
+
+    db.query(SQL_FETCH_ALL_HOTLINES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching hotlines:", err);
+            return res.status(500).json({ message: 'Failed to fetch hotlines.' });
+        }
+        res.json(results);
+    });
+});
+
+// POST: Add a new hotline
+app.post('/api/hotlines', (req, res) => {
+    const { title, hotline_number, description, category } = req.body;
+
+    if (!title || !hotline_number || !category) {
+        return res.status(400).json({ message: 'Title, Hotline Number, and Category are required.' });
+    }
+
+    const SQL_INSERT_HOTLINE = `
+        INSERT INTO barangay_hotlines 
+        (title, hotline_number, description, category) 
+        VALUES (?, ?, ?, ?)
+    `;
+    const values = [title, hotline_number, description, category];
+
+    db.query(SQL_INSERT_HOTLINE, values, (err, result) => {
+        if (err) {
+            console.error("Database error inserting hotline:", err);
+            return res.status(500).json({ message: 'Failed to add new hotline.' });
+        }
+        res.status(201).json({ 
+            message: 'Hotline successfully added.', 
+            id: result.insertId 
+        });
+    });
+});
+
+// PUT: Update an existing hotline
+app.put('/api/hotlines/:id', (req, res) => {
+    const hotlineId = req.params.id;
+    const { title, hotline_number, description, category } = req.body;
+
+    if (!title || !hotline_number || !category) {
+        return res.status(400).json({ message: 'Title, Hotline Number, and Category are required.' });
+    }
+
+    const SQL_UPDATE_HOTLINE = `
+        UPDATE barangay_hotlines 
+        SET title = ?, hotline_number = ?, description = ?, category = ? 
+        WHERE id = ? AND is_deleted = FALSE
+    `;
+    const values = [title, hotline_number, description, category, hotlineId];
+
+    db.query(SQL_UPDATE_HOTLINE, values, (err, result) => {
+        if (err) {
+            console.error("Database error updating hotline:", err);
+            return res.status(500).json({ message: 'Failed to update hotline.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Hotline item not found or already deleted.' });
+        }
+        res.json({ message: 'Hotline successfully updated.' });
+    });
+});
+
+// DELETE: Soft delete a hotline
+app.delete('/api/hotlines/:id', (req, res) => {
+    const hotlineId = req.params.id;
+    // Use soft delete
+    const SQL_SOFT_DELETE = `
+        UPDATE barangay_hotlines 
+        SET is_deleted = TRUE 
+        WHERE id = ?
+    `;
+
+    db.query(SQL_SOFT_DELETE, [hotlineId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting hotline:", err);
+            return res.status(500).json({ message: 'Failed to delete hotline item.' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Hotline item not found.' });
+        }
+        res.json({ message: 'Hotline item successfully deleted (archived).' });
+    });
+});
+
+// --- NEW API ENDPOINT: GET ALL ACTIVE HOTLINES (Public View) ---
+app.get('/api/hotlines', (req, res) => {
+    // Fetch all hotlines that are NOT soft-deleted
+    const SQL_FETCH_ACTIVE_HOTLINES = `
+        SELECT id, title, hotline_number, description, category, created_at
+        FROM barangay_hotlines
+        WHERE is_deleted = FALSE
+        ORDER BY created_at DESC
+    `;
+
+    db.query(SQL_FETCH_ACTIVE_HOTLINES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching public hotlines:", err);
+            return res.status(500).json({ message: 'Failed to fetch hotlines.' });
+        }
+        res.status(200).json(results);
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

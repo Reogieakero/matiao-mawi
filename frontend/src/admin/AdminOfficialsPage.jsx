@@ -1,6 +1,6 @@
 // frontend/src/admin/AdminOfficialsPage.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { 
     Search, ChevronDown, ChevronUp, Trash2, CheckCircle, Plus, UserPlus, Image, UserX, Edit
@@ -60,7 +60,6 @@ const isValidPhilippineNumber = (number) => {
     return PHILIPPINE_MOBILE_REGEX.test(cleanedNumber);
 };
 
-
 // --- Helper Components ---
 
 const SuccessAlert = ({ message, style }) => {
@@ -83,10 +82,10 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
                 <h3 style={modalStyles.header}>Confirm Deletion</h3>
                 <p style={modalStyles.body}>
                     Are you sure you want to permanently delete the official: 
-                    <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} (ID: {official.id})</strong>?
+                    <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} ID: {official.id} ?</strong>
                 </p>
                 <p style={modalStyles.warning}>
-                    ⚠️ This action is irreversible. The official's record will be removed.
+                    This action is irreversible. The official's record will be removed.
                 </p>
                 <div style={modalStyles.footer}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>
@@ -101,7 +100,42 @@ const DeleteConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
     );
 };
 
-// --- Modal for Adding Official (UPDATED FOR INLINE VALIDATION) ---
+// --- NEW EDIT CONFIRMATION MODAL ---
+const EditConfirmationModal = ({ show, official, onConfirm, onCancel }) => {
+    if (!show || !official) return null;
+    const fullName = `${official.first_name} ${official.last_name}`;
+
+    return (
+        <div style={modalStyles.backdrop}>
+            <div style={modalStyles.modal}>
+                <h3 style={modalStyles.header}>Confirm Edit</h3>
+                <p style={modalStyles.body}>
+                    Are you sure you want to edit the details for the official: 
+                    <strong style={{ display: 'block', marginTop: '5px' }}>{fullName} ID: {official.id} ?</strong>
+                </p>
+                <p style={{
+                    ...modalStyles.warning, 
+                    backgroundColor: '#FEF9C3', 
+                    color: '#A16207', 
+                    border: '1px solid #FCD34D'
+                }}>
+                    Proceeding will open the full edit form for this official.
+                </p>
+                <div style={modalStyles.footer}>
+                    <button onClick={onCancel} style={modalStyles.cancelButton}>
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm} style={addModalStyles.addButton}>
+                        Yes, Proceed to Edit
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- END NEW EDIT CONFIRMATION MODAL ---
+
+
 const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const [formData, setFormData] = useState({
         firstName: '',
@@ -116,9 +150,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [loading, setLoading] = useState(false);
-    // State for API errors
     const [error, setError] = useState(null); 
-    // State for inline validation errors (NEW)
     const [contactNumError, setContactNumError] = useState(null); 
 
     useEffect(() => {
@@ -131,7 +163,7 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
             });
             setFile(null); setPreviewUrl(null);
             setError(null); 
-            setContactNumError(null); // Reset inline error
+            setContactNumError(null);
             setLoading(false);
         }
     }, [show]);
@@ -140,7 +172,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         const { name, value } = e.target;
         
         if (name === 'contactNumber') {
-            // Clear validation error as soon as user types
             setContactNumError(null); 
         }
 
@@ -185,16 +216,14 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
-        setContactNumError(null); // Clear inline error before new submission attempt
+        setContactNumError(null);
         setLoading(true);
         
-        // --- CONTACT NUMBER VALIDATION (Inline check) ---
         if (formData.contactNumber && !isValidPhilippineNumber(formData.contactNumber)) {
             setContactNumError('Invalid number. Use 09xxxxxxxxx, +639xxxxxxxxx, or 639xxxxxxxxx format.');
             setLoading(false);
             return;
         }
-        // ------------------------------------------------
 
         try {
             let finalPictureUrl = null;
@@ -216,7 +245,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
 
         } catch (err) {
             console.error("Add official failed:", err.response ? err.response.data : err);
-            // Display API error at the top
             setError(err.response?.data?.message || 'An unknown error occurred while adding the official.');
         } finally {
             setLoading(false);
@@ -231,15 +259,13 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         <div style={modalStyles.backdrop}>
             <div style={{...modalStyles.modal, width: '90%', maxWidth: '600px'}}>
                 <h3 style={modalStyles.header}>
-                    <UserPlus size={24} style={{ marginRight: '10px', color: '#6366F1' }} />
+                    <UserPlus size={24} style={{ marginRight: '10px', color: '#1e40af' }} />
                     Add New Barangay Official
                 </h3>
                 <form onSubmit={handleSubmit}>
-                    {/* Display API/Backend Errors at the top */}
                     {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ API Error: {error}</p></div>}
                     
                     <div style={addModalStyles.grid}>
-                        {/* Column 1: Profile Picture */}
                         <div style={addModalStyles.picUploadContainer}>
                             <p style={addModalStyles.label}>Profile Picture (Optional)</p>
                             <div style={addModalStyles.picPreview} onClick={() => document.getElementById('add-official-pic-upload').click()}>
@@ -262,7 +288,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                             <p style={addModalStyles.hint}>Max 2MB. Only image files.</p>
                         </div>
                         
-                        {/* Column 2: Details */}
                         <div style={addModalStyles.detailsContainer}>
                             <p style={addModalStyles.label}>Full Name *</p>
                             <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
@@ -280,7 +305,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
                                 onChange={handleInputChange} 
                                 style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
                             />
-                            {/* INLINE VALIDATION MESSAGE */}
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
 
@@ -333,7 +357,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
     );
 };
 
-// --- Modal for Editing Official (UPDATED FOR INLINE VALIDATION) ---
 const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     const initialOfficial = official || {};
 
@@ -351,12 +374,9 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     const [previewUrl, setPreviewUrl] = useState(null); 
     const [profilePictureUrl, setProfilePictureUrl] = useState(initialOfficial.profile_picture_url || null); 
     const [loading, setLoading] = useState(false);
-    // State for API errors
     const [error, setError] = useState(null);
-    // State for inline validation errors (NEW)
     const [contactNumError, setContactNumError] = useState(null);
 
-    // Effect to reset state when the official prop changes or modal is shown/hidden
     useEffect(() => {
         if (show && official) {
             setFormData({
@@ -373,7 +393,7 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             setPreviewUrl(null);
             setProfilePictureUrl(official.profile_picture_url || null);
             setError(null);
-            setContactNumError(null); // Reset inline error
+            setContactNumError(null);
             setLoading(false);
         }
     }, [show, official]);
@@ -382,7 +402,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
         const { name, value } = e.target;
         
         if (name === 'contactNumber') {
-             // Clear validation error as soon as user types
             setContactNumError(null); 
         }
 
@@ -439,16 +458,14 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
-        setContactNumError(null); // Clear inline error before new submission attempt
+        setContactNumError(null); 
         setLoading(true);
 
-        // --- CONTACT NUMBER VALIDATION (Inline check) ---
         if (formData.contactNumber && !isValidPhilippineNumber(formData.contactNumber)) {
             setContactNumError('Invalid number. Use 09xxxxxxxxx, +639xxxxxxxxx, or 639xxxxxxxxx format.');
             setLoading(false);
             return;
         }
-        // ------------------------------------------------
 
         try {
             let finalPictureUrl = profilePictureUrl; 
@@ -465,11 +482,12 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
             const response = await axios.put(`http://localhost:5000/api/admin/officials/${official.id}`, payload);
             
             onOfficialUpdated(response.data.official);
+            // onHide() is called inside onOfficialUpdated in parent, but good practice to call it here if not, 
+            // but for now, rely on parent component.
             onHide();
 
         } catch (err) {
             console.error("Edit official failed:", err.response ? err.response.data : err);
-            // Display API error at the top
             setError(err.response?.data?.message || 'An unknown error occurred while updating the official.');
         } finally {
             setLoading(false);
@@ -489,11 +507,9 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                     Edit Official: {official.first_name} {official.last_name}
                 </h3>
                 <form onSubmit={handleSubmit}>
-                    {/* Display API/Backend Errors at the top */}
                     {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ API Error: {error}</p></div>}
                     
                     <div style={addModalStyles.grid}>
-                        {/* Column 1: Profile Picture */}
                         <div style={addModalStyles.picUploadContainer}>
                             <p style={addModalStyles.label}>Profile Picture (Optional)</p>
                             <div style={addModalStyles.picPreview} onClick={() => document.getElementById('edit-official-pic-upload').click()}>
@@ -521,7 +537,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                             )}
                         </div>
                         
-                        {/* Column 2: Details */}
                         <div style={addModalStyles.detailsContainer}>
                             <p style={addModalStyles.label}>Full Name *</p>
                             <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 3fr', gap: '10px', marginBottom: '15px' }}>
@@ -539,7 +554,6 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
                                 onChange={handleInputChange} 
                                 style={{...addModalStyles.input, marginBottom: contactNumError ? '5px' : '15px'}} 
                             />
-                            {/* INLINE VALIDATION MESSAGE */}
                             {contactNumError && <p style={addModalStyles.validationError}>{contactNumError}</p>}
 
 
@@ -593,6 +607,125 @@ const EditOfficialModal = ({ show, onHide, official, onOfficialUpdated }) => {
     );
 };
 
+// --- ENHANCED STATUS DROPDOWN COMPONENT (Unchanged) ---
+const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, officialId }) => {
+    const dropdownRef = useRef(null);
+    // State to track the keyboard-focused item index
+    const [activeIndex, setActiveIndex] = useState(statuses.findIndex(s => s === currentStatus));
+
+    // 1. Auto-focus and scroll the active item into view on mount
+    useEffect(() => {
+        if (dropdownRef.current) {
+            dropdownRef.current.focus();
+
+            // Optional: Scroll active item into view
+            const activeItem = dropdownRef.current.querySelector(`[data-status="${currentStatus}"]`);
+            if (activeItem && activeItem.scrollIntoView) {
+                activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+        }
+    }, [currentStatus]);
+
+    // 2. Handle click outside (close dropdown)
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [onClose]);
+
+    // 3. Handle keyboard navigation and selection
+    const handleKeyDown = useCallback((e) => {
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex + 1) % statuses.length);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex - 1 + statuses.length) % statuses.length);
+                break;
+            case 'Enter':
+            case ' ': // Spacebar also selects
+                e.preventDefault();
+                const selectedStatus = statuses[activeIndex];
+                if (selectedStatus) {
+                    onStatusChange(selectedStatus); // This also calls onClose internally
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                onClose();
+                break;
+            default:
+                break;
+        }
+    }, [statuses, activeIndex, onStatusChange, onClose]);
+
+    const getStatusBadgeStyle = (status) => {
+        switch (status) {
+            case 'Working':
+                return { backgroundColor: '#D1FAE5', color: '#047857' };
+            case 'On Site':
+                return { backgroundColor: '#FEF9C3', color: '#A16207' };
+            case 'On Leave':
+                return { backgroundColor: '#FEE2E2', color: '#B91C1C' };
+            case 'AWOL':
+                return { backgroundColor: '#FBCFE8', color: '#9D174D' };
+            default:
+                return { backgroundColor: '#E5E7EB', color: '#4B5563' };
+        }
+    };
+
+    const handleSelect = (status) => {
+        onStatusChange(status);
+        // onClose() is called inside onStatusChange logic in the parent component
+    };
+
+    return (
+        <div 
+            ref={dropdownRef} 
+            style={styles.dropdownContainer}
+            // TabIndex for programmatic focus
+            tabIndex={-1} 
+            onKeyDown={handleKeyDown}
+        >
+            <ul style={styles.dropdownList} role="listbox" aria-activedescendant={`status-${officialId}-${statuses[activeIndex]}`}>
+                {statuses.map((status, index) => (
+                    <li 
+                        key={status} 
+                        id={`status-${officialId}-${status}`}
+                        role="option"
+                        aria-selected={status === currentStatus}
+                        data-status={status} // Used for scrolling
+                        style={{
+                            ...styles.dropdownListItem,
+                            // Highlight based on keyboard activeIndex
+                            backgroundColor: index === activeIndex ? '#E5E7EB' : (status === currentStatus ? '#EFF6FF' : 'white'), 
+                            // Add border to distinguish the current status visually from the list
+                            borderLeft: status === currentStatus ? '4px solid #1e40af' : 'none',
+                            paddingLeft: status === currentStatus ? '11px' : '15px', // Adjust padding for border
+                            fontWeight: status === currentStatus ? '700' : '500',
+                        }}
+                        onClick={() => handleSelect(status)}
+                    >
+                        <span style={{...styles.statusBadge, ...getStatusBadgeStyle(status), minWidth: '90px'}}>
+                            {status}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+// --- END ENHANCED STATUS DROPDOWN COMPONENT ---
+
 
 // --- Main Component ---
 
@@ -610,8 +743,13 @@ const AdminOfficialsPage = () => {
     
     const [showEditModal, setShowEditModal] = useState(false);
     const [officialToEdit, setOfficialToEdit] = useState(null);
+    // NEW STATE FOR EDIT CONFIRMATION MODAL
+    const [showEditConfirmModal, setShowEditConfirmModal] = useState(false); 
     
+    // State to track the ID of the official whose status dropdown is open
     const [editingStatusId, setEditingStatusId] = useState(null);
+    // Ref to store the DOM element that opened the dropdown, allowing focus to be restored
+    const statusDisplayRef = useRef(null); 
 
 
     const fetchOfficials = async () => {
@@ -671,11 +809,18 @@ const AdminOfficialsPage = () => {
         setTimeout(() => setSuccessMessage(null), 5000);
     };
 
+    // MODIFIED: Show confirmation modal first
     const handleEditClick = (official) => {
         setOfficialToEdit(official);
-        setShowEditModal(true);
+        setShowEditConfirmModal(true); // <--- Show confirmation first
     };
-
+    
+    // NEW: Function to proceed to the main edit modal
+    const confirmEdit = () => {
+        setShowEditConfirmModal(false); // Hide confirmation
+        setShowEditModal(true);         // Show main edit modal
+    };
+    
     const handleOfficialUpdated = (updatedOfficial) => {
         setOfficials(prev => 
             prev.map(o => (o.id === updatedOfficial.id ? { 
@@ -684,16 +829,36 @@ const AdminOfficialsPage = () => {
             } : o))
         );
         setShowEditModal(false);
-        setOfficialToEdit(null);
+        setOfficialToEdit(null); // Clear the official state
         setSuccessMessage(`Official ${updatedOfficial.first_name} ${updatedOfficial.last_name} updated successfully.`);
         setTimeout(() => setSuccessMessage(null), 5000);
     };
 
+    // New handler to close the dropdown and restore focus to the trigger element
+    const closeAndRefocus = useCallback(() => {
+        const idToFocus = statusDisplayRef.current;
+        setEditingStatusId(null);
+        // Restore focus to the element that opened the dropdown
+        if (idToFocus) {
+             // Find the element by the stored ref (which is the element's ID)
+            const elementToFocus = document.getElementById(idToFocus);
+            if (elementToFocus) {
+                elementToFocus.focus();
+            }
+        }
+        statusDisplayRef.current = null; // Clear the ref
+    }, []);
+
+
     const handleStatusUpdate = async (officialId, statusValue) => {
         const currentStatus = officials.find(o => o.id === officialId)?.status;
+        
+        // 1. Close dropdown immediately, regardless of whether status changed or not
+        // This makes the UI feel fast and responsive.
+        closeAndRefocus();
+
         if (statusValue === currentStatus) {
-            setEditingStatusId(null);
-            return;
+            return; // No change, just close and return
         }
 
         setError(null);
@@ -708,7 +873,6 @@ const AdminOfficialsPage = () => {
                 o.id === officialId ? { ...o, status: statusValue } : o
             ));
             
-            setEditingStatusId(null);
             setSuccessMessage(`Status for Official ID ${officialId} updated successfully to '${statusValue}'.`);
             setTimeout(() => setSuccessMessage(null), 5000);
 
@@ -716,7 +880,6 @@ const AdminOfficialsPage = () => {
             console.error(`Error updating status for official ${officialId}:`, err.response ? err.response.data : err);
             setError(err.response?.data?.message || 'Failed to update official status.');
             setTimeout(() => setError(null), 5000);
-            setEditingStatusId(null);
         }
     };
 
@@ -797,7 +960,6 @@ const AdminOfficialsPage = () => {
                 Manage all barangay and SK officials, staff, and tanods. Total: <strong style={{color: '#1F2937'}}>{officials.length.toLocaleString()}</strong> 
             </p>
 
-            {/* Toolbar: Search and Add Button */}
             <div style={styles.toolbar}>
                 <div style={styles.searchBox}>
                     <Search size={20} color="#6B7280" style={{ marginLeft: '10px' }}/>
@@ -816,9 +978,8 @@ const AdminOfficialsPage = () => {
             </div>
 
             {successMessage && <SuccessAlert message={successMessage} />}
-            {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>❌ Error: {error}</p></div>}
+            {error && <div style={{...styles.errorAlert, marginBottom: '15px'}}><p style={{ margin: 0 }}>Error: {error}</p></div>}
 
-            {/* Officials Table */}
             <div style={styles.tableWrapper}>
                 <table style={styles.table}>
                     <thead>
@@ -868,33 +1029,45 @@ const AdminOfficialsPage = () => {
                                     </span>
                                 </td>
 
+                                {/* MODIFIED TD FOR CUSTOM DROPDOWN */}
                                 <td 
-                                    key="status" 
+                                    key={`status-cell-${official.id}`} 
                                     style={{
                                         ...styles.tableData, 
-                                        padding: editingStatusId === official.id ? '8px 20px' : '15px 20px', 
-                                        cursor: editingStatusId !== official.id ? 'pointer' : 'default'
-                                    }}
-                                    onClick={() => {
-                                        if (editingStatusId !== official.id) {
-                                            setEditingStatusId(official.id);
-                                        }
+                                        position: 'relative', 
+                                        minWidth: '150px',
+                                        padding: '8px 20px', 
                                     }}
                                 >
                                     {editingStatusId === official.id ? (
-                                        <select
-                                            value={official.status}
-                                            onChange={(e) => handleStatusUpdate(official.id, e.target.value)}
-                                            onBlur={() => setEditingStatusId(null)}
-                                            style={styles.statusSelect} 
-                                            autoFocus 
-                                        >
-                                            {OFFICIAL_STATUSES.map(s => (
-                                                <option key={s} value={s}>{s}</option>
-                                            ))}
-                                        </select>
+                                        <StatusDropdown
+                                            officialId={official.id}
+                                            currentStatus={official.status}
+                                            statuses={OFFICIAL_STATUSES}
+                                            onStatusChange={(newStatus) => handleStatusUpdate(official.id, newStatus)}
+                                            onClose={closeAndRefocus} // Pass the close and refocus function
+                                        />
                                     ) : (
-                                        <div style={styles.clickableStatusDisplay} title="Click to edit status">
+                                        <div 
+                                            id={`status-display-${official.id}`} // Unique ID for focus return
+                                            style={styles.clickableStatusDisplay} 
+                                            title="Click to edit status"
+                                            // Make it focusable when closed for keyboard users to activate
+                                            tabIndex={0} 
+                                            role="button"
+                                            onClick={(e) => {
+                                                setEditingStatusId(official.id);
+                                                // Store the ID of the element clicked to restore focus later
+                                                statusDisplayRef.current = e.currentTarget.id; 
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    setEditingStatusId(official.id);
+                                                    statusDisplayRef.current = e.currentTarget.id; 
+                                                }
+                                            }}
+                                        >
                                             <span style={{...styles.statusBadge, ...getStatusBadgeStyle(official.status)}}>
                                                 {official.status}
                                             </span>
@@ -902,18 +1075,18 @@ const AdminOfficialsPage = () => {
                                         </div>
                                     )}
                                 </td>
+                                {/* END MODIFIED TD */}
                                 
                                 <td style={styles.tableData}>{official.contact_number || 'N/A'}</td>
                                 <td style={styles.tableData}>{new Date(official.created_at).toLocaleDateString()}</td>
                                 
-                                {/* MODIFIED TD FOR FLEXBOX LAYOUT */}
                                 <td style={{
                                     ...styles.tableData, 
                                     display: 'flex', 
                                     justifyContent: 'center', 
                                     alignItems: 'center',
                                     padding: '0 20px', 
-                                    height: '65px' // Set a fixed height to align actions consistently
+                                    height: '65px' 
                                 }}>
                                     <button 
                                         onClick={() => handleEditClick(official)} 
@@ -926,7 +1099,6 @@ const AdminOfficialsPage = () => {
                                         <Trash2 size={18} color="#DC2626" />
                                     </button>
                                 </td>
-                                {/* END MODIFIED TD */}
                             </tr>
                         ))}
                         {filteredAndSortedOfficials.length === 0 && (
@@ -945,22 +1117,38 @@ const AdminOfficialsPage = () => {
                 onConfirm={confirmDelete} 
                 onCancel={() => setShowDeleteModal(false)} 
             />
+            
+            {/* NEW EDIT CONFIRMATION MODAL */}
+            <EditConfirmationModal 
+                show={showEditConfirmModal} 
+                official={officialToEdit}
+                onConfirm={confirmEdit}
+                onCancel={() => {
+                    setShowEditConfirmModal(false);
+                    setOfficialToEdit(null); // Clear state when cancelling
+                }}
+            />
+            
             <AddOfficialModal 
                 show={showAddModal} 
                 onHide={() => setShowAddModal(false)} 
                 onOfficialAdded={handleOfficialAdded} 
             />
+            
             <EditOfficialModal 
                 show={showEditModal}
                 official={officialToEdit}
-                onHide={() => setShowEditModal(false)}
+                onHide={() => {
+                    setShowEditModal(false);
+                    setOfficialToEdit(null); // Clear state when hiding the main modal
+                }}
                 onOfficialUpdated={handleOfficialUpdated}
             />
         </div>
     );
 };
 
-// --- Styles ---
+// --- Styles (Unchanged) ---
 
 const styles = {
     container: {
@@ -1012,7 +1200,7 @@ const styles = {
         backgroundColor: 'transparent',
     },
     addButton: {
-        backgroundColor: '#10B981', 
+        backgroundColor: '#1e40af', 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '8px',
@@ -1024,7 +1212,7 @@ const styles = {
         alignItems: 'center',
         transition: 'background-color 0.2s',
         ':hover': {
-            backgroundColor: '#059669',
+            backgroundColor: '#1d4ed8',
         }
     },
     secondaryButton: {
@@ -1090,24 +1278,20 @@ const styles = {
         minWidth: '80px',
         textAlign: 'center',
     },
-    statusSelect: {
-        padding: '6px 8px',
-        borderRadius: '6px',
-        border: '1px solid #D1D5DB',
-        backgroundColor: 'white',
-        fontWeight: '600',
-        fontSize: '13px',
-        color: '#1F2937',
-        cursor: 'pointer',
-        width: '100%',
-        boxSizing: 'border-box',
-        outline: 'none',
-    },
     clickableStatusDisplay: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         width: '100%',
+        cursor: 'pointer',
+        padding: '5px',
+        borderRadius: '6px',
+        transition: 'background-color 0.1s',
+        // Style when focused (via keyboard/tab)
+        ':focus': {
+            outline: '2px solid #6366F1',
+            outlineOffset: '2px',
+        },
     },
     actionButton: {
         background: 'none',
@@ -1160,6 +1344,43 @@ const styles = {
         alignItems: 'center',
         border: '1px solid #E5E7EB',
     },
+    // --- UPDATED STYLES FOR PRO-LEVEL DROPDOWN ---
+    dropdownContainer: {
+        position: 'absolute',
+        top: '100%', 
+        left: '50%', 
+        transform: 'translateX(-50%)',
+        zIndex: 20, 
+        minWidth: '160px',
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        border: '1px solid #E5E7EB',
+        marginTop: '5px',
+        outline: 'none', // Remove default focus outline
+        padding: '5px 0',
+    },
+    dropdownList: {
+        listStyle: 'none',
+        margin: 0,
+        padding: 0,
+        maxHeight: '200px', // Optional: for many statuses
+        overflowY: 'auto',
+    },
+    dropdownListItem: {
+        cursor: 'pointer',
+        fontSize: '14px',
+        color: '#374151',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '8px 15px',
+        transition: 'background-color 0.1s, border-left 0.1s',
+        // General hover style for all items
+        ':hover': {
+            backgroundColor: '#F3F4F6',
+        }
+    }
 };
 
 const modalStyles = {
@@ -1250,7 +1471,7 @@ const modalStyles = {
 const addModalStyles = {
     ...modalStyles,
     addButton: {
-        backgroundColor: '#6366F1', 
+        backgroundColor: '#1e40af', 
         color: '#FFFFFF',
         border: 'none',
         borderRadius: '6px',
@@ -1262,7 +1483,7 @@ const addModalStyles = {
         alignItems: 'center',
         transition: 'background-color 0.2s',
         ':hover': {
-            backgroundColor: '#4F46E5',
+            backgroundColor: '#1d4ed8',
         }
     },
     grid: {
@@ -1293,7 +1514,6 @@ const addModalStyles = {
             outline: 'none',
         }
     },
-    // NEW STYLE FOR INLINE VALIDATION MESSAGE
     validationError: {
         fontSize: '12px',
         color: '#DC2626',

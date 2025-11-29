@@ -28,11 +28,12 @@ const AdminHeader = ({ adminName, onLogout }) => {
     return (
         <header style={styles.header}>
             <div style={styles.title}>
+                {/* UPDATED: Breadcrumb color for consistency */}
                 <span style={styles.breadcrumb}>Admin / </span>
+                {/* UPDATED: PageName color for consistency */}
                 <h1 style={styles.pageName}>{formattedPageName}</h1>
             </div>
             
-            {/* The rightContent is now simplified to only contain the profile area */}
             <div style={styles.rightContent}>
                 
                 {/* Profile Area with Dropdown Functionality */}
@@ -43,9 +44,12 @@ const AdminHeader = ({ adminName, onLogout }) => {
                     tabIndex="0" // Makes the div focusable for onBlur to work
                 >
                     <div style={styles.avatar}>
+                        {/* UPDATED: Icon color for consistency */}
                         <UserCircle size={28} color="#64748B" strokeWidth={1.5}/>
                     </div>
+                    {/* UPDATED: Admin Name color for consistency */}
                     <span style={styles.adminName}>{adminName || "Administrator"}</span>
+                    {/* UPDATED: Chevron color for consistency */}
                     <ChevronDown size={16} color="#64748B" style={{ transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                     
                     {/* Dropdown Menu */}
@@ -72,13 +76,15 @@ const styles = {
         right: 0,
         height: '70px', 
         backgroundColor: '#ffffff',
-        borderBottom: '1px solid #E2E8F0',
+        // Border color matched to the standard light separator in the sidebars
+        borderBottom: '1px solid #E2E8F0', 
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 30px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+        // Subtle box shadow for lift, consistent with the light theme
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)', 
     },
     title: {
         display: 'flex',
@@ -86,21 +92,19 @@ const styles = {
     },
     breadcrumb: {
         fontSize: '14px',
-        color: '#94A3B8',
+        color: '#64748B', // Changed from #94A3B8 (Slate-400) to #64748B (Slate-500) for better hierarchy
         marginRight: '5px',
     },
     pageName: {
         fontSize: '22px',
-        color: '#1E293B',
+        color: '#1E293B', // Darkest text for main title
         fontWeight: '700',
         margin: 0,
     },
     rightContent: {
-        // No longer needs gap/spacing logic since only one element remains
         display: 'flex',
         alignItems: 'center',
     },
-    // Removed searchContainer, searchInput, iconBtn, badge, and separator styles
     
     profileArea: {
         position: 'relative', 
@@ -110,24 +114,24 @@ const styles = {
         gap: '8px',
         padding: '8px 12px',
         borderRadius: '8px',
-        border: '1px solid transparent', // Added for a cleaner boundary
+        border: '1px solid transparent', 
         transition: 'background-color 0.2s, border-color 0.2s',
         ':hover': {
-            backgroundColor: '#F8FAFC',
-            borderColor: '#E2E8F0',
+            backgroundColor: 'rgba(37, 99, 235, 0.05)', // Consistent light blue hover effect
+            borderColor: '#C7D2FE', // Light blue border on hover
         }
     },
     adminName: {
         fontSize: '15px',
-        color: '#1E293B',
+        color: '#1E293B', // Dark text color
         fontWeight: '500',
     },
     avatar: {
-        // Icon color is set directly on UserCircle
+        // Icon color is set directly on UserCircle: #64748B (Slate-500)
     },
     dropdownMenu: {
         position: 'absolute',
-        top: '50px', // Adjusted position
+        top: '50px', 
         right: '0',
         width: '150px',
         backgroundColor: 'white',
@@ -146,12 +150,12 @@ const styles = {
         cursor: 'pointer',
         transition: 'background-color 0.15s',
         ':hover': {
-            backgroundColor: '#F1F5F9', 
+            backgroundColor: 'rgba(37, 99, 235, 0.05)', // Consistent light blue hover effect
         }
     },
     dropdownIcon: {
         marginRight: '10px',
-        color: '#EF4444', 
+        color: '#EF4444', // Red for logout remains
     }
 };
 

@@ -50,8 +50,9 @@ const getStatusBadge = (status) => {
 
 // --- Shared Styles (Inline styles) ---
 const styles = {
+    pageContainer: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-    title: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px',},
+    title: {  fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
     controls: { display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px', padding: '10px 0', borderBottom: '1px solid #E5E7EB' }, 
     searchContainer: { position: 'relative', maxWidth: '300px' }, 
     searchInput: { width: '100%', padding: '10px 10px 10px 40px', border: '1px solid #D1D5DB', borderRadius: '8px', fontSize: '15px', transition: 'border-color 0.3s', outline: 'none' }, 
@@ -581,7 +582,7 @@ const AdminDocumentsPage = () => {
 
     // --- Render ---
     return (
-        <div style={styles.container}>
+        <div style={styles.pageContainer}>
             <div style={styles.header}>
                 <h1 style={styles.title}>Document Applications</h1>
                 <button style={styles.actionButton('#4F46E5')} onClick={fetchDocuments} disabled={loading}>

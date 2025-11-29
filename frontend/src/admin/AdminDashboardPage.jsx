@@ -4,149 +4,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import axios from 'axios'; 
 import { 
-    Users, FileText, BarChart, Briefcase, MessageSquare, 
-    Newspaper, Bell, Settings, Phone, Mail 
+    // Enhanced "Pro" Icons
+    UserCircle, ClipboardList, Briefcase, MessageCircle, Send,
+    Rss, Megaphone, Layers, UserCheck, Headset 
 } from 'lucide-react';
 
-// --- StatCard Component ---
-const StatCard = ({ icon: Icon, title, value, color, to }) => { 
-    const [isHovered, setIsHovered] = useState(false);
-    const navigate = useNavigate(); 
-    
-    const hoverStyle = isHovered ? styles.statCardHover : {};
-
-    const handleClick = () => {
-        if (to) {
-            navigate(to);
-        }
-    };
-
-    return (
-        <div 
-            style={{ ...styles.statCard, ...hoverStyle }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            onClick={handleClick} 
-        >
-            <div style={styles.statHeader}>
-                <p style={styles.statLabel}>{title}</p>
-                <Icon size={24} color={color} />
-            </div>
-            {/* Display value using locale string for thousands separators */}
-            <h2 style={styles.statNumber}>{value.toLocaleString()}</h2> 
-            
-            <div style={styles.statFooter}>
-                <span style={{ fontSize: '12px', color: 'transparent' }}>.</span> 
-            </div>
-        </div>
-    );
-};
-
-// --- AdminDashboardPage Component ---
-const AdminDashboardPage = () => {
-    const navigate = useNavigate();
-    const [stats, setStats] = useState({
-        totalUsers: 0,
-        totalPosts: 0,
-        totalJobs: 0,
-        totalApplications: 0,
-        totalContacts: 0,
-    });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    // Fetch dashboard stats from the backend
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                // Assuming your Express server runs on port 5000
-                const response = await axios.get('http://localhost:5000/api/admin/dashboard-stats');
-                setStats(response.data);
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching dashboard stats:", err);
-                setError('Failed to load dashboard statistics from the server.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchStats();
-    }, []);
-
-    if (loading) {
-        return <div style={{...styles.container, justifyContent: 'center', alignItems: 'center'}}><p style={{color: '#2563eb'}}>Loading Dashboard Stats...</p></div>;
-    }
-
-    if (error) {
-        return <div style={{...styles.container, justifyContent: 'center', alignItems: 'center'}}><p style={{color: '#DC2626'}}>Error: {error}</p></div>;
-    }
-
-
-    return (
-        <div style={styles.container}>
-            <h1 style={styles.pageTitle}>Admin Dashboard</h1>
-            <p style={styles.subtitle}>Welcome to the administration panel. Here's a quick overview of your application data.</p>
-            
-            <div style={styles.statsGrid}>
-                {/* USER MANAGEMENT */}
-                <StatCard 
-                    icon={Users} 
-                    title="Total Users" 
-                    value={stats.totalUsers} 
-                    color="#059669" 
-                    to="/admin/users" 
-                />
-                
-                {/* COMMUNITY CONTENT - Posts */}
-                <StatCard 
-                    icon={FileText} 
-                    title="Total Community Posts" 
-                    value={stats.totalPosts} 
-                    color="#2563EB" 
-                    to="/admin/posts" 
-                />
-                
-                {/* CONTENT MANAGEMENT - JOB LISTINGS */}
-                <StatCard 
-                    icon={Briefcase} 
-                    title="Active Job Postings" 
-                    value={stats.totalJobs} 
-                    color="#6366F1" 
-                    to="/admin/jobs" 
-                />
-                
-                {/* DOCUMENT & SERVICES - Applications */}
-                <StatCard 
-                    icon={FileText} 
-                    title="Document Applications" 
-                    value={stats.totalApplications} 
-                    color="#F59E0B" 
-                    to="/admin/documents" 
-                />
-
-                {/* SUPPORT & CONTACTS - Messages */}
-                <StatCard 
-                    icon={Mail} 
-                    title="Contact Messages" 
-                    value={stats.totalContacts} 
-                    color="#DC2626" 
-                    to="/admin/contacts" 
-                />
-                
-                {/* You can add more database-backed cards here */}
-            </div>
-
-            {/* QUICK ACTIONS & RECENT ACTIVITY (Placeholder for other dashboard components) */}
-            {/* ... other dashboard components if they exist ... */}
-            
-        </div>
-    );
-};
-
-// --- Styles Object (No changes) ---
+// --- Styles Object ---
 const styles = {
-    container: {
+    pageContainer: {
+        backgroundColor: '#F9FAFB',
+        minHeight: '100vh',
         padding: '20px', 
         height: '100%', 
         overflow: 'hidden', 
@@ -181,29 +48,188 @@ const styles = {
     },
     statCardHover: {
         transform: 'translateY(-5px)', 
-        boxShadow: '0 10px 20px rgba(0, 0, 0, 0.1)', 
+        boxShadow: '0 10px 20px rgba(0, 0, 0, 0.1)',
     },
     statHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '10px',
+        marginBottom: '15px',
     },
     statLabel: {
-        margin: 0,
         fontSize: '14px',
-        fontWeight: '500',
         color: '#6B7280',
+        fontWeight: '500',
+        margin: 0,
     },
     statNumber: {
-        margin: '0',
         fontSize: '32px',
         fontWeight: '700',
         color: '#1F2937',
+        margin: '0 0 10px 0',
     },
     statFooter: {
-        marginTop: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
+    chartContainer: {
+        flexGrow: 1,
+        backgroundColor: '#ffffff',
+        padding: '20px',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+        minHeight: '300px',
+    },
+    message: {
+        padding: '20px',
+        textAlign: 'center',
+        color: '#EF4444',
+    }
+};
+
+// --- StatCard Component ---
+const StatCard = ({ icon: Icon, title, value, color, to }) => { 
+    const [isHovered, setIsHovered] = useState(false);
+    const navigate = useNavigate(); 
+    
+    const hoverStyle = isHovered ? styles.statCardHover : {};
+
+    const handleClick = () => {
+        if (to) {
+            navigate(to);
+        }
+    };
+
+    return (
+        <div 
+            style={{ ...styles.statCard, ...hoverStyle }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onClick={handleClick} 
+        >
+            <div style={styles.statHeader}>
+                <p style={styles.statLabel}>{title}</p>
+                <Icon size={24} color={color} /> 
+            </div>
+            <h2 style={styles.statNumber}>{value.toLocaleString()}</h2> 
+            
+            <div style={styles.statFooter}>
+                <span style={{ fontSize: '12px', color: '#9CA3AF' }}>View {title}</span>
+                <span style={{ fontSize: '12px', color: color, fontWeight: '600' }}>→</span>
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main AdminDashboardPage Component ---
+const AdminDashboardPage = () => {
+    const navigate = useNavigate();
+    const [stats, setStats] = useState({
+        // Base Stats
+        totalUsers: 0,
+        totalPosts: 0,
+        totalJobs: 0,
+        totalApplications: 0,
+        totalContacts: 0,
+        // NEW STATS 
+        totalNews: 0,
+        totalAnnouncements: 0,
+        totalServices: 0,
+        totalOfficials: 0,
+        totalHotlines: 0,
+    });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const fetchDashboardStats = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            // 1. Fetch base stats (Users, Applications, etc.) - Placeholder endpoint
+            const baseStatsPromise = axios.get('http://localhost:5000/api/admin/dashboard-stats');
+
+            // 2. Fetch content stats (News, Officials, etc.) - The new endpoint from server.js
+            const contentStatsPromise = axios.get('http://localhost:5000/api/admin/dashboard-stats-content');
+
+            const [baseStatsResponse, contentStatsResponse] = await Promise.all([
+                baseStatsPromise,
+                contentStatsPromise
+            ]);
+
+            const baseStats = baseStatsResponse.data || { totalUsers: 0, totalPosts: 0, totalJobs: 0, totalApplications: 0, totalContacts: 0 };
+            const contentStats = contentStatsResponse.data;
+
+            // Merge both sets of statistics
+            setStats(prevStats => ({
+                ...prevStats,
+                ...baseStats,
+                ...contentStats,
+            }));
+
+        } catch (err) {
+            console.error("Failed to fetch dashboard stats:", err);
+            setError('Failed to load dashboard statistics. Check if the server is running and API endpoints are correct.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDashboardStats();
+    }, []);
+
+    if (loading) {
+        return <div style={{ ...styles.pageContainer, justifyContent: 'center', alignItems: 'center' }}>
+            <p style={{ color: '#6B7280' }}>Loading Dashboard Data...</p>
+        </div>;
+    }
+
+    if (error) {
+        return (
+            <div style={styles.pageContainer}>
+                <h1 style={styles.pageTitle}>Admin Dashboard</h1>
+                <p style={styles.subtitle}>Welcome to the management control panel.</p>
+                <p style={styles.message}>Error: {error}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div style={styles.pageContainer}>
+            <h1 style={styles.pageTitle}>Admin Dashboard</h1>
+            <p style={styles.subtitle}>Welcome to the management control panel.</p>
+
+            <div style={styles.statsGrid}>
+                {/* BASE STATS CARDS */}
+                {/* Users: UserCircle */}
+                <StatCard icon={UserCircle} title="Total Users" value={stats.totalUsers} color="#10B981" to="/admin/users" />
+                {/* Posts: MessageCircle */}
+                <StatCard icon={MessageCircle} title="Community Posts" value={stats.totalPosts} color="#6366F1" to="/admin/community" />
+                {/* Jobs: Briefcase */}
+                <StatCard icon={Briefcase} title="Job Listings" value={stats.totalJobs} color="#F59E0B" to="/admin/jobs" />
+                {/* Applications: ClipboardList */}
+                <StatCard icon={ClipboardList} title="Doc. Applications" value={stats.totalApplications} color="#F97316" to="/admin/documents" />
+                {/* Contacts: Send */}
+                <StatCard icon={Send} title="Contact Messages" value={stats.totalContacts} color="#06B6D4" to="/admin/messages" />
+
+                {/* NEW CONTENT MANAGEMENT STATS CARDS */}
+                {/* News: Rss */}
+                <StatCard icon={Rss} title="Active News" value={stats.totalNews} color="#EF4444" to="/admin/news" />
+                {/* Announcements: Megaphone */}
+                <StatCard icon={Megaphone} title="Active Announcements" value={stats.totalAnnouncements} color="#A855F7" to="/admin/announcements" />
+                {/* Services: Layers */}
+                <StatCard icon={Layers} title="Active Services" value={stats.totalServices} color="#10B981" to="/admin/services" />
+                {/* Officials: UserCheck */}
+                <StatCard icon={UserCheck} title="Active Officials" value={stats.totalOfficials} color="#F59E0B" to="/admin/officials" />
+                {/* Hotlines: Headset */}
+                <StatCard icon={Headset} title="Active Hotlines" value={stats.totalHotlines} color="#6366F1" to="/admin/hotlines" />
+            </div>
+
+            
+        </div>
+    );
 };
 
 export default AdminDashboardPage;

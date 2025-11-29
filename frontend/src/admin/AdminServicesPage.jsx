@@ -35,6 +35,7 @@ const formatDate = (dateString, includeTime = true) => {
     if (isNaN(date)) return 'N/A';
     const options = { 
         year: 'numeric', month: 'short', day: 'numeric', 
+        // Use `false` if only date is needed, but typically in admin view, time is helpful
         ...(includeTime && { hour: '2-digit', minute: '2-digit', hour12: true })
     };
     return date.toLocaleDateString(undefined, options);
@@ -185,7 +186,7 @@ const ServiceViewModal = ({ show, serviceItem, onClose }) => {
     
     let requirements = [];
     try {
-        // Requirements are stored as a JSON string of file URLs
+        // Requirements are stored as a JSON string of strings/bullet points
         requirements = Array.isArray(serviceItem.requirements_list) 
             ? serviceItem.requirements_list
             : (serviceItem.requirements_list ? JSON.parse(serviceItem.requirements_list) : []);
@@ -241,13 +242,13 @@ const ServiceViewModal = ({ show, serviceItem, onClose }) => {
                             </p>
                         </div>
 
-                        {/* Requirements Section */}
+                        {/* Requirements Section - Adjusted for clearer rendering */}
                         {requirements.length > 0 && (
                             <div style={{ marginTop: '30px', borderTop: '1px solid #E5E7EB', paddingTop: '20px' }}>
                                 <h4 style={{fontSize: '20px', color: '#1F2937', fontWeight: '700', marginBottom: '15px'}}><FileText size={20} style={{ verticalAlign: 'middle', marginRight: '5px' }} /> Requirements List</h4>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
                                     {requirements.map((req, index) => (
-                                        // Assuming requirements are text strings/bullet points for simplicity or file URLs
+                                        // Requirements are simple text strings/bullet points for simplicity
                                         <div key={index} 
                                             style={{ 
                                                 display: 'flex', alignItems: 'center', gap: '8px', 
@@ -256,7 +257,7 @@ const ServiceViewModal = ({ show, serviceItem, onClose }) => {
                                                 fontWeight: '600', transition: 'background-color 0.2s',
                                                 border: '1px solid #BFDBFE'
                                             }}>
-                                            <FileText size={16}/> {req.label || `Requirement ${index + 1}`}
+                                            <FileText size={16}/> {req}
                                         </div>
                                     ))}
                                 </div>
@@ -766,18 +767,30 @@ const ServiceCard = ({ service, onView, onEdit, onDelete }) => {
             marginTop: 'auto',
             paddingTop: '10px',
             borderTop: '1px dashed #E5E7EB',
+            display: 'flex', 
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+        },
+        metaItem: { 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            whiteSpace: 'nowrap',
         },
         actions: {
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center', // Added for vertical alignment
-            gap: '10px',
+            flexDirection: 'column', // Stack children vertically
+            gap: '10px', // Space between the action row and the date row
             padding: '15px 20px 15px',
             borderTop: '1px solid #E5E7EB',
         },
+        actionRow: { // Row containing buttons
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%',
+        },
         actionButton: (color, isIcon = false) => ({
-            // CORRECTED: Set flex to 'auto' for non-icon button to make it content-width, 
-            // instead of flex: 1 (which made it take up all remaining space).
             flex: isIcon ? 0 : 'auto', 
             padding: isIcon ? '8px 12px' : '8px 15px',
             backgroundColor: color,
@@ -794,12 +807,24 @@ const ServiceCard = ({ service, onView, onEdit, onDelete }) => {
             transition: 'background-color 0.2s',
             whiteSpace: 'nowrap',
         }),
-        // ⭐️ NEW STYLE FOR BUTTON GROUP CONTAINER ⭐️
         buttonGroup: {
             display: 'flex',
-            gap: '10px', // Spacing between Edit and Delete
-        }
+            gap: '10px',
+        },
+        // ⭐️ UPDATED STYLE: alignSelf: 'flex-end' pushes it to the right ⭐️
+        postedDateStyle: {
+            fontSize: '12px',
+            color: '#6B7280', 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            alignSelf: 'flex-end', // Pushes the date to the right of the actions container
+            paddingTop: '5px', 
+        },
     };
+
+    // Format the date for display on the card
+    const postedDate = formatDate(service.created_at, false); 
 
     return (
         <div 
@@ -825,35 +850,45 @@ const ServiceCard = ({ service, onView, onEdit, onDelete }) => {
                 <h3 style={styles.cardTitle}>{service.title}</h3>
                 <p style={styles.summary}>{service.description}</p>
                 <div style={styles.meta}>
-                    <Clock size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> 
-                    Available: {service.availability}
+                    <div style={styles.metaItem}>
+                        <Clock size={12} style={{ verticalAlign: 'middle' }}/> 
+                        Available: {service.availability}
+                    </div>
                 </div>
             </div>
 
-            {/* Actions Area: Read More (Content Width), Edit Icon, Delete Icon */}
+            {/* Actions Area: Buttons Row then Posted Date Row */}
             <div style={styles.actions}>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onView(service); }}
-                    style={styles.readMoreButton} 
-                >
-                    <Eye size={16} /> Read More 
-                </button>
-                
-                {/* ⭐️ GROUPED EDIT AND DELETE BUTTONS ⭐️ */}
-                <div style={styles.buttonGroup}> 
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onEdit(service); }}
-                        style={styles.actionButton('#3B82F6', true)} 
+                {/* 1. Action Row (Buttons) */}
+                <div style={styles.actionRow}>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onView(service); }}
+                        style={styles.readMoreButton} 
                     >
-                        <Edit size={16} /> 
+                        <Eye size={16} /> Read More 
                     </button>
+                    
+                    <div style={styles.buttonGroup}> 
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onEdit(service); }}
+                            style={styles.actionButton('#3B82F6', true)} 
+                        >
+                            <Edit size={16} /> 
+                        </button>
 
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(service.id, service.title); }}
-                        style={styles.actionButton('#EF4444', true)} 
-                    >
-                        <Trash2 size={16} />
-                    </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onDelete(service.id, service.title); }}
+                            style={styles.actionButton('#EF4444', true)} 
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* 2. Posted Date Row (Below Buttons, aligned right) */}
+                <div style={styles.postedDateStyle}>
+                    <Calendar size={12} style={{ verticalAlign: 'middle' }}/> 
+                    Posted: {postedDate}
                 </div>
             </div>
         </div>
@@ -880,7 +915,7 @@ const AdminServicesPage = () => {
     // Consistent Styles for the main page layout
     const styles = useMemo(() => ({
         container: { padding: '30px', backgroundColor: '#F9FAFB', minHeight: '100vh' },
-        header: { fontSize: '32px', fontWeight: '800', color: '#1F2937', marginBottom: '10px' },
+        header: { fontSize: '28px', fontWeight: '700', color: '#1F2937', marginBottom: '5px', },
         subHeader: { fontSize: '18px', color: '#6B7280', marginBottom: '30px' },
         controls: { 
             display: 'flex', 
@@ -945,7 +980,16 @@ const AdminServicesPage = () => {
         try {
             // Updated API endpoint to 'admin/services'
             const response = await axios.get(`${API_BASE_URL}/admin/services`);
-            setServices(response.data);
+
+            // IMPLEMENT SORTING: Sort by created_at in descending order (latest first)
+            const sortedServices = response.data.sort((a, b) => {
+                const dateA = new Date(a.created_at);
+                const dateB = new Date(b.created_at);
+                // Sort descending (b - a)
+                return dateB - dateA; 
+            });
+
+            setServices(sortedServices);
         } catch (err) {
             console.error("Failed to fetch services:", err);
             setError('Failed to load service listings. Check server connection and API route (/admin/services).');
@@ -966,7 +1010,6 @@ const AdminServicesPage = () => {
     };
 
     const handleSaveComplete = (savedService) => {
-        // Find if editing (has ID) or adding (no ID in old list)
         setServices(prev => {
             const index = prev.findIndex(n => n.id === savedService.id);
             const serviceWithCorrectDate = { 
@@ -974,14 +1017,22 @@ const AdminServicesPage = () => {
                 // Ensure the date is present for display consistency if API didn't return it
                 created_at: savedService.created_at || new Date().toISOString() 
             };
-
+            
+            let newServices;
             if (index > -1) {
                 // Edit: Replace the old item
-                return prev.map((s, i) => i === index ? serviceWithCorrectDate : s);
+                newServices = prev.map((s, i) => i === index ? serviceWithCorrectDate : s);
             } else {
-                // Add: Prepend the new item (assuming new posts go to the top)
-                return [serviceWithCorrectDate, ...prev];
+                // Add: Prepend the new item
+                newServices = [serviceWithCorrectDate, ...prev];
             }
+
+            // Re-sort the array to ensure the latest service is at the top
+            return newServices.sort((a, b) => {
+                const dateA = new Date(a.created_at);
+                const dateB = new Date(b.created_at);
+                return dateB - dateA;
+            });
         });
         
         setMessageModal({
@@ -1067,7 +1118,6 @@ const AdminServicesPage = () => {
     return (
         <div style={styles.container}>
             <h1 style={styles.header}>Admin Services Management</h1>
-            <p style={styles.subHeader}>Manage the list of services offered by the Barangay.</p>
 
             <div style={styles.controls}>
                 <div style={styles.searchContainer}>

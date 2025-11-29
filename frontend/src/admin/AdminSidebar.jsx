@@ -1,25 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
     LayoutDashboard, Users, MessageSquare, Settings, FileText, 
-    Briefcase, Bell, Newspaper, Phone, Mail, UserCheck // Added UserCheck icon
+    Briefcase, Bell, Newspaper, Phone, Mail, UserCheck 
 } from 'lucide-react'; 
 
-// Removed onLogout prop from component definition
+// Define a style for the NavLink based on active state and hover state
+const getLinkStyle = (path, location, hoveredLink) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '10px 15px',
+    textDecoration: 'none',
+    color: location.pathname.startsWith(path)
+        ? '#1e40af' // Blue-800 for active text
+        : hoveredLink === path
+            ? '#1d4ed8' // Blue-700 for hover text
+            : '#333', // Dark text for default
+    fontWeight: location.pathname.startsWith(path) ? 700 : 500,
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background 0.2s, color 0.2s',
+    backgroundColor: location.pathname.startsWith(path)
+        ? 'rgba(37, 99, 235, 0.1)' // Blue-600 with 10% opacity for active background
+        : hoveredLink === path
+            ? 'rgba(37, 99, 235, 0.05)' // Blue-600 with 5% opacity for hover background
+            : 'transparent',
+});
+
+
 const AdminSidebar = () => {
     const location = useLocation();
+    const [hoveredLink, setHoveredLink] = useState(null); // State for hover effect
 
-    // UPDATED: Added new navigation items matching user-facing pages
     const adminNavItems = [
         { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
         { name: 'Manage Users', path: '/admin/users', icon: Users },
-        // NEW: Manage Officials link added here
         { name: 'Manage Officials', path: '/admin/officials', icon: UserCheck },
         { name: 'Content Management', path: '/admin/content-management', icon: MessageSquare },
         { name: 'Job Listings', path: '/admin/jobs', icon: Briefcase },
     ];
     
-    // NEW SECTION: Management for Public-Facing Content
+    // Updated Content Management paths to allow for nested content links
     const contentNavItems = [
         { name: 'News', path: '/admin/news', icon: Newspaper },
         { name: 'Announcements', path: '/admin/announcements', icon: Bell },
@@ -42,10 +64,9 @@ const AdminSidebar = () => {
                     <NavLink
                         key={item.name}
                         to={item.path}
-                        style={({ isActive }) => ({
-                            ...styles.navLink,
-                            ...(isActive ? styles.navLinkActive : styles.navLinkHover),
-                        })}
+                        style={() => getLinkStyle(item.path, location, hoveredLink)}
+                        onMouseEnter={() => setHoveredLink(item.path)}
+                        onMouseLeave={() => setHoveredLink(null)}
                     >
                         <item.icon size={20} style={styles.navIcon} />
                         {item.name}
@@ -58,85 +79,73 @@ const AdminSidebar = () => {
                     <NavLink
                         key={item.name}
                         to={item.path}
-                        style={({ isActive }) => ({
-                            ...styles.navLink,
-                            ...(isActive ? styles.navLinkActive : styles.navLinkHover),
-                        })}
+                        style={() => getLinkStyle(item.path, location, hoveredLink)}
+                        onMouseEnter={() => setHoveredLink(item.path)}
+                        onMouseLeave={() => setHoveredLink(null)}
                     >
                         <item.icon size={20} style={styles.navIcon} />
                         {item.name}
                     </NavLink>
                 ))}
             </nav>
-
-            {/* Removed the entire footer block which contained the logout button */}
+            {/* Added developer note for consistency */}
+            <p style={styles.developerNote}>Developed by Mawi</p>
         </div>
     );
 };
 
 const styles = {
+    // UPDATED: Adopted colors and shadow from Sidebar.jsx
     sidebar: {
-        width: '290px',
+        width: '270px',
         height: '100vh',
         position: 'fixed',
         top: 0,
         left: 0,
-        backgroundColor: '#1E293B', // Dark Slate Background
-        color: 'white',
-        padding: '20px 0',
-        boxShadow: '4px 0 16px rgba(0, 0, 0, 0.2)',
+        backgroundColor: '#f7f9fc', // Light background from Sidebar.jsx
+        color: '#333', // Dark text color
+        padding: '20px 15px', // Adjusted padding
+        boxShadow: '2px 0 15px rgba(0,0,0,0.1)', // Subtle shadow from Sidebar.jsx
         display: 'flex',
         flexDirection: 'column',
         zIndex: 110,
     },
     logoContainer: {
-        padding: '10px 30px 20px 30px',
+        padding: '10px 15px 20px 15px', // Adjusted padding
         marginBottom: '10px',
-        borderBottom: '1px solid #334155', // Separator below logo
+        borderBottom: '1px solid #e2e8f0', // Light separator (Slate-200)
     },
     logoText: {
         fontSize: '24px',
         fontWeight: '800',
-        color: '#6366F1', // Indigo Accent
+        color: '#2563eb', // Indigo Accent from Sidebar.jsx
     },
     nav: {
         flex: 1,
-        padding: '0 15px',
-        overflowY: 'auto', // Scrollable navigation
+        padding: '0', // Removed inner padding
+        overflowY: 'auto', 
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px', // Added gap between links
     },
     navSectionTitle: {
         fontSize: '11px',
         fontWeight: '700',
-        color: '#94A3B8', // Gray text
-        padding: '15px 15px 5px 15px',
+        color: '#64748b', // Slate-500/Gray-500 text
+        padding: '15px 0px 5px 15px', // Adjusted padding
         letterSpacing: '0.05em',
-        textTransform: 'uppercase', // Title case for section headers
-    },
-    navLink: {
-        display: 'flex',
-        alignItems: 'center',
-        padding: '12px 15px',
-        margin: '5px 0',
-        color: '#E2E8F0', 
-        textDecoration: 'none',
-        fontSize: '15px',
-        fontWeight: '500',
-        borderRadius: '8px',
-        transition: 'background-color 0.2s, color 0.2s',
-    },
-    navLinkHover: {
-        // ... (styles remain as-is)
-    },
-    navLinkActive: {
-        backgroundColor: '#4338CA', // Stronger Indigo for active
-        color: 'white',
-        fontWeight: '600',
-        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)', // Subtle shadow for active item
+        textTransform: 'uppercase', 
     },
     navIcon: {
-        marginRight: '12px',
+        marginRight: '0px', // Icon spacing is handled by gap: '10px' in getLinkStyle
     },
-    // Removed footer, logoutBtn, and logoutIcon styles
+    developerNote: {
+        marginTop: '10px',
+        fontSize: '12px',
+        color: '#64748b',
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
 };
 
 export default AdminSidebar;
