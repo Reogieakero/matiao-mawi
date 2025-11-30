@@ -1032,7 +1032,7 @@ const AdminServicesPage = () => {
         setMessageModal({
             show: true,
             title: 'Success!',
-            body: `Service "${savedService.title}" successfully ${savedService.id ? 'updated' : 'added'}.`,
+            body: `Service successfully ${savedService.id ? 'updated' : 'added'}.`,
             isSuccess: true
         });
         handleCloseAddEditModal();

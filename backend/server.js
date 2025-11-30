@@ -1515,6 +1515,44 @@ app.put('/api/documents/cancel/:applicationId', (req, res) => {
 });
 // =========================================================
 
+app.delete('/api/documents/history/:applicationId', (req, res) => {
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const userEmail = req.body.userEmail; // Passed in the body for verification
+
+    if (isNaN(applicationId) || !userEmail) {
+        return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
+    }
+
+    // FIX APPLIED: Removed 'status = 'Archived'' to prevent status change 
+    // for approved/rejected applications.
+    // The 'is_removed_from_history = TRUE' flag is now the only indicator
+    // that the user has removed it from their view.
+    const SQL_FETCH_HISTORY = `
+        SELECT da.id, da.applicant_name, da.purpose, da.requirements_details, da.requirements_file_paths, 
+        -- *** NEW FIELD: File paths of submitted requirements ***
+        da.payment_method, da.payment_reference_number, da.status, da.application_date, 
+        bd.document_name, bd.fee
+        FROM document_applications da 
+        JOIN barangay_documents bd ON da.document_id = bd.id 
+        WHERE da.user_email = ? 
+        AND da.is_removed_from_history = FALSE /* MODIFICATION: Exclude soft-deleted items */
+        ORDER BY da.application_date DESC 
+    `;
+    
+    db.query(SQL_SOFT_DELETE, [applicationId, userEmail], (err, result) => {
+        if (err) {
+            console.error("Database error soft-deleting document application:", err);
+            return res.status(500).json({ message: 'Failed to remove application from history.' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Application not found or already removed.' });
+        }
+
+        res.status(200).json({ message: 'Application successfully removed from history.' });
+    });
+});
+
 
 // Endpoint for deleting an application
 // Allows deletion if status is 'Pending' or 'Cancelled'
@@ -2823,6 +2861,43 @@ app.get('/api/hotlines', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch hotlines.' });
         }
         res.status(200).json(results);
+    });
+});
+
+
+// =========================================================
+// NEW ENDPOINT: PUT /api/documents/remove-from-history/:applicationId
+// Allows user to soft-delete/remove a document from their history view.
+// This is used for Approved/Rejected/Completed documents.
+// =========================================================
+app.put('/api/documents/remove-from-history/:applicationId', (req, res) => {
+    const applicationId = parseInt(req.params.applicationId, 10);
+    // Use userEmail from the body for authorization, consistent with other document APIs
+    const { userEmail } = req.body; 
+
+    if (isNaN(applicationId) || !userEmail) {
+        return res.status(400).json({ message: 'Invalid application ID or missing user email.' });
+    }
+
+    // SQL to update the soft-delete flag, ensuring it belongs to the user
+    const SQL_SOFT_DELETE = `
+        UPDATE document_applications 
+        SET is_removed_from_history = TRUE, updated_at = NOW()
+        WHERE id = ? AND user_email = ?
+    `;
+
+    db.query(SQL_SOFT_DELETE, [applicationId, userEmail], (err, result) => {
+        if (err) {
+            console.error("Database error removing application from history:", err);
+            return res.status(500).json({ message: 'Failed to remove document from history.' });
+        }
+        
+        if (result.affectedRows === 0) {
+            // Either the application ID doesn't exist or it doesn't belong to the user
+            return res.status(404).json({ message: 'Document application not found or unauthorized.' });
+        }
+        
+        res.status(200).json({ message: 'Document successfully removed from history.' });
     });
 });
 

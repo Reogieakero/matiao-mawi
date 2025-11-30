@@ -76,10 +76,10 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     const modalStyles = {
         backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
         modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)' },
-        icon: { color: isSuccess ? '#10B981' : '#EF4444', marginBottom: '15px' },
+        icon: { color: isSuccess ? '#2563eb' : '#EF4444', marginBottom: '15px' },
         title: { fontSize: '22px', fontWeight: '700', marginBottom: '10px', color: '#1F2937' },
         body: { fontSize: '16px', color: '#4B5563', marginBottom: '25px' },
-        button: { padding: '10px 20px', backgroundColor: '#4F46E5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', transition: 'background-color 0.2s' }
+        button: { padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', transition: 'background-color 0.2s' }
     };
     return (
         <div style={modalStyles.backdrop} onClick={onClose}>
@@ -99,11 +99,11 @@ const DocumentViewModal = ({ show, document, onClose }) => {
     const modalStyles = {
         backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
         modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },
-        header: { fontSize: '28px', fontWeight: '800', color: '#1F2937', marginBottom: '25px', borderBottom: '3px solid #4F46E5', paddingBottom: '10px', display: 'flex', alignItems: 'center' },
+        header: { fontSize: '28px', fontWeight: '800', color: '#1F2937', marginBottom: '25px', borderBottom: '3px solid #1e40af', paddingBottom: '10px', display: 'flex', alignItems: 'center' },
         infoGrid: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '18px', fontSize: '16px' },
         label: { fontWeight: '700', color: '#374151', display: 'flex', alignItems: 'center', gap: '10px' },
         value: { color: '#374151' },
-        sectionTitle: { fontSize: '20px', fontWeight: '700', color: '#4F46E5', marginTop: '30px', marginBottom: '15px', borderBottom: '1px solid #E5E7EB', paddingBottom: '5px' },
+        sectionTitle: { fontSize: '20px', fontWeight: '700', color: '#1e40af', marginTop: '30px', marginBottom: '15px', borderBottom: '1px solid #E5E7EB', paddingBottom: '5px' },
         list: { listStyleType: 'none', marginLeft: '0', paddingLeft: '0' },
         listItem: { marginBottom: '8px' },
         fileLink: { color: '#2563EB', textDecoration: 'none', cursor: 'pointer', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' },
@@ -113,7 +113,7 @@ const DocumentViewModal = ({ show, document, onClose }) => {
         <div style={modalStyles.backdrop} onClick={onClose}>
             <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
                 <div style={modalStyles.header}>
-                    <FileText size={32} style={{ marginRight: '10px' }}/> Request for: {document.documentType}
+                     Request for: {document.documentType}
                 </div>
                 
                 <div style={modalStyles.infoGrid}>
@@ -258,7 +258,7 @@ const SelectFormModal = ({ show, document, onClose, onSelect }) => {
                 <div style={modalStyles.buttonContainer}>
                     <button style={modalStyles.button('#6B7280')} onClick={onClose} disabled={loading}>Cancel</button>
                     <button 
-                        style={modalStyles.button('#4F46E5')} 
+                        style={modalStyles.button('#1e40af')} 
                         onClick={handleSelect} 
                         disabled={loading || !selectedForm} 
                     >
@@ -345,7 +345,7 @@ const UpdateStatusModal = ({ show, document, onClose, onUpdate, onApprove }) => 
                 <div style={modalStyles.buttonContainer}>
                     <button style={modalStyles.button('#6B7280')} onClick={onClose} disabled={loading}>Cancel</button>
                     <button 
-                        style={modalStyles.button(newStatus === 'Approved' ? '#4F46E5' : '#10B981')} 
+                        style={modalStyles.button(newStatus === 'Approved' ? '#1e40af' : '#2563eb')} 
                         onClick={handleSave} 
                         disabled={loading || newStatus === document.status} 
                     >

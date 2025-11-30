@@ -207,7 +207,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const fetchApplicationHistory = async () => {
         if (!userEmail) return;
         try {
-            // This endpoint is updated in server.js to include requirements_file_paths
+            // This endpoint is updated in server.js to include requirements_file_paths and must
+            // now exclude soft-deleted documents (is_removed_from_history = TRUE).
             const response = await fetch(`http://localhost:5000/api/documents/history/${userEmail}`); 
             if (!response.ok) {
                 throw new Error('Failed to fetch application history.');
@@ -267,11 +268,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
     };
 
-    // Function: Execute Delete Application
+    // Function: Execute Delete Application (UPDATED to use soft-delete API)
     const executeDeleteApplication = async (applicationId, documentName) => {
         try {
-            const response = await fetch(`http://localhost:5000/api/documents/delete/${applicationId}`, {
-                method: 'DELETE',
+            // CRITICAL CHANGE: Use PUT method and the new dedicated soft-delete endpoint
+            const response = await fetch(`http://localhost:5000/api/documents/remove-from-history/${applicationId}`, {
+                method: 'PUT', // Changed from 'DELETE' to 'PUT' for consistency with soft-delete logic
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userEmail }), // Send userEmail for security/verification
             });
@@ -279,15 +281,21 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             const data = await response.json();
 
             if (!response.ok) {
-                alert(`Deletion Error: ${data.message || 'Failed to delete application.'}`);
+                alert(`Removal Error: ${data.message || 'Failed to remove application from history.'}`);
             } else {
-                fetchApplicationHistory(); // Refresh history on success
-                setSuccessMessage(`Application ID ${applicationId} for ${documentName} has been PERMANENTLY DELETED.`);
+                
+                // CRITICAL FIX: Update state to remove the item immediately from the UI
+                setApplicationHistory(prevHistory => 
+                    prevHistory.filter(app => app.id !== applicationId)
+                );
+                
+                // UPDATED success message
+                setSuccessMessage(`Application ID ${applicationId} for ${documentName} has been REMOVED from your history.`);
                 setTimeout(() => setSuccessMessage(''), 7000); 
             }
 
         } catch (err) {
-            alert(`Network Error during deletion: ${err.message}`);
+            alert(`Network Error during removal: ${err.message}`);
         }
     };
     
@@ -497,10 +505,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                     )}
 
                                     <div style={styles.historyActions}>
-                                        {(app.status === 'Pending' || app.status === 'Cancelled') && (
+                                        {/* Allow removing from history for Pending, Cancelled, Approved, and Rejected documents */}
+                                        {(app.status === 'Pending' || app.status === 'Cancelled' || app.status === 'Approved' || app.status === 'Rejected') && (
                                             <button 
                                                 style={styles.actionButton('delete')} 
                                                 onClick={() => handleOpenConfirmation('delete', app.id, app.document_name)}
+                                                title="Remove from History"
                                             >
                                                 {/* MODIFICATION: Icon-only delete button */}
                                                 <FiTrash2 size={18} /> 
@@ -510,6 +520,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                             <button 
                                                 style={styles.actionButton('cancel')} 
                                                 onClick={() => handleOpenConfirmation('cancel', app.id, app.document_name)}
+                                                title="Cancel Application"
                                             >
                                                 Cancel
                                             </button>
@@ -635,18 +646,19 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 </div>
             )}
 
-            {/* Confirmation Modal */}
+            {/* Confirmation Modal (UPDATED Text for Soft Delete) */}
             <ConfirmationModal 
                 isOpen={isConfirmModalOpen}
-                title={confirmAction === 'delete' ? 'Confirm Permanent Deletion' : 'Confirm Cancellation'}
+                title={confirmAction === 'delete' ? 'Confirm Document Removal' : 'Confirm Cancellation'}
                 message={
                     confirmAction === 'delete' 
-                        ? `WARNING: This will permanently DELETE your application for ${targetApplication?.name} (ID: ${targetApplication?.id}). This action cannot be undone.`
-                        : `Are you sure you want to CANCEL your application for ${targetApplication?.name} (ID: ${targetApplication?.id})? You can delete it later if needed.`
+                        ? `Are you sure you want to REMOVE your application for ${targetApplication?.name} (ID: ${targetApplication?.id}) from your history? The document will be archived and will no longer appear in your history, but it is NOT permanently deleted from the system database.`
+                        : `Are you sure you want to CANCEL your application for ${targetApplication?.name} (ID: ${targetApplication?.id})? You can remove it from history later if needed.`
                 }
                 onConfirm={handleConfirmAction}
                 onCancel={handleCloseConfirmation}
-                confirmText={confirmAction === 'delete' ? 'Permanently Delete' : 'Yes, Cancel Application'}
+                // UPDATED button text
+                confirmText={confirmAction === 'delete' ? 'Remove from History' : 'Yes, Cancel Application'} 
                 confirmStyle={confirmAction}
             />
             

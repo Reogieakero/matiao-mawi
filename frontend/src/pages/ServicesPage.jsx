@@ -45,9 +45,17 @@ const getCategoryColor = (category) => {
 
 // --- Common Base Styles ---
 const styles = {
-    container: { padding: '40px', maxWidth: '1200px', margin: '0 auto' },
-    header: { fontSize: '32px', fontWeight: '800', color: '#1F2937', marginBottom: '10px' },
-    subHeader: { fontSize: '18px', color: '#6B7280', marginBottom: '30px', borderBottom: '1px solid #E5E7EB', paddingBottom: '15px' },
+    container: { padding: '20px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        fontFamily: 'Arial, sans-serif',},
+    header: {fontSize: '24px',
+        fontWeight: '700',
+        color: '#1e40af',
+        marginBottom: '15px', },
+    subHeader: { color: '#4b5563',
+        marginBottom: '30px',
+        fontSize: '16px',},
     searchContainer: { display: 'flex', justifyContent: 'space-between', marginBottom: '30px' },
     searchInput: {
         padding: '12px 15px', border: '2px solid #E5E7EB', borderRadius: '8px', 

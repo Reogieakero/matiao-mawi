@@ -1,10 +1,10 @@
 // frontend/src/admin/AdminHotlinesPage.jsx
 // This file now uses a Card/Grid layout for displaying hotlines instead of a table.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // ADDED useRef, useCallback for CustomSelect
 import axios from 'axios';
 import { 
-    Search, Trash2, CheckCircle, Plus, Edit, 
+    Search, Trash2, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, // ADDED ChevronDown, ChevronUp for CustomSelect
     Phone, X, Save, XCircle, Volume2, Shield,
     // ADDED ICONS for consistency with public page
     Zap, Stethoscope, Home, HeartHandshake, PhoneCall 
@@ -99,6 +99,201 @@ const baseModalStyles = {
         width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)', 
         position: 'relative', textAlign: 'center'
     }
+};
+
+// ==================================================================================================
+// CustomSelect Component (Copied and adapted from AdminOfficialsPage.jsx for consistent design)
+// ==================================================================================================
+const CustomSelect = ({ label, name, value, options, onChange, required = false, style = {} }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
+    const containerRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
+
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+                setIsFocused(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Handle Keyboard Navigation
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsOpen(true);
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex + 1) % options.length);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex - 1 + options.length) % options.length);
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                const selectedValue = options[activeIndex];
+                if (selectedValue) {
+                    onChange({ target: { name, value: selectedValue } });
+                    setIsOpen(false);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setIsOpen(false);
+                if (containerRef.current) {
+                    containerRef.current.querySelector('button').focus();
+                }
+                break;
+            default:
+                break;
+        }
+    }, [isOpen, options, activeIndex, name, onChange]);
+
+    // Update activeIndex when options or value changes externally
+    useEffect(() => {
+        // Find index, default to -1 if not found
+        const newIndex = options.findIndex(opt => opt === value);
+        setActiveIndex(newIndex > -1 ? newIndex : 0); 
+    }, [options, value]);
+
+    const handleSelect = (selectedValue) => {
+        onChange({ target: { name, value: selectedValue } });
+        setIsOpen(false);
+        if (containerRef.current) {
+            containerRef.current.querySelector('button').focus();
+        }
+    };
+
+    const selectDisplayStyles = {
+        ...baseInputStyle, // Use baseInputStyle from AdminHotlinesPage.jsx
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingRight: '10px',
+        cursor: 'pointer',
+        fontWeight: '500',
+        color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        // Dynamic focus styles (color #6366F1 from AdminOfficialsPage.jsx)
+        borderColor: isFocused || isOpen ? '#6366F1' : '#D1D5DB',
+        boxShadow: isFocused || isOpen ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
+        height: '42px', // Ensure consistent height with input for aesthetics
+    };
+    
+    const listContainerStyles = {
+        position: 'absolute',
+        top: '100%',
+        left: '0',
+        right: '0',
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        marginTop: '4px',
+        borderRadius: '8px', 
+        boxShadow: '0 0 15px -3px rgba(0, 0, 0, 0.1)',
+        border: '1px solid #E5E7EB',
+        maxHeight: '200px',
+        overflowY: 'auto',
+    };
+    
+    const listItemStyles = (index) => ({
+        padding: '10px 15px',
+        fontSize: '15px',
+        color: '#1F2937',
+        cursor: 'pointer',
+        transition: 'background-color 0.1s',
+        backgroundColor: index === activeIndex ? '#F3F4F6' : (options[index] === value ? '#EFF6FF' : 'white'),
+        fontWeight: options[index] === value ? '700' : '400',
+    });
+
+    const handleListHover = (e, index) => {
+        setActiveIndex(index);
+        e.currentTarget.style.backgroundColor = '#F3F4F6';
+    }
+
+    const handleListLeave = (e, index) => {
+        if (options[index] === value) {
+             e.currentTarget.style.backgroundColor = '#EFF6FF'; // Keep highlight for selected item
+        } else {
+             e.currentTarget.style.backgroundColor = 'white';
+        }
+       
+    }
+
+
+    return (
+        <div 
+            ref={containerRef} 
+            style={{ 
+                position: 'relative', 
+                // Allow external styles (baseModalStyles.formGroup) to manage margin 
+                ...style
+            }}
+            onKeyDown={handleKeyDown}
+        >
+            <p style={baseModalStyles.label}>{label} {required ? '*' : ''}</p> 
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => {
+                    // Slight delay to allow list item click to register before focus leaves
+                    setTimeout(() => setIsFocused(false), 150);
+                }}
+                // Hover styles consistent with AdminOfficialsPage.jsx
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = isFocused || isOpen ? '#6366F1' : '#D1D5DB'}
+                style={selectDisplayStyles}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label={`Current ${label}: ${value}`}
+                tabIndex={0}
+            >
+                <span style={{color: value ? '#1F2937' : '#9CA3AF' }}>
+                    {value || `Select ${label}...`}
+                </span>
+                {isOpen ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+            </button>
+
+            {isOpen && (
+                <div style={listContainerStyles} role="listbox">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {options.map((option, index) => (
+                            <li
+                                key={option}
+                                role="option"
+                                aria-selected={option === value}
+                                style={listItemStyles(index)}
+                                onClick={() => handleSelect(option)}
+                                onMouseEnter={(e) => handleListHover(e, index)}
+                                onMouseLeave={(e) => handleListLeave(e, index)}
+                                ref={(el) => {
+                                    if (index === activeIndex && el && isOpen) {
+                                        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                                    }
+                                }}
+                            >
+                                {option}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
 };
 
 // ===========================================
@@ -218,19 +413,16 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                     </div>
 
                     {/* Category */}
+                    {/* Replaced native <select> with CustomSelect for consistent design */}
                     <div style={baseModalStyles.formGroup}>
-                        <label style={baseModalStyles.label}>Category</label>
-                        <select 
+                        <CustomSelect 
+                            label="Category"
                             name="category" 
                             value={formData.category} 
                             onChange={handleChange} 
-                            style={baseModalStyles.select}
+                            options={categories}
                             required
-                        >
-                            {categories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </select>
+                        />
                     </div>
 
                     {/* Description */}
