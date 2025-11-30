@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { FiEye, FiEyeOff, FiMail, FiLock, FiUser } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 
-// --- InputField Component ---
-const InputField = ({ label, type, value, onChange, placeholder }) => {
+// --- InputField Component (No change needed here) ---
+const InputField = ({ label, type, value, onChange, placeholder, onFocus, onBlur }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const isPassword = type === "password";
+  const isPassword = type === "password" || label.includes("Password");
   const inputType = isPassword && showPassword ? "text" : type;
 
   const renderIcon = () => {
@@ -29,6 +29,8 @@ const InputField = ({ label, type, value, onChange, placeholder }) => {
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          onFocus={onFocus}
+          onBlur={onBlur}
           style={styles.input}
         />
         {isPassword && (
@@ -46,6 +48,31 @@ const InputField = ({ label, type, value, onChange, placeholder }) => {
   );
 };
 
+// --- Password Validation Utility ---
+const validatePassword = (password) => {
+  const errors = [];
+
+  if (password.length < 8) {
+    errors.push("at least 8 characters");
+  }
+
+  // Check for at least one letter (uppercase or lowercase)
+  if (!/[a-zA-Z]/.test(password)) {
+    errors.push("at least 1 letter (uppercase or lowercase)");
+  }
+
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    errors.push("at least 1 special character (!@#$...)");
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push("at least 1 number");
+  }
+
+  return errors;
+};
+
+
 // --- CreateAccount Main Component ---
 export default function CreateAccount() {
   const navigate = useNavigate();
@@ -55,16 +82,44 @@ export default function CreateAccount() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fadeIn, setFadeIn] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // New State for validation and focus
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
-  // The API URL remains correct: backend is on 3000
+
+  // The API URL remains correct: backend is on 5000
   const API_URL = "http://localhost:5000/api/register"; 
 
   useEffect(() => {
     setFadeIn(true);
   }, []);
 
+  useEffect(() => {
+    // Real-time validation check whenever password changes
+    if (password.length > 0 || isPasswordFocused) {
+      const errors = validatePassword(password);
+      setPasswordErrors(errors);
+    } else {
+      setPasswordErrors([]);
+    }
+  }, [password, isPasswordFocused]);
+
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+  };
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 1. Client-side Validation Checks
+    const errors = validatePassword(password);
+    if (errors.length > 0) {
+      alert(`Password is not strong enough. Missing requirements: ${errors.join(', ')}`);
+      return;
+    }
 
     if (password !== confirmPassword) {
       alert("Passwords do not match!");
@@ -74,7 +129,7 @@ export default function CreateAccount() {
     setLoading(true);
 
     try {
-      // 1. Send data to the backend API
+      // 2. Send data to the backend API
       const response = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -85,28 +140,35 @@ export default function CreateAccount() {
 
       const data = await response.json();
 
-      // 2. Handle the server's response
+      // 3. Handle the server's response
       if (response.ok) {
-        alert(data.message || "Account created successfully!");
+        // REMOVED: alert(data.message || "Account created successfully!");
+        
+        // Clean up form state
         setName('');
         setEmail('');
         setPassword('');
         setConfirmPassword('');
-        navigate("/login"); 
+        
+        // --- CRUCIAL CHANGE: REDIRECT TO VERIFICATION PAGE AND PASS EMAIL ---
+        navigate('/verify', { state: { email: data.userEmail || email } }); 
+        // Note: Using 'email' as a fallback if 'data.userEmail' is not provided by the API
+        // --------------------------------------------------------------------
+        
       } else {
         // Display error message from the server (e.g., "Email already exists")
         alert(`Registration failed: ${data.message || 'Please try again.'}`);
       }
     } catch (error) {
       console.error("Network or API call error:", error);
-      // The alert you saw in the screenshot comes from this line:
       alert("Could not connect to the server. Please check the backend service."); 
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormValid = name && email && password && confirmPassword;
+  const isPasswordValid = passwordErrors.length === 0;
+  const isFormValid = name && email && password && confirmPassword && isPasswordValid;
 
   return (
     <div style={styles.page}>
@@ -147,9 +209,26 @@ export default function CreateAccount() {
             label="Password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             placeholder="Enter your password"
+            onFocus={() => setIsPasswordFocused(true)}
+            onBlur={() => setIsPasswordFocused(false)}
           />
+          
+          {/* Password Validation Display (New Section) */}
+          {password.length > 0 && (
+            <div style={styles.validationBox}>
+              <p style={styles.validationTitle}>Password must contain:</p>
+              <ul style={styles.validationList}>
+                {['at least 8 characters', 'at least 1 letter (uppercase or lowercase)', 'at least 1 special character (!@#$...)', 'at least 1 number'].map((req) => (
+                  <li key={req} style={{ color: passwordErrors.includes(req) ? '#dc3545' : '#28a745' }}>
+                    {passwordErrors.includes(req) ? '' : ''} {req}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <InputField
             label="Confirm Password"
             type="password"
@@ -181,7 +260,7 @@ export default function CreateAccount() {
 }
 
 // ------------------------------------------------------------------
-// ---------- STYLES (Your original styles) ----------
+// ---------- STYLES (Your original styles + New styles for validation) ----------
 // ------------------------------------------------------------------
 const styles = {
   page: {
@@ -189,6 +268,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100vh",
+    // NOTE: This require statement for the background image path might need adjustment
+    // based on your exact file structure and build tool configuration.
     backgroundImage: `url(${require("../assets/philippine-barangay-community-hall.jpg")})`, 
     backgroundSize: "cover",
     backgroundPosition: "center",
@@ -324,5 +405,29 @@ const styles = {
     textDecoration: "none",
     fontWeight: "600",
     cursor: "pointer",
+  },
+  // --- New styles for validation feedback ---
+  validationBox: {
+    padding: "10px",
+    marginBottom: "18px",
+    marginTop: "-10px", // Adjusting space
+    borderRadius: "8px",
+    backgroundColor: "#f8f9fa",
+    border: "1px solid #e9ecef",
+  },
+  validationTitle: {
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: "6px",
+    padding: 0,
+    margin: 0,
+  },
+  validationList: {
+    listStyle: "none",
+    padding: 0,
+    margin: 0,
+    fontSize: "12px",
+    lineHeight: "1.6",
   },
 };

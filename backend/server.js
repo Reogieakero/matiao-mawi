@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const multer = require('multer'); 
 const path = require('path'); 
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 
 const { PDFDocument } = require('pdf-lib');
 
@@ -21,6 +22,23 @@ app.use(cors({
     credentials: true,
 }));
 app.use(bodyParser.json());
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: false, // Use false for port 587 (TLS/STARTTLS)
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS, // This is your Gmail App Password
+    },
+});
+// ------------------------------------
+
+// --- Utility Function to Generate Code ---
+const generateVerificationCode = () => {
+    // Generates a random 6-digit number
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 const formatDateForForm = (dateString) => {
     if (!dateString) return '';
@@ -279,27 +297,123 @@ app.post('/api/upload-requirements', (req, res) => {
     });
 });
 
+// server.js (Replace your current app.post('/api/register', ...) with this)
+
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
 
     try {
-        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-        const SQL_INSERT = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
-        db.query(SQL_INSERT, [name, email, hashedPassword], (err, result) => {
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS); // Use SALT_ROUNDS from .env
+        // 1. Generate a verification code
+        const verificationCode = generateVerificationCode();
+
+        // 2. Insert user data and verification code into the database
+        const SQL_INSERT = `
+            INSERT INTO users (name, email, password, verification_code, is_verified) 
+            VALUES (?, ?, ?, ?, 0)
+        `; 
+        
+        db.query(SQL_INSERT, [name, email, hashedPassword, verificationCode], (err, result) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') {
                     return res.status(409).json({ message: 'Email already exists.' });
                 }
-                console.error(err);
+                console.error("Database error during registration:", err);
                 return res.status(500).json({ message: 'Database error during registration.' });
             }
-            res.status(201).json({ message: 'Account created successfully!', userId: result.insertId });
+            
+            // 3. Send the verification email
+            const mailOptions = {
+                from: process.env.SMTP_USER,
+                to: email,
+                subject: 'Your Account Verification Code',
+                html: `
+                    <h1>Welcome to Mawii!</h1>
+                    <p>Thank you for registering. Please use the following code to verify your account:</p>
+                    <h2 style="color: #2563eb;">${verificationCode}</h2>
+                    <p>This code is valid for a short time.</p>
+                `,
+            };
+
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error("Error sending verification email:", error);
+                    // Account is created in DB, but email failed. Inform user.
+                    return res.status(500).json({ 
+                        message: 'Account created, but failed to send verification email. Please check your email address and try again later.', 
+                        userId: result.insertId 
+                    });
+                }
+                console.log('Verification email sent:', info.response);
+                
+                // 4. Send success response
+                res.status(201).json({ 
+                    message: 'Account created successfully! A verification code has been sent to your email.', 
+                    userId: result.insertId,
+                    userEmail: email 
+                });
+            });
+
         });
     } catch (err) {
-        console.error(err);
+        console.error("Server error:", err);
         res.status(500).json({ message: 'Server error during registration.' });
     }
+});
+
+app.post('/api/verify-account', (req, res) => {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+        return res.status(400).json({ message: 'Email and verification code are required.' });
+    }
+
+    // 1. Check if the code matches the stored code for the given email
+    const SQL_CHECK = `
+        SELECT verification_code, is_verified 
+        FROM users 
+        WHERE email = ?
+    `;
+
+    db.query(SQL_CHECK, [email], (err, results) => {
+        if (err) {
+            console.error("Database error during verification check:", err);
+            return res.status(500).json({ message: 'Server error during verification.' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const user = results[0];
+
+        if (user.is_verified) {
+             return res.status(400).json({ message: 'Account is already verified.' });
+        }
+
+        if (user.verification_code === code) {
+            // 2. Code is correct! Update the user's status to verified (is_verified = 1)
+            const SQL_UPDATE = `
+                UPDATE users 
+                SET is_verified = 1, verification_code = NULL 
+                WHERE email = ?
+            `;
+            
+            db.query(SQL_UPDATE, [email], (updateErr, updateResult) => {
+                if (updateErr) {
+                    console.error("Database error during verification update:", updateErr);
+                    return res.status(500).json({ message: 'Failed to complete verification.' });
+                }
+
+                // 3. Success response
+                res.status(200).json({ message: 'Account successfully verified! You can now log in.' });
+            });
+        } else {
+            // 4. Code is incorrect
+            res.status(401).json({ message: 'Invalid verification code.' });
+        }
+    });
 });
 
 app.post('/api/login', async (req, res) => {

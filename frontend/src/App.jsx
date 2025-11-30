@@ -17,12 +17,16 @@ import HotlinesPage from './pages/HotlinesPage';
 import FindJobsPage from './pages/FindJobsPage'; 
 import AboutPage from './pages/AboutPage'; 
 import ContactPage from './pages/ContactPage'; 
-import AdminUsersPage from './admin/AdminUsersPage';
+
+// --- CRITICAL FIX: Ensure the import path for the new Verification Page is correct ---
+// Assuming VerificationPage.jsx was saved as 'VerificationPage.jsx' and should be imported as 'VerifyAccountPage'
+import VerificationPage from './pages/VerifyAccountPage'; 
 
 // --- IMPORTS FOR ADMIN ---
 import AdminLayout from './admin/AdminLayout';
 import AdminLoginPage from './admin/AdminLoginPage';
 import AdminDashboardPage from './admin/AdminDashboardPage';
+import AdminUsersPage from './admin/AdminUsersPage';
 import AdminOfficialsPage from './admin/AdminOfficialsPage'; 
 import AdminContentManagementPage from './admin/AdminContentManagementPage';
 import AdminJobsPage from './admin/AdminJobsPage';
@@ -31,9 +35,6 @@ import AdminAnnouncementsPage from './admin/AdminAnnouncementsPage';
 import AdminDocumentsPage from './admin/AdminDocumentsPage';
 import AdminServicesPage from './admin/AdminServicesPage';
 import AdminHotlinesPage from './admin/AdminHotlinesPage';
-
-
-
 
 // --- Placeholder Component for missing pages ---
 const Placeholder = ({ title }) => (
@@ -233,6 +234,7 @@ const App = () => {
                                         element={<FindJobsPage userName={currentUser?.name} userEmail={currentUser?.email} profilePictureUrl={currentUser?.profilePictureUrl} />} 
                                     />
                                     
+                                    
                                     {/* Default Route */}
                                     <Route path="/*" element={<Navigate to="/login" replace />} />
                                 </Routes>
@@ -268,6 +270,9 @@ const App = () => {
                     {/* User Authentication Routes */}
                     <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
                     <Route path="/signup" element={<CreateAccountPage />} />
+                    
+                    {/* NEW VERIFICATION ROUTE: Use the path '/verify' as implemented in CreateAccountPage */}
+                    <Route path="/verify" element={<VerificationPage />} /> 
                     
                     {/* Protected User Routes: Redirects to /login if not logged in */}
                     <Route path="/*" element={isLoggedIn ? <AppLayout /> : <Navigate to="/login" replace />} />
