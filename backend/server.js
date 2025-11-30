@@ -48,16 +48,17 @@ const formatDateForForm = (dateString) => {
     });
 };
 
+const uploadDir = path.join(__dirname, '..', 'public', 'media'); 
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 
 // Serve static files (like uploaded requirements)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Serve PDF templates (assuming they are in a 'templates' folder)
 app.use('/forms', express.static(path.join(__dirname, 'forms')));
 // --- MULTER CONFIGURATION ---
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
 
 // Generic storage configuration (used by /api/upload-media for posts/jobs)
 const storage = multer.diskStorage({
@@ -1702,21 +1703,19 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
 
     const SQL_FETCH_HISTORY = `
         SELECT 
-            da.id, 
-            da.applicant_name, 
-            da.purpose, 
-            da.requirements_details, 
-            da.requirements_file_paths, -- *** NEW FIELD: File paths of submitted requirements ***
-            da.payment_method, 
-            da.payment_reference_number, 
-            da.status, 
-            da.application_date, 
-            bd.document_name, 
-            bd.fee
-        FROM document_applications da
-        JOIN barangay_documents bd ON da.document_id = bd.id
-        WHERE da.user_email = ?
-        ORDER BY da.application_date DESC
+        da.id, 
+        bd.document_name, 
+        da.application_date, 
+        da.status, 
+        da.purpose, 
+        da.requirements_file_paths, 
+        da.payment_reference_number, 
+        da.is_removed_from_history,
+        da.generated_path  -- <--- ADD THIS LINE
+    FROM document_applications da 
+    JOIN barangay_documents bd ON da.document_id = bd.id 
+    WHERE da.user_email = ? AND da.is_removed_from_history = FALSE
+    ORDER BY da.application_date DESC
     `;
 
     db.query(SQL_FETCH_HISTORY, [userEmail], (err, results) => {
@@ -2716,7 +2715,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         `;
         
         const applicationData = await new Promise((resolve, reject) => {
-            // Replace db.query with your actual database call method
             db.query(SQL_SELECT, [applicationId], (err, result) => {
                 if (err) return reject(err);
                 if (result.length === 0) return reject(new Error('Application data not found.'));
@@ -2724,13 +2722,13 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // Resolve file path (assuming templates are in a 'forms' directory)
+        // Resolve file path (assuming templates are in a 'forms' directory in the root)
         const templatePath = path.join(__dirname, 'forms', templateFileName); 
         if (!fs.existsSync(templatePath)) {
             return res.status(404).json({ message: `PDF template file not found: ${templateFileName}` });
         }
 
-        // 2. LOAD AND FILL PDF, THEN FLATTEN
+        // 2. LOAD, FILL, AND FLATTEN PDF
         const templateBytes = fs.readFileSync(templatePath);
         const pdfDoc = await PDFDocument.load(templateBytes);
         const form = pdfDoc.getForm();
@@ -2741,36 +2739,28 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const documentPurpose = applicationData.purpose; 
         const contactNumber = applicationData.contact || 'N/A';
         
-        const currentDay = new Date().getDate().toString();
-        const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long' });
-        const currentYear = new Date().getFullYear().toString();
+        const currentDate = new Date();
+        const currentDay = currentDate.getDate().toString();
+        const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long' });
+        const currentYear = currentDate.getFullYear().toString();
 
-        // --- PDF FIELD MAPPING LOGIC (CRITICAL SECTION) ---
-        // Based on your diagnostic run: ['text_1vhhu', 'text_2topb', ...]
+        // --- PDF FIELD MAPPING LOGIC (Keep this identical to your existing snippet) ---
         const fieldsToFill = {
-            // Applicant Details
-            'text_1vhhu': residentName,             // Name of Applicant (VERIFY)
-            'text_2topb': residentAddress,          // Address (VERIFY)
-            'text_3mtyv': documentPurpose,          // Purpose / Reason (VERIFY)
-            'text_11imkg': contactNumber,           // Contact Number (Assumed)
-
-            // Date of Issue
-            'text_4lkmy': currentDay,               // Day 
-            'text_5nfmg': currentMonth,             // Month 
-            'text_6lnpt': currentYear,              // Year 
-            
-            // Barangay / Government Details (Static or Official Data)
-            'text_7cpbu': 'MAWII',                  // Barangay Name (Static)
-            'text_8ieis': 'Barangay Secretary Name',// Prepared By / Secretary (Update with actual official)
-            'text_9qual': 'Barangay Captain Name',  // Approved By / Captain (Update with actual official)
-            'text_10mkgy': 'Davao City',            // Municipality/City (Static)
-            
-            // Remaining Fields 
-            'text_12ccdt': 'N/A',                   // Placeholder for misc ID/Number
-            'text_13raqg': 'N/A',                   // Placeholder for misc Date/Ref
+            'text_1vhhu': residentName, 
+            'text_2topb': residentAddress,
+            'text_3mtyv': documentPurpose,
+            'text_11imkg': contactNumber,
+            'text_4lkmy': currentDay,
+            'text_5nfmg': currentMonth,
+            'text_6lnpt': currentYear,
+            'text_7cpbu': 'MAWII',
+            'text_8ieis': 'Barangay Secretary Name',
+            'text_9qual': 'Barangay Captain Name',
+            'text_10mkgy': 'Davao City',
+            'text_12ccdt': 'N/A',
+            'text_13raqg': 'N/A',
         };
         
-        // Apply the values to the PDF fields
         for (const [fieldName, value] of Object.entries(fieldsToFill)) {
             try {
                 const field = form.getTextField(fieldName);
@@ -2778,45 +2768,48 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
                     field.setText(value.toString());
                 }
             } catch (e) {
-                // Log and ignore fields not found in this specific template
-                console.warn(`PDF field '${fieldName}' not found or error setting: ${e.message}`); 
+                // console.warn(`PDF field '${fieldName}' not found or error setting: ${e.message}`); 
             }
         }
         
-        // ⭐ FLATTEN THE FIELDS to prevent further user editing ⭐
-        form.flatten(); 
-
-        // Finalize the PDF
+        form.flatten(); // ⭐ FLATTEN THE FIELDS ⭐
         const pdfBytes = await pdfDoc.save();
 
-        // 3. UPDATE APPLICATION STATUS TO 'Approved'
-        const SQL_UPDATE_STATUS = `
+        // 3. SAVE FILE TO DISK, UPDATE STATUS & PATH IN DATABASE 
+        const docType = getDocumentName(applicationData.document_id);
+        const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
+        const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
+
+        const filePath = path.join(uploadDir, fileName);
+        // Publicly accessible path used in the DB. NOTE: No host/port here, but you must ensure
+        // you prepend it on the frontend, or save the full URL (recommended).
+        // Since you used '/media/', we'll use that, and assume the frontend prepends the host.
+        const generatedPathUrl = `/media/${fileName}`; 
+
+        fs.writeFileSync(filePath, pdfBytes); 
+        console.log(`Successfully saved PDF to: ${filePath}`);
+
+        // Update the database with the Status AND the Path
+        const SQL_UPDATE_STATUS_AND_PATH = `
             UPDATE document_applications 
-            SET status = 'Approved', updated_at = NOW() 
-            WHERE id = ? AND status != 'Approved'
+            SET status = 'Approved', generated_path = ?, updated_at = NOW() 
+            WHERE id = ?
         `;
+
         await new Promise((resolve, reject) => {
-            // Replace db.query with your actual database call method
-            db.query(SQL_UPDATE_STATUS, [applicationId], (err, result) => {
+            db.query(SQL_UPDATE_STATUS_AND_PATH, [generatedPathUrl, applicationId], (err, result) => {
                 if (err) return reject(err);
                 resolve(result);
             });
         });
 
         // 4. SERVE THE FILE FOR DOWNLOAD
-        const docType = getDocumentName(applicationData.document_id);
-        const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        // Use the last name for the filename
-        const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
-        
-        const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
-
-        // Set headers for file download
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Length', pdfBytes.length);
 
-        // Send the generated PDF content
+        // Send the generated PDF content to trigger the download in the Admin's browser
         res.send(Buffer.from(pdfBytes));
 
     } catch (error) {
@@ -2828,7 +2821,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         }
     }
 });
-
 
 // =========================================================
 // --- NEW API ENDPOINTS FOR ADMIN SERVICES MANAGEMENT ---

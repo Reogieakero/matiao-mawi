@@ -238,7 +238,7 @@ const SelectFormModal = ({ show, document, onClose, onSelect }) => {
                     <HardDrive size={24}/> Select Form Template
                 </div>
                 <div style={modalStyles.subHeader}>
-                    Approve Request for: **{document.fullName}** | Document Type: **{document.documentType}**
+                    Approve Request for: {document.fullName} | Document Type: {document.documentType}
                 </div>
 
                 <label style={modalStyles.label}>
@@ -326,7 +326,7 @@ const UpdateStatusModal = ({ show, document, onClose, onUpdate, onApprove }) => 
     return (
         <div style={modalStyles.backdrop} onClick={onClose}>
             <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
-                <div style={modalStyles.header}>Update Status for Document #{document.id}</div>
+                <div style={modalStyles.header}>Update Status for Document {document.id}</div>
                 <div style={modalStyles.subHeader}>Applicant: {document.fullName} | Current Status: <span style={styles.statusBadge(document.status)}>{document.status}</span></div>
 
                 <label style={modalStyles.label}>
@@ -409,7 +409,7 @@ const AdminDocumentsPage = () => {
             setMessageModal({
                 show: true,
                 title: 'Success!',
-                body: `Document #${documentId} status updated to **${newStatus}**.`,
+                body: `Document #${documentId} status updated to ${newStatus}.`,
                 isSuccess: true,
             });
         } catch (err) {
@@ -481,8 +481,8 @@ const AdminDocumentsPage = () => {
             
             setMessageModal({
                 show: true,
-                title: 'Document Approved & Generated! ✅',
-                body: `Document **#${documentId}** approved. File **${fileName}** downloaded successfully.`,
+                title: 'Document Approved & Generated! ',
+                body: `Document ${documentId} approved. File ${fileName} downloaded successfully.`,
                 isSuccess: true,
             });
 
@@ -740,7 +740,7 @@ const AdminDocumentsPage = () => {
                 onClose={() => setMessageModal({ ...messageModal, show: false })}
             />
         </div>
-    );
+    )
 };
 
 // Simple CSS for the spinner animation
