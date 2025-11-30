@@ -462,7 +462,6 @@ const AddOfficialModal = ({ show, onHide, onOfficialAdded }) => {
         <div style={modalStyles.backdrop}>
             <div style={{...modalStyles.modal, width: '90%', maxWidth: '600px'}}>
                 <h3 style={modalStyles.header}>
-                    <UserPlus size={24} style={{ marginRight: '10px', color: '#6366F1' }} />
                     Add New Barangay Official
                 </h3>
                 <form onSubmit={handleSubmit}>

@@ -322,12 +322,10 @@ const styles = {
         flexGrow: 1,
     },
     heading: {
+        fontSize: '24px', 
+        fontWeight: '700', 
         color: '#1e40af', 
-        marginBottom: '20px', 
-        borderBottom: '2px solid #bfdbfe', 
-        paddingBottom: '10px',
-        display: 'flex',
-        alignItems: 'center',
+        marginBottom: '15px', 
     },
     filterContainer: {
         display: 'flex',

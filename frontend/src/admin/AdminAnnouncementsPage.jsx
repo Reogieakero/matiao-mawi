@@ -1,9 +1,9 @@
 // frontend/src/admin/AdminAnnouncementPage.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // ADDED useRef, useCallback for CustomSelect
 import axios from 'axios';
 import { 
-    Search, Trash2, CheckCircle, Plus, Edit, 
+    Search, Trash2, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, // ADDED ChevronDown, ChevronUp for CustomSelect
     Bell, Calendar, User, Users, XCircle, Clock, Image, FileText,
     Globe, Zap, Activity, Eye, Volume2 // Volume2 is a good icon for Announcement
 } from 'lucide-react';
@@ -28,6 +28,18 @@ const TARGET_AUDIENCE_OPTIONS = [
     'Whole Barangay', 'Purok / Zone', 'Senior Citizens', 
     'Youth', 'Business Owners', 'General Public', 'N/A'
 ];
+
+// --- Base Input Style (EXTRACTED from AnnouncementFormModal for CustomSelect) ---
+const baseInputStyle = { 
+    padding: '12px', border: '1px solid #D1D5DB', borderRadius: '8px', 
+    fontSize: '15px', boxSizing: 'border-box', width: '100%',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+};
+
+// --- Base Label Style (EXTRACTED from AnnouncementFormModal for CustomSelect) ---
+const baseLabelStyle = { 
+    fontSize: '15px', fontWeight: '700', color: '#374151', marginBottom: '8px' 
+};
 
 // --- Utility Function: Format Date (Copied from News Page) ---
 const formatDate = (dateString, includeTime = true) => {
@@ -88,6 +100,203 @@ const baseViewModalStyles = {
         fontSize: '16px', transition: 'background-color 0.2s', width: '100%' 
     }
 };
+
+// ==================================================================================================
+// CustomSelect Component (COPIED from AdminHotlinesPage.jsx for consistent design)
+// ==================================================================================================
+const CustomSelect = ({ label, name, value, options, onChange, required = false, style = {} }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    // Find initial active index
+    const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value)); 
+    const containerRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
+    
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+                setIsFocused(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Handle Keyboard Navigation
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsOpen(true);
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex + 1) % options.length);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActiveIndex(prevIndex => (prevIndex - 1 + options.length) % options.length);
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                const selectedValue = options[activeIndex];
+                if (selectedValue) {
+                    onChange({ target: { name, value: selectedValue } });
+                    setIsOpen(false);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setIsOpen(false);
+                if (containerRef.current) {
+                    containerRef.current.querySelector('button').focus();
+                }
+                break;
+            default:
+                break;
+        }
+    }, [isOpen, options, activeIndex, name, onChange]);
+
+    // Update activeIndex when options or value changes externally
+    useEffect(() => {
+        const newIndex = options.findIndex(opt => opt === value);
+        setActiveIndex(newIndex > -1 ? newIndex : 0); 
+    }, [options, value]);
+
+    const handleSelect = (selectedValue) => {
+        onChange({ target: { name, value: selectedValue } });
+        setIsOpen(false);
+        if (containerRef.current) {
+            containerRef.current.querySelector('button').focus();
+        }
+    };
+
+    const selectDisplayStyles = {
+        ...baseInputStyle, 
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingRight: '10px',
+        cursor: 'pointer',
+        fontWeight: '500',
+        color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        // Dynamic focus styles
+        borderColor: isFocused || isOpen ? '#6366F1' : '#D1D5DB',
+        boxShadow: isFocused || isOpen ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
+        height: '42px', // Consistent height
+        backgroundColor: 'white',
+    };
+    
+    const listContainerStyles = {
+        position: 'absolute',
+        top: '100%',
+        left: '0',
+        right: '0',
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        marginTop: '4px',
+        borderRadius: '8px', 
+        boxShadow: '0 0 15px -3px rgba(0, 0, 0, 0.1)',
+        border: '1px solid #E5E7EB',
+        maxHeight: '200px',
+        overflowY: 'auto',
+    };
+    
+    const listItemStyles = (index) => ({
+        padding: '10px 15px',
+        fontSize: '15px',
+        color: '#1F2937',
+        cursor: 'pointer',
+        transition: 'background-color 0.1s',
+        backgroundColor: index === activeIndex ? '#F3F4F6' : (options[index] === value ? '#EFF6FF' : 'white'),
+        fontWeight: options[index] === value ? '700' : '400',
+    });
+
+    const handleListHover = (e, index) => {
+        setActiveIndex(index);
+        e.currentTarget.style.backgroundColor = '#F3F4F6';
+    }
+
+    const handleListLeave = (e, index) => {
+        if (options[index] === value) {
+             e.currentTarget.style.backgroundColor = '#EFF6FF'; 
+        } else {
+             e.currentTarget.style.backgroundColor = 'white';
+        }
+       
+    }
+
+
+    return (
+        <div 
+            ref={containerRef} 
+            style={{ 
+                position: 'relative', 
+                ...style
+            }}
+            onKeyDown={handleKeyDown}
+        >
+            <p style={baseLabelStyle}>{label} {required ? '*' : ''}</p> 
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => {
+                    // Use a slight timeout to allow list item click to register before closing
+                    setTimeout(() => setIsFocused(false), 150); 
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = isFocused || isOpen ? '#6366F1' : '#D1D5DB'}
+                style={selectDisplayStyles}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label={`Current ${label}: ${value || `Select ${label}...`}`}
+                tabIndex={0}
+            >
+                <span style={{color: value ? '#1F2937' : '#9CA3AF' }}>
+                    {value || `Select ${label}...`}
+                </span>
+                {isOpen ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+            </button>
+
+            {isOpen && (
+                <div style={listContainerStyles} role="listbox">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {options.map((option, index) => (
+                            <li
+                                key={option}
+                                role="option"
+                                aria-selected={option === value}
+                                style={listItemStyles(index)}
+                                onClick={() => handleSelect(option)}
+                                onMouseEnter={(e) => handleListHover(e, index)}
+                                onMouseLeave={(e) => handleListLeave(e, index)}
+                                ref={(el) => {
+                                    if (index === activeIndex && el && isOpen) {
+                                        // Scroll to active element on open
+                                        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                                    }
+                                }}
+                            >
+                                {option}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+};
+// ==================================================================================================
+
 
 // --- View Announcement Modal (Modified from NewsViewModal) ---
 const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
@@ -285,8 +494,8 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
                 <Trash2 size={32} style={{ color: '#EF4444', marginBottom: '15px' }} />
                 <h3 style={modalStyles.title}>Confirm PERMANENT Deletion</h3>
                 <p style={modalStyles.body}>
-                    Are you sure you want to **permanently delete** this announcement: "{title}"? 
-                    This action **cannot be undone** and will remove it from the system entirely.
+                    Are you sure you want to permanently delete this announcement: "{title}"? 
+                    This action cannot be undone and will remove it from the system entirely.
                 </p>
                 <div style={modalStyles.buttonGroup}>
                     <button onClick={onCancel} style={modalStyles.cancelButton}>Cancel</button>
@@ -427,18 +636,6 @@ const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
 
     if (!show) return null;
 
-    // Use the same styles as NewsFormModal
-    const baseInputStyle = { 
-        padding: '12px', border: '1px solid #D1D5DB', borderRadius: '8px', 
-        fontSize: '15px', boxSizing: 'border-box', width: '100%',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        // In a real project, use styled-components or CSS for pseudo-classes
-        // ':focus': { 
-        //     borderColor: '#6366F1',
-        //     boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
-        //     outline: 'none',
-        // }
-    };
     
     const styles = {
         backdrop: {
@@ -446,25 +643,57 @@ const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
             backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 1000, 
             display: 'flex', justifyContent: 'center', alignItems: 'center'
         },
+        // MODIFIED: Reverted background to white, increased padding
         modal: {
-            backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', 
-            width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto',
-            boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)', position: 'relative'
+            backgroundColor: '#FFFFFF', 
+            padding: '40px', // Increased padding for spacious feel
+            borderRadius: '16px', 
+            width: '90%', maxWidth: '900px', maxHeight: '95vh', overflowY: 'auto',
+            boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)', 
+            position: 'relative'
         },
+        // IMPROVED TYPOGRAPHY: Header style
         header: { 
-            margin: '0 0 25px 0', fontSize: '28px', color: '#1F2937', 
-            borderBottom: '2px solid #F3F4F6', paddingBottom: '15px' 
+            fontSize: '28px', fontWeight: '700', margin: 0, color: '#1F2937',
+            paddingBottom: '20px' 
         },
-        form: { display: 'flex', flexDirection: 'column', gap: '20px' },
-        formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
-        inputGroup: { display: 'flex', flexDirection: 'column' },
-        label: { fontSize: '15px', fontWeight: '700', color: '#374151', marginBottom: '8px' },
-        input: baseInputStyle,
-        select: baseInputStyle,
+        // NEW: Style for subsequent section headers (uses a top border for clean separation)
+        sectionHeader: { 
+            fontSize: '22px', 
+            fontWeight: '700', 
+            color: '#1F2937', 
+            marginBottom: '20px', 
+            paddingTop: '30px', // Spacing above the border
+            borderTop: '1px solid #E5E7EB',
+            marginTop: '10px' 
+        },
+        // NEW: Style for the first section header (no top border)
+        firstSectionHeader: {
+            fontSize: '22px', 
+            fontWeight: '700', 
+            color: '#1F2937', 
+            marginBottom: '20px', 
+            paddingTop: '0', 
+            marginTop: '0'
+        },
+        // Removed sectionContainer style
+        
+        formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }, // Increased grid gap
+        inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' }, // Added small gap in group
+        label: baseLabelStyle, 
+        input: {
+            ...baseInputStyle,
+            // Set explicit height to match CustomSelect for perfect horizontal alignment
+            height: '42px' 
+        },
         textarea: { ...baseInputStyle, minHeight: '150px', resize: 'vertical' },
         fileSection: { 
-            border: '2px dashed #D1D5DB', padding: '20px', borderRadius: '12px', 
-            marginTop: '10px', backgroundColor: '#F9FAFB' 
+            // MODIFIED: Subtle solid border instead of dashed, keep light background
+            border: '1px solid #D1D5DB', 
+            padding: '20px', 
+            borderRadius: '12px', 
+            marginTop: '10px', 
+            backgroundColor: '#F9FAFB' 
         },
         button: {
             padding: '14px 20px', backgroundColor: '#1e40af', color: 'white', 
@@ -486,113 +715,154 @@ const AnnouncementFormModal = ({ show, initialData, onClose, onSave }) => {
                 <h3 style={styles.header}>
                     {isEdit ? 'Edit Barangay Announcement' : 'Add New Announcement'}
                 </h3>
-                <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#6B7280' }}>&times;</button>
+                {/* MODIFIED: Replaced '&times;' with XCircle icon for a better look and removed fontSize: '28px' as the icon size handles it. */}
+                <button onClick={onClose} style={{ 
+                    position: 'absolute', top: '20px', right: '20px', background: 'none', 
+                    border: 'none', cursor: 'pointer', color: '#6B7280', padding: '5px' 
+                }}>
+                    <XCircle size={24} /> 
+                </button>
                 
                 {error && <p style={styles.error}>{error}</p>}
 
-                <form onSubmit={handleSubmit} style={styles.form}>
+                {/* RESTRUCTURED FORM TO REMOVE INNER CARDS */}
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                     
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>1. Announcement Title *</label>
-                        <input
-                            type="text" name="title" value={formData.title}
-                            onChange={handleChange} style={styles.input} required
-                            placeholder="e.g., Office Closure for Holiday"
-                        />
-                    </div>
-                    
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>3. Content / Detailed Announcement *</label>
-                        <textarea
-                            name="content" value={formData.content}
-                            onChange={handleChange} style={styles.textarea} required
-                            placeholder="Provide the full announcement details here."
-                        />
-                    </div>
-
-                    <div style={styles.formGrid}>
-                        <div style={styles.inputGroup}>
-                            <label style={styles.label}>2. Category / Type of Announcement *</label>
-                            <select
-                                name="category" value={formData.category}
-                                onChange={handleChange} style={styles.select} required
-                            >
-                                {ANNOUNCEMENT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                            </select>
-                        </div>
-                        <div style={styles.inputGroup}>
-                            <label style={styles.label}>7. Posted By *</label>
-                            <select
-                                name="posted_by" value={formData.posted_by}
-                                onChange={handleChange} style={styles.select} required
-                            >
-                                {POSTED_BY_OPTIONS.map(by => <option key={by} value={by}>{by}</option>)}
-                            </select>
-                        </div>
-                        <div style={styles.inputGroup}>
-                            <label style={styles.label}>6. Valid Until / Expiry Date (Optional)</label>
-                            <input
-                                type="date" name="valid_until" value={formData.valid_until}
-                                onChange={handleChange} style={styles.input}
-                            />
-                        </div>
-                        <div style={styles.inputGroup}>
-                            <label style={styles.label}>8. Target Audience (Optional)</label>
-                            <select
-                                name="target_audience" value={formData.target_audience}
-                                onChange={handleChange} style={styles.select}
-                            >
-                                {TARGET_AUDIENCE_OPTIONS.map(aud => <option key={aud} value={aud}>{aud}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div style={styles.fileSection}>
-                        <label style={styles.label}><Image size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 4. Featured Image</label>
-                        {formData.featured_image_url && (
-                            <div style={{ marginBottom: '15px' }}>
-                                <img src={formData.featured_image_url} alt="Current Featured" style={{ maxWidth: '150px', maxHeight: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #D1D5DB', display: 'block' }} />
-                                <small style={{ color: '#6B7280' }}>Current Image. Upload a new file to replace it.</small>
+                    {/* Section 1: Primary Content (No top border) */}
+                    <div> 
+                        <h4 style={styles.firstSectionHeader}>1. Primary Content</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', marginBottom: '25px' }}>
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 1 */}
+                                <label style={styles.label}>1. Announcement Title *</label> 
+                                <input
+                                    type="text" name="title" value={formData.title}
+                                    onChange={handleChange} style={styles.input} required
+                                    placeholder="e.g., Office Closure for Holiday"
+                                />
                             </div>
-                        )}
-                        <input
-                            type="file" accept="image/*"
-                            onChange={handleImageChange} style={{ ...styles.input, padding: '10px' }}
-                        />
-                    </div>
-
-                    <div style={styles.fileSection}>
-                        <label style={styles.label}><FileText size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 9. Attachments (Optional: PDF files, Schedules)</label>
-                        {(formData.attachments && formData.attachments.length > 0) || (attachmentFiles.length > 0) ? (
-                            <div style={styles.filePreview}>
-                                <small style={{ color: '#6B7280', width: '100%', marginBottom: '5px', fontWeight: '500' }}>Existing Files:</small>
-                                {/* Display existing attachments */}
-                                {formData.attachments.map((att, index) => (
-                                    <span key={`exist-${index}`} style={styles.fileItem}>
-                                        <FileText size={14}/>
-                                        <a href={att} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>File {index + 1}</a>
-                                    </span>
-                                ))}
-                                {/* Display newly selected files */}
-                                {attachmentFiles.map((file, index) => (
-                                    <span key={`new-${index}`} style={{...styles.fileItem, backgroundColor: '#DBEAFE'}}>
-                                        <FileText size={14}/>
-                                        {file.name} (New)
-                                    </span>
-                                ))}
+                            
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 2 */}
+                                <label style={styles.label}>2. Content / Detailed Announcement *</label>
+                                <textarea
+                                    name="content" value={formData.content}
+                                    onChange={handleChange} style={styles.textarea} required
+                                    placeholder="Provide the full announcement details here."
+                                />
                             </div>
-                        ) : (
-                            <p style={{ color: '#6B7280', fontStyle: 'italic' }}>No attachments currently.</p>
-                        )}
-                        
-                        <input
-                            type="file" multiple
-                            onChange={handleAttachmentChange} style={{ ...styles.input, padding: '10px', marginTop: '10px' }}
-                        />
+                        </div>
                     </div>
 
-                    <button type="submit" style={{ ...styles.button, opacity: loading ? 0.8 : 1 }} disabled={loading}>
-                        {loading ? '🚀 Publishing...' : (isEdit ? '💾 Update Announcement' : 'Publish Announcement')}
+                    {/* Section 2: Metadata & Categorization (Starts with a divider) */}
+                    <div> 
+                        <h4 style={styles.sectionHeader}>2. Metadata & Categorization</h4>
+                        <div style={{ ...styles.formGrid, marginBottom: '25px' }}>
+                            
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 3 */}
+                                <CustomSelect 
+                                    label={<><Bell size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 3. Category / Type of Announcement</>}
+                                    name="category"
+                                    value={formData.category}
+                                    onChange={handleChange}
+                                    options={ANNOUNCEMENT_CATEGORIES}
+                                    required
+                                />
+                            </div>
+                            
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 4 */}
+                                 <CustomSelect 
+                                    label={<><User size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 4. Posted By</>}
+                                    name="posted_by"
+                                    value={formData.posted_by}
+                                    onChange={handleChange}
+                                    options={POSTED_BY_OPTIONS}
+                                    required
+                                />
+                            </div>
+                            
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 5 */}
+                                <label style={styles.label}>5. Valid Until / Expiry Date (Optional)</label>
+                                <input
+                                    type="date" name="valid_until" value={formData.valid_until}
+                                    onChange={handleChange} style={styles.input}
+                                />
+                            </div>
+                            
+                            <div style={styles.inputGroup}>
+                                {/* CORRECTED NUMBERING: 6 */}
+                                <CustomSelect 
+                                    label={<><Users size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 6. Target Audience</>}
+                                    name="target_audience"
+                                    value={formData.target_audience}
+                                    onChange={handleChange}
+                                    options={TARGET_AUDIENCE_OPTIONS}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section 3: Media & Attachments (Starts with a divider) */}
+                    <div> 
+                        <h4 style={styles.sectionHeader}>3. Media & Attachments</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                            {/* Featured Image */}
+                            <div style={styles.fileSection}>
+                                {/* CORRECTED NUMBERING: 7 */}
+                                <label style={styles.label}><Image size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 7. Featured Image (Optional)</label>
+                                {/* Preview Logic */}
+                                {formData.featured_image_url && (
+                                    <div style={{ marginBottom: '15px' }}>
+                                        <img src={formData.featured_image_url} alt="Current Featured" style={{ maxWidth: '150px', maxHeight: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #D1D5DB', display: 'block' }} />
+                                        <small style={{ color: '#6B7280' }}>Current Image. Upload a new file to replace it.</small>
+                                    </div>
+                                )}
+                                <input
+                                    type="file" accept="image/*"
+                                    onChange={handleImageChange} style={{ ...styles.input, padding: '10px', height: 'unset' }}
+                                />
+                            </div>
+
+                            {/* Attachments */}
+                            <div style={styles.fileSection}>
+                                {/* CORRECTED NUMBERING: 8 */}
+                                <label style={styles.label}><FileText size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> 8. Attachments (Optional: PDF files, Schedules)</label>
+                                {/* Preview Logic */}
+                                {(formData.attachments && formData.attachments.length > 0) || (attachmentFiles.length > 0) ? (
+                                    <div style={styles.filePreview}>
+                                        <small style={{ color: '#6B7280', width: '100%', marginBottom: '5px', fontWeight: '500' }}>Existing Files:</small>
+                                        {/* Display existing attachments */}
+                                        {formData.attachments.map((att, index) => (
+                                            <span key={`exist-${index}`} style={styles.fileItem}>
+                                                <FileText size={14}/>
+                                                <a href={att} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>File {index + 1}</a>
+                                            </span>
+                                        ))}
+                                        {/* Display newly selected files */}
+                                        {attachmentFiles.map((file, index) => (
+                                            <span key={`new-${index}`} style={{...styles.fileItem, backgroundColor: '#DBEAFE'}}>
+                                                <FileText size={14}/>
+                                                {file.name} (New)
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p style={{ color: '#6B7280', fontStyle: 'italic' }}>No attachments currently.</p>
+                                )}
+                                
+                                <input
+                                    type="file" multiple
+                                    onChange={handleAttachmentChange} style={{ ...styles.input, padding: '10px', marginTop: '10px', height: 'unset' }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" style={{ ...styles.button, opacity: loading ? 0.8 : 1, marginTop: '40px' }} disabled={loading}>
+                        {loading ? 'Publishing...' : (isEdit ? 'Update Announcement' : 'Publish Announcement')}
                     </button>
                 </form>
             </div>
@@ -692,7 +962,7 @@ const AdminAnnouncementPage = () => {
             // Call the DELETE API endpoint (assumed to be a HARD DELETE on server side)
             await axios.delete(`${API_BASE_URL}/admin/announcements/${id}`);
             
-            // 🔑 CRUCIAL CHANGE: AUTOMATIC REMOVAL from the page (no archiving/refetch)
+            // CRUCIAL CHANGE: AUTOMATIC REMOVAL from the page (no archiving/refetch)
             setAnnouncements(prev => prev.filter(item => item.id !== id));
             
             setMessageModal({
@@ -914,7 +1184,7 @@ const AdminAnnouncementPage = () => {
                                         {/* Read More Button (opens dedicated view modal) */}
                                         <button 
                                             style={styles.readMoreButton} 
-                                            // 🔑 IMPORTANT: Stop propagation to prevent double-click handler (card + button)
+                                            // IMPORTANT: Stop propagation to prevent double-click handler (card + button)
                                             onClick={(e) => { e.stopPropagation(); handleViewDetails(n); }}
                                             title="View Full Details"
                                         >
@@ -925,7 +1195,7 @@ const AdminAnnouncementPage = () => {
                                             {/* Edit Button (opens form modal) */}
                                             <button 
                                                 style={styles.actionButton('#3B82F6')} 
-                                                // 🔑 IMPORTANT: Stop propagation 
+                                                // IMPORTANT: Stop propagation 
                                                 onClick={(e) => { e.stopPropagation(); handleEditAnnouncement(n); }}
                                                 title="Edit Announcement"
                                             >
@@ -934,7 +1204,7 @@ const AdminAnnouncementPage = () => {
                                             {/* Delete Button (Opens custom confirmation modal) */}
                                             <button 
                                                 style={styles.actionButton('#EF4444')} 
-                                                // 🔑 IMPORTANT: Stop propagation
+                                                // IMPORTANT: Stop propagation
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteAnnouncement(n.id, n.title); }}
                                                 title="Permanently Delete Announcement"
                                             >

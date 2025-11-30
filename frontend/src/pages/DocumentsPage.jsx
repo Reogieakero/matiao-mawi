@@ -686,13 +686,12 @@ const styles = {
         padding: '20px',
         maxWidth: '1200px',
         margin: '0 auto',
-        fontFamily: 'Arial, sans-serif',
     },
     header: {
-        fontSize: '24px',
-        fontWeight: '700',
-        color: '#1e40af',
-        marginBottom: '15px',
+        fontSize: '24px', 
+            fontWeight: '700', 
+            color: '#1e40af', 
+            marginBottom: '15px', 
     },
     subheader: {
         color: '#4b5563',

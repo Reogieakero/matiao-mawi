@@ -1,11 +1,12 @@
 // frontend/src/admin/AdminNewsPage.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // ADDED useRef, useCallback for CustomSelect
 import axios from 'axios';
 import { 
     Search, Trash2, CheckCircle, Plus, Edit, 
     Newspaper, Calendar, User, Users, XCircle, Clock, Image, FileText,
-    Globe, Zap, Activity, Eye 
+    Globe, Zap, Activity, Eye,
+    ChevronDown, ChevronUp, Check // ADDED icons for CustomSelect
 } from 'lucide-react';
 
 // NOTE: Ensure this matches your actual API base URL from server.js.
@@ -50,6 +51,136 @@ const getCategoryColor = (category) => {
         default: return { bg: '#F3F4F6', text: '#6B7280', icon: Newspaper }; // Gray
     }
 };
+
+
+// --- Custom Select Component (Reusable Dropdown Design from AdminAnnouncementsPage) ---
+const CustomSelect = ({ options, value, onChange, placeholder = 'Select an Option' }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectRef = useRef(null);
+
+    // Close the dropdown when clicking outside
+    const handleClickOutside = useCallback((event) => {
+        if (selectRef.current && !selectRef.current.contains(event.target)) {
+            setIsOpen(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [handleClickOutside]);
+
+    const handleOptionClick = (option) => {
+        onChange(option);
+        setIsOpen(false);
+    };
+
+    const displayValue = value || placeholder;
+
+    const styles = {
+        container: {
+            position: 'relative',
+            width: '100%',
+        },
+        displayButton: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            backgroundColor: 'white',
+            fontSize: '15px',
+            color: value ? '#374151' : '#6B7280',
+            transition: 'border-color 0.2s',
+            fontWeight: '500',
+        },
+        dropdownList: {
+            position: 'absolute',
+            top: '100%', 
+            left: '0',
+            width: '100%',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            backgroundColor: 'white',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            zIndex: 1000, 
+            listStyle: 'none',
+            padding: '4px 0',
+            margin: '4px 0 0 0',
+        },
+        optionItem: {
+            padding: '10px 12px',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '15px',
+            color: '#374151',
+            transition: 'background-color 0.1s',
+        },
+        optionHover: {
+            backgroundColor: '#F3F4F6',
+        },
+        optionSelected: {
+            backgroundColor: '#DBEAFE', 
+            fontWeight: '600',
+            color: '#1E40AF',
+        }
+    };
+
+    return (
+        <div ref={selectRef} style={styles.container}>
+            <div 
+                style={styles.displayButton} 
+                onClick={() => setIsOpen(!isOpen)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsOpen(!isOpen);
+                    }
+                }}
+            >
+                <span style={{ color: value ? '#374151' : '#6B7280' }}>
+                    {displayValue}
+                </span>
+                {isOpen ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+            </div>
+
+            {isOpen && (
+                <ul style={styles.dropdownList}>
+                    {options.map((option) => (
+                        <li
+                            key={option}
+                            style={{
+                                ...styles.optionItem,
+                                ...(option === value ? styles.optionSelected : {}),
+                            }}
+                            onClick={() => handleOptionClick(option)}
+                            onMouseEnter={(e) => {
+                                if (option !== value) {
+                                    e.currentTarget.style.backgroundColor = styles.optionHover.backgroundColor;
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = option === value ? styles.optionSelected.backgroundColor : 'white';
+                            }}
+                        >
+                            {option}
+                            {option === value && <Check size={16} color="#1E40AF" />}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+};
+// --- END Custom Select Component ---
+
 
 // Common Styles for View Modal
 const baseViewModalStyles = {
@@ -119,11 +250,12 @@ const NewsViewModal = ({ show, newsItem, onClose }) => {
                 <h3 style={baseViewModalStyles.header}>
                     <Eye size={28} /> Full News Details: {newsItem.title}
                 </h3>
+                {/* Close Button with XCircle icon */}
                 <button 
                     onClick={onClose} 
-                    style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#6B7280' }}
+                    style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '5px' }}
                 >
-                    &times;
+                    <XCircle size={24} />
                 </button>
 
                 <div style={baseViewModalStyles.contentGrid}>
@@ -221,7 +353,7 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
             width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)', 
             position: 'relative', textAlign: 'center'
         },
-        closeButton: { position: 'absolute', top: '10px', right: '10px', fontSize: '24px', cursor: 'pointer', background: 'none', border: 'none' },
+        closeButton: { position: 'absolute', top: '10px', right: '10px', cursor: 'pointer', background: 'none', border: 'none', color: '#6B7280', padding: '5px' },
         content: {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
             marginBottom: '15px', color: isSuccess ? '#1e40af' : '#DC2626'
@@ -238,7 +370,8 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     return (
         <div style={modalStyles.backdrop}>
             <div style={modalStyles.modal}>
-                <button onClick={onClose} style={modalStyles.closeButton}>&times;</button>
+                {/* Close Button with XCircle icon */}
+                <button onClick={onClose} style={modalStyles.closeButton}><XCircle size={20} /></button>
                 <div style={modalStyles.content}>
                     {isSuccess ? <CheckCircle size={32} /> : <XCircle size={32} />}
                 </div>
@@ -251,7 +384,7 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
 };
 
 
-// --- NEW: Custom Delete Confirmation Modal (Copied and adapted) ---
+// --- Custom Delete Confirmation Modal ---
 const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
     if (!show) return null;
 
@@ -298,7 +431,6 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
         </div>
     );
 };
-// --- END NEW COMPONENT ---
 
 
 // --- News Form Modal Component (Edit/Add Only) ---
@@ -350,8 +482,14 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
         }
     }, [show, initialData]);
 
+    // MODIFIED: Simplified handleChange to handle non-select inputs
     const handleChange = (e) => {
         const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+    
+    // NEW: Function for CustomSelect component to update state
+    const handleCustomSelectChange = (name, value) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
@@ -430,12 +568,6 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
         padding: '12px', border: '1px solid #D1D5DB', borderRadius: '8px', 
         fontSize: '15px', boxSizing: 'border-box', width: '100%',
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        // In a real project, use styled-components or CSS for pseudo-classes
-        // ':focus': { 
-        //     borderColor: '#6366F1',
-        //     boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
-        //     outline: 'none',
-        // }
     };
     
     const styles = {
@@ -458,7 +590,7 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
         inputGroup: { display: 'flex', flexDirection: 'column' },
         label: { fontSize: '15px', fontWeight: '700', color: '#374151', marginBottom: '8px' },
         input: baseInputStyle,
-        select: baseInputStyle,
+        // Removed 'select: baseInputStyle' as CustomSelect is used
         textarea: { ...baseInputStyle, minHeight: '150px', resize: 'vertical' },
         fileSection: { 
             border: '2px dashed #D1D5DB', padding: '20px', borderRadius: '12px', 
@@ -484,7 +616,10 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
                 <h3 style={styles.header}>
                     {isEdit ? 'Edit Barangay News' : 'Add New Barangay News'}
                 </h3>
-                <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#6B7280' }}>&times;</button>
+                {/* Close Button with XCircle icon */}
+                <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '5px' }}>
+                    <XCircle size={24} />
+                </button>
                 
                 {error && <p style={styles.error}>{error}</p>}
 
@@ -511,21 +646,23 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
                     <div style={styles.formGrid}>
                         <div style={styles.inputGroup}>
                             <label style={styles.label}>2. Category / Type of News *</label>
-                            <select
-                                name="category" value={formData.category}
-                                onChange={handleChange} style={styles.select} required
-                            >
-                                {NEWS_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                            </select>
+                            {/* REPLACED: standard select with CustomSelect */}
+                            <CustomSelect
+                                options={NEWS_CATEGORIES}
+                                value={formData.category}
+                                onChange={(val) => handleCustomSelectChange('category', val)}
+                                placeholder="Select a News Category"
+                            />
                         </div>
                         <div style={styles.inputGroup}>
                             <label style={styles.label}>7. Posted By *</label>
-                            <select
-                                name="posted_by" value={formData.posted_by}
-                                onChange={handleChange} style={styles.select} required
-                            >
-                                {POSTED_BY_OPTIONS.map(by => <option key={by} value={by}>{by}</option>)}
-                            </select>
+                            {/* REPLACED: standard select with CustomSelect */}
+                            <CustomSelect
+                                options={POSTED_BY_OPTIONS}
+                                value={formData.posted_by}
+                                onChange={(val) => handleCustomSelectChange('posted_by', val)}
+                                placeholder="Select the Posting Authority"
+                            />
                         </div>
                         <div style={styles.inputGroup}>
                             <label style={styles.label}>6. Valid Until / Expiry Date (Optional)</label>
@@ -536,12 +673,13 @@ const NewsFormModal = ({ show, initialData, onClose, onSave }) => {
                         </div>
                         <div style={styles.inputGroup}>
                             <label style={styles.label}>8. Target Audience (Optional)</label>
-                            <select
-                                name="target_audience" value={formData.target_audience}
-                                onChange={handleChange} style={styles.select}
-                            >
-                                {TARGET_AUDIENCE_OPTIONS.map(aud => <option key={aud} value={aud}>{aud}</option>)}
-                            </select>
+                            {/* REPLACED: standard select with CustomSelect */}
+                            <CustomSelect
+                                options={TARGET_AUDIENCE_OPTIONS}
+                                value={formData.target_audience}
+                                onChange={(val) => handleCustomSelectChange('target_audience', val)}
+                                placeholder="Select the Target Audience"
+                            />
                         </div>
                     </div>
                     
