@@ -1,18 +1,94 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { FiCheckCircle } from "react-icons/fi";
-import { FiMail, FiLock } from "react-icons/fi"; // Added for potential future icon use if needed
+import { FiCheckCircle, FiLock } from "react-icons/fi"; // FiLock is used for the single code input in the original file
 
 const BACKGROUND_IMAGE_PATH = require("../assets/philippine-barangay-community-hall.jpg");
+
+// --- START NEW VerificationCodeInput Component (Copied from ForgotPasswordPage.jsx) ---
+const VerificationCodeInput = ({ length = 6, value, onChange }) => {
+    // Split the external value prop into an array of digits for rendering
+    const [digits, setDigits] = useState(Array(length).fill(''));
+    const inputsRef = useRef([]);
+
+    // Sync external value prop with internal state when mounted or value changes
+    useEffect(() => {
+        // Ensure the internal state reflects the full 6-digit code coming from the parent state
+        const currentCodeArray = value.split('');
+        // Pad the array with empty strings if it's shorter than the required length
+        const newDigits = Array(length).fill('').map((_, i) => currentCodeArray[i] || '');
+        setDigits(newDigits);
+    }, [value, length]);
+
+
+    const handleChange = (index, e) => {
+        // Only take the last character typed (for security/simplicity)
+        const newDigit = e.target.value.slice(-1); 
+        
+        // Only allow digits (0-9)
+        if (!/^\d*$/.test(newDigit)) return;
+
+        const newDigits = [...digits];
+        newDigits[index] = newDigit;
+        setDigits(newDigits);
+
+        const newValue = newDigits.join('');
+        onChange({ target: { value: newValue } }); // Propagate the full 6-digit string up to the parent
+
+        // Auto-focus to the next input field if a digit was entered
+        if (newDigit && index < length - 1) {
+            inputsRef.current[index + 1]?.focus();
+        }
+    };
+
+    const handleKeyDown = (index, e) => {
+        // Handle Backspace to clear current and move to previous input
+        if (e.key === 'Backspace') {
+            if (!digits[index] && index > 0) {
+                // If the box is empty, move focus to the previous box
+                inputsRef.current[index - 1]?.focus();
+            } else if (digits[index]) {
+                // If the box is not empty, clear the digit and propagate change
+                e.preventDefault(); // Prevent default backspace behavior (moving back)
+                const newDigits = [...digits];
+                newDigits[index] = '';
+                setDigits(newDigits);
+                onChange({ target: { value: newDigits.join('') } });
+            }
+        }
+    };
+
+    return (
+        <div style={styles.inputWrapper}>
+            <label style={styles.label}>Verification Code</label>
+            <div style={styles.codeDigitContainer}>
+                {digits.map((digit, index) => (
+                    <input
+                        key={index}
+                        type="text"
+                        maxLength="1"
+                        inputMode="numeric"
+                        value={digit}
+                        onChange={(e) => handleChange(index, e)}
+                        onKeyDown={(e) => handleKeyDown(index, e)}
+                        ref={(el) => (inputsRef.current[index] = el)}
+                        style={styles.singleCodeDigitInput}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+};
+// --- END NEW VerificationCodeInput Component ---
+
 
 const VerifyAccountPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Attempt to get the email from the registration page's navigation state
     const userEmail = location.state?.email; 
 
-    const [verificationCode, setVerificationCode] = useState('');
+    // Changed state name to match ForgotPasswordPage's 'code' state for consistency
+    const [code, setCode] = useState(''); 
     const [statusMessage, setStatusMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
@@ -22,9 +98,7 @@ const VerifyAccountPage = () => {
     useEffect(() => setFadeIn(true), []);
 
     useEffect(() => {
-        // Redirect to signup if email is missing (e.g., user navigated directly)
         if (!userEmail) {
-            // Give a moment for the fade-in to complete before navigating
             setTimeout(() => navigate('/signup', { replace: true }), 1000); 
         }
     }, [userEmail, navigate]);
@@ -35,7 +109,7 @@ const VerifyAccountPage = () => {
         setIsLoading(true);
 
         // Simple validation
-        if (verificationCode.length !== 6) {
+        if (code.length !== 6) { // Check against the updated 'code' state
             setStatusMessage('Code must be 6 digits.');
             setIsLoading(false);
             return;
@@ -47,7 +121,7 @@ const VerifyAccountPage = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: userEmail,
-                    code: verificationCode
+                    code: code // Use the updated 'code' state
                 }),
             });
 
@@ -56,12 +130,10 @@ const VerifyAccountPage = () => {
             if (response.ok) {
                 setStatusMessage(data.message);
                 setIsSuccess(true);
-                // Redirect user to the login page after a short delay
                 setTimeout(() => {
                     navigate('/login'); 
                 }, 3000);
             } else {
-                // Display error message from the server (e.g., 'Invalid verification code.')
                 setStatusMessage(data.message || 'Verification failed. Please check the code.');
             }
         } catch (error) {
@@ -73,7 +145,6 @@ const VerifyAccountPage = () => {
     };
 
     if (!userEmail) {
-        // Show a loading/redirecting message if email is missing
         return (
             <div style={{ ...styles.page, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f8fa' }}>
                 <div style={styles.form}>Redirecting to Signup...</div>
@@ -103,27 +174,23 @@ const VerifyAccountPage = () => {
                     </p>
 
                     <form onSubmit={handleVerify} style={styles.codeForm}>
-                        <div style={styles.inputContainer}>
-                            <FiLock size={18} color="#777" /> {/* Using an icon for context */}
-                            <input
-                                type="text"
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                                placeholder="Enter 6-digit Code"
-                                style={styles.code_input}
-                                maxLength="6"
-                                disabled={isLoading || isSuccess}
-                            />
-                        </div>
+                        {/* --- NEW 6-BOX INPUT COMPONENT --- */}
+                        <VerificationCodeInput
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            length={6}
+                        />
+                        {/* --- END NEW COMPONENT --- */}
 
                         <button 
                             type="submit" 
                             style={{
                                 ...styles.button,
-                                opacity: verificationCode.length === 6 && !isLoading && !isSuccess ? 1 : 0.6,
-                                cursor: verificationCode.length === 6 && !isLoading && !isSuccess ? "pointer" : "not-allowed",
+                                // Condition updated to check `code.length` against 6 digits
+                                opacity: code.length === 6 && !isLoading && !isSuccess ? 1 : 0.6,
+                                cursor: code.length === 6 && !isLoading && !isSuccess ? "pointer" : "not-allowed",
                             }}
-                            disabled={isLoading || verificationCode.length !== 6 || isSuccess}
+                            disabled={isLoading || code.length !== 6 || isSuccess}
                         >
                             {isLoading 
                                 ? 'Verifying...' 
@@ -159,7 +226,7 @@ const VerifyAccountPage = () => {
     );
 };
 
-// Merged and adapted styles for consistency
+// Merged and adapted styles for consistency (Includes styles from ForgotPasswordPage.jsx for the code input)
 const styles = {
     page: {
         display: "flex",
@@ -241,8 +308,36 @@ const styles = {
         gap: '15px',
         alignItems: 'center',
     },
-    inputContainer: {
-        display: "flex",
+    // --- Styles needed for VerificationCodeInput ---
+    inputWrapper: { display: "flex", flexDirection: "column", marginBottom: "18px", width: "100%" },
+    label: { fontSize: "14px", fontWeight: "500", marginBottom: "6px", color: "#333" },
+    codeDigitContainer: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: '8px', 
+        width: '100%',
+    },
+    singleCodeDigitInput: {
+        width: '14%', 
+        aspectRatio: '1 / 1', 
+        textAlign: 'center',
+        fontSize: '20px',
+        fontWeight: '700',
+        padding: '10px 0',
+        borderRadius: '8px',
+        border: '1px solid #dcdcdc',
+        outline: 'none',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+        '&:focus': { 
+            borderColor: '#2563eb',
+            boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)',
+        }
+    },
+    // --- End Styles needed for VerificationCodeInput ---
+
+    // inputContainer is no longer used for the 6-box input but kept for consistency if other inputs use it
+    inputContainer: { 
+        display: "none", // Hide the old single input container
         alignItems: "center",
         border: "1px solid #dcdcdc",
         borderRadius: "12px",
@@ -260,7 +355,8 @@ const styles = {
         textAlign: 'center',
         letterSpacing: '5px',
         color: '#333',
-        padding: '0', // Resetting padding from original input for better fit
+        padding: '0',
+        display: 'none', // Hide the old single input
     },
     button: {
         width: "100%",

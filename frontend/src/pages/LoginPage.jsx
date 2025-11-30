@@ -106,6 +106,13 @@ export default function LoginPage({ onLoginSuccess }) {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
           />
+          
+          {/* NEW: FORGOT PASSWORD LINK */}
+          <Link to="/forgot-password" style={styles.forgotPasswordLink}>
+            Forgot Password?
+          </Link>
+          {/* END NEW */}
+
           <button
             type="submit"
             disabled={!email || !password || loading}
@@ -129,7 +136,7 @@ export default function LoginPage({ onLoginSuccess }) {
   );
 }
 
-// ---------- STYLES (unchanged) ----------
+// ---------- STYLES (updated with forgotPasswordLink) ----------
 const styles = {
   page: {
     display: "flex",
@@ -227,4 +234,15 @@ const styles = {
     color: "#555",
   },
   link: { color: "#2563eb", textDecoration: "none", fontWeight: "600", cursor: "pointer" },
+  // NEW STYLE
+  forgotPasswordLink: { 
+    fontSize: "14px", 
+    fontWeight: "500", 
+    color: "#2563eb", 
+    textDecoration: "none", 
+    alignSelf: "flex-end", // Aligns the link to the right of the form
+    marginTop: "-10px", 
+    marginBottom: "20px",
+    cursor: "pointer",
+  },
 };

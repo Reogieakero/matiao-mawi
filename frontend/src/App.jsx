@@ -6,6 +6,8 @@ import Sidebar from './components/Sidebar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import CreateAccountPage from './pages/CreateAccountPage';
+// NEW: Import the ForgotPasswordPage component
+import ForgotPasswordPage from './pages/ForgotPasswordPage'; 
 import SavedPage from './pages/SavedPage'; 
 import SearchResultsPage from './pages/SearchResultsPage'; 
 import ProfilePage from './pages/ProfilePage'; 
@@ -270,6 +272,9 @@ const App = () => {
                     {/* User Authentication Routes */}
                     <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
                     <Route path="/signup" element={<CreateAccountPage />} />
+                    
+                    {/* NEW: Forgot Password Route */}
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                     
                     {/* NEW VERIFICATION ROUTE: Use the path '/verify' as implemented in CreateAccountPage */}
                     <Route path="/verify" element={<VerificationPage />} /> 

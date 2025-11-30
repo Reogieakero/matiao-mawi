@@ -450,6 +450,150 @@ app.post('/api/login', async (req, res) => {
     });
 });
 
+app.post('/api/password-reset/request-code', (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const SQL_FIND_USER = `SELECT id FROM users WHERE email = ?`;
+
+    db.query(SQL_FIND_USER, [email], (err, results) => {
+        if (err) {
+            console.error("Database error during password reset request:", err);
+            return res.status(500).json({ message: 'Server error.' });
+        }
+
+        // IMPORTANT: Respond with a success message even if the user doesn't exist (security practice)
+        if (results.length === 0) {
+            return res.status(200).json({ message: 'If an account with that email exists, a password reset code has been sent.' });
+        }
+
+        const verificationCode = generateVerificationCode(); 
+
+        // Update the user's verification_code in the database (reusing the field)
+        const SQL_UPDATE_CODE = `
+            UPDATE users 
+            SET verification_code = ? 
+            WHERE email = ?
+        `;
+
+        db.query(SQL_UPDATE_CODE, [verificationCode, email], (updateErr, updateResult) => {
+            if (updateErr) {
+                console.error("Database error updating reset code:", updateErr);
+                return res.status(500).json({ message: 'Failed to generate reset code.' });
+            }
+
+            // Send the reset code email
+            const mailOptions = {
+                from: process.env.SMTP_USER,
+                to: email,
+                subject: 'Your Password Reset Code',
+                html: `
+                    <h1>Password Reset Request</h1>
+                    <p>You requested a password reset. Please use the following code to continue the process:</p>
+                    <h2 style="color: #d97706;">${verificationCode}</h2>
+                    <p>If you did not request this, you can safely ignore this email.</p>
+                `,
+            };
+
+            transporter.sendMail(mailOptions, (mailError, info) => {
+                if (mailError) {
+                    console.error("Error sending password reset email:", mailError);
+                    return res.status(500).json({ 
+                        message: 'Failed to send reset code email.'
+                    });
+                }
+                
+                res.status(200).json({ 
+                    message: 'A password reset code has been sent to your email.'
+                });
+            });
+        });
+    });
+});
+
+// 2. Verify Password Reset Code
+app.post('/api/password-reset/verify-code', (req, res) => {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+        return res.status(400).json({ message: 'Email and reset code are required.' });
+    }
+
+    const SQL_CHECK = `
+        SELECT verification_code 
+        FROM users 
+        WHERE email = ?
+    `;
+
+    db.query(SQL_CHECK, [email], (err, results) => {
+        if (err) {
+            console.error("Database error during reset code verification:", err);
+            return res.status(500).json({ message: 'Server error during verification.' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const user = results[0];
+
+        if (user.verification_code === code && user.verification_code !== null) {
+            res.status(200).json({ message: 'Code verified successfully.' });
+        } else {
+            res.status(401).json({ message: 'Invalid or expired reset code.' });
+        }
+    });
+});
+
+// 3. Reset Password
+app.post('/api/password-reset/reset', async (req, res) => {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+        return res.status(400).json({ message: 'Email, code, and new password are required.' });
+    }
+
+    // 1. Verify the code again
+    const SQL_CHECK = `
+        SELECT verification_code 
+        FROM users 
+        WHERE email = ?
+    `;
+
+    db.query(SQL_CHECK, [email], async (err, results) => {
+        // Handle server/DB error, user not found, or code mismatch/expiry
+        if (err || results.length === 0 || results[0].verification_code !== code || results[0].verification_code === null) {
+            return res.status(401).json({ message: 'Invalid or expired code. Please request a new reset link.' });
+        }
+        
+        try {
+            // 2. Hash the new password
+            const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+            // 3. Update password and clear the verification code (for one-time use)
+            const SQL_UPDATE_PASSWORD = `
+                UPDATE users 
+                SET password = ?, verification_code = NULL 
+                WHERE email = ?
+            `;
+            
+            db.query(SQL_UPDATE_PASSWORD, [hashedPassword, email], (updateErr, updateResult) => {
+                if (updateErr) {
+                    console.error("Database error updating password:", updateErr);
+                    return res.status(500).json({ message: 'Failed to reset password.' });
+                }
+
+                res.status(200).json({ message: 'Password has been reset successfully. You can now log in.' });
+            });
+        } catch (hashError) {
+            console.error("Error hashing password:", hashError);
+            res.status(500).json({ message: 'Server error during password processing.' });
+        }
+    });
+});
+
 app.get('/api/threads', (req, res) => {
     const SQL_FETCH_POSTS = `
         SELECT 
