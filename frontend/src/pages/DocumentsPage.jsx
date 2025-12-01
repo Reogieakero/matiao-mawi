@@ -795,7 +795,7 @@ const styles = {
         alignItems: 'center', 
         marginBottom: '10px', 
     },
-    historyDocumentName: { fontSize: '1.4rem', fontWeight: '800', color: '#1f2937', margin: '0', },
+    historyDocumentName: { fontSize: '1.4rem', fontWeight: '700', color: '#1f2937', margin: '0', },
     
     historyMetaRow: { // New Row for ID and Date
         display: 'flex',
