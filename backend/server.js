@@ -1652,28 +1652,32 @@ app.post('/api/documents/apply', (req, res) => {
         }
 
         // 2. Extract text fields from req.body and file paths from req.files
-        const { document_id, user_email, full_name, purpose, requirements_details, payment_method, payment_reference_number } = req.body;
+        const { 
+            document_id, user_email, full_name, purok, birthdate, // *** NEW FIELDS: purok, birthdate ***
+            purpose, requirements_details, payment_method, payment_reference_number 
+        } = req.body;
         
         const uploadedRequirements = req.files && req.files['requirements'] ? req.files['requirements'] : [];
         const requirementsFilePaths = uploadedRequirements.map(file => `http://localhost:${PORT}/media/${file.filename}`);
         const requirementsFilePathsJson = requirementsFilePaths.length > 0 ? JSON.stringify(requirementsFilePaths) : null;
 
-        if (!document_id || !user_email || !full_name || !purpose || !requirements_details || uploadedRequirements.length === 0) {
-            return res.status(400).json({ message: 'Missing required fields or requirements files.' });
+        // *** UPDATED VALIDATION ***
+        if (!document_id || !user_email || !full_name || !purok || !birthdate || !purpose || !requirements_details || uploadedRequirements.length === 0) {
+            return res.status(400).json({ message: 'Missing required fields (document_id, user_email, full_name, purok, birthdate, purpose, requirements_details) or requirements files.' });
         }
 
         const SQL_INSERT_APPLICATION = `
             INSERT INTO document_applications (
-                document_id, user_email, applicant_name, purpose, 
+                document_id, user_email, applicant_name, purok, birthdate, purpose, 
                 requirements_details, requirements_file_paths, 
                 payment_method, payment_reference_number, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
         `;
 
         db.query(
             SQL_INSERT_APPLICATION, 
             [
-                document_id, user_email, full_name, purpose, 
+                document_id, user_email, full_name, purok, birthdate, purpose, 
                 requirements_details, requirementsFilePathsJson, 
                 payment_method || null, payment_reference_number || null
             ], 
@@ -1695,6 +1699,8 @@ app.post('/api/documents/apply', (req, res) => {
 // UPDATED ENDPOINT: GET /api/documents/history/:userEmail
 // Now includes requirements_file_paths
 // =========================================================
+// GET: Fetch a user's document history for DocumentsPage
+// GET: Fetch a user's document history for DocumentsPage
 app.get('/api/documents/history/:userEmail', (req, res) => {
     const userEmail = req.params.userEmail;
     if (!userEmail) {
@@ -1703,19 +1709,24 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
 
     const SQL_FETCH_HISTORY = `
         SELECT 
-        da.id, 
-        bd.document_name, 
-        da.application_date, 
-        da.status, 
-        da.purpose, 
-        da.requirements_file_paths, 
-        da.payment_reference_number, 
-        da.is_removed_from_history,
-        da.generated_path  -- <--- ADD THIS LINE
-    FROM document_applications da 
-    JOIN barangay_documents bd ON da.document_id = bd.id 
-    WHERE da.user_email = ? AND da.is_removed_from_history = FALSE
-    ORDER BY da.application_date DESC
+            da.id, 
+            da.applicant_name, 
+            da.purok,
+            da.birthdate,
+            da.purpose, 
+            da.requirements_details, 
+            da.requirements_file_paths,
+            da.generated_path, -- ⭐ ADDED: This is the field needed for the download button. ⭐
+            da.payment_method, 
+            da.payment_reference_number, 
+            da.status, 
+            da.application_date, 
+            bd.document_name, 
+            bd.fee
+        FROM document_applications da
+        JOIN barangay_documents bd ON da.document_id = bd.id
+        WHERE da.user_email = ?
+        ORDER BY da.application_date DESC
     `;
 
     db.query(SQL_FETCH_HISTORY, [userEmail], (err, results) => {
@@ -1724,11 +1735,30 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch application history.' });
         }
 
-        // Parse requirements_file_paths from JSON string back to array if it exists
-        const history = results.map(row => ({
-            ...row,
-            requirements_file_paths: row.requirements_file_paths ? JSON.parse(row.requirements_file_paths) : []
-        }));
+        // --- FIX: Safely parse requirements_file_paths using try...catch ---
+        const history = results.map(row => {
+            let filePaths = [];
+            const rawPaths = row.requirements_file_paths;
+
+            if (rawPaths) {
+                try {
+                    // Attempt to parse the JSON string
+                    const parsed = JSON.parse(rawPaths);
+                    // Ensure the result is an array
+                    filePaths = Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                    // Log the error for debugging (tells you which row is bad)
+                    console.error(`User History: JSON Parse Error for ID ${row.id}:`, e.message, 'Raw Data:', rawPaths);
+                    filePaths = []; // Return an empty array on failure
+                }
+            }
+            
+            return {
+                ...row,
+                requirements_file_paths: filePaths // Use the safe parsed value
+            };
+        });
+        // --- END OF FIX ---
 
         res.status(200).json(history);
     });
@@ -2617,12 +2647,12 @@ const getDocumentName = (documentId) => {
 // --- NEW ADMIN API ENDPOINT: GET All Document Applications ---
 // (Required by AdminDocumentsPage.jsx to fetch all data)
 // =========================================================
+// GET: Fetch all document applications for AdminDocumentsPage
 app.get('/api/admin/documents', (req, res) => {
-    // NOTE: You must add authentication/authorization middleware here 
-    // to ensure only admins can access this route.
-    const SQL_FETCH_DOCUMENTS = `
+    const SQL_GET_ALL_DOCUMENTS = `
         SELECT 
             da.id, da.document_id, da.user_email, da.applicant_name, 
+            da.purok, da.birthdate, -- *** NEW FIELDS: Purok and Birthdate ***
             da.purpose, da.requirements_details, da.requirements_file_paths, 
             da.status, da.payment_method, da.payment_reference_number, 
             da.date_applied AS dateRequested, da.updated_at
@@ -2630,18 +2660,36 @@ app.get('/api/admin/documents', (req, res) => {
         ORDER BY da.date_applied DESC
     `;
 
-    db.query(SQL_FETCH_DOCUMENTS, (err, results) => {
+    db.query(SQL_GET_ALL_DOCUMENTS, (err, results) => {
         if (err) {
-            console.error("Database error fetching document applications for admin:", err);
-            return res.status(500).json({ message: 'Failed to fetch document applications.' });
+            console.error("Database error fetching all documents:", err);
+            return res.status(500).json({ message: 'Failed to fetch documents.' });
         }
-        
-        // Format results: parse JSON string and replace document_id with documentType name
+
         const formattedResults = results.map(row => ({
             ...row,
-            fullName: row.applicant_name, // Map to match frontend component state key
-            documentType: getDocumentName(row.document_id), // Use the helper to get the name
-            requirementsFilePaths: JSON.parse(row.requirements_file_paths || '[]'),
+            fullName: row.applicant_name,
+            documentType: getDocumentName(row.document_id),
+            
+            // --- FIX: Safely parse requirements_file_paths using try...catch ---
+            requirementsFilePaths: (function() {
+                try {
+                    // Safely parse the JSON string, defaulting to '[]' if null/empty
+                    const parsed = JSON.parse(row.requirements_file_paths || '[]');
+                    // Ensure the result is an array or default to an empty array
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                    // Log the error for debugging, but prevent server crash
+                    console.error(`Admin Docs: JSON Parse Error for ID ${row.id} - ${e.message}. Raw Data:`, row.requirements_file_paths);
+                    // Return an empty array on failure
+                    return [];
+                }
+            })(),
+            // --- END OF FIX ---
+            
+            // Format dates (using the fields from your SQL query: date_applied and updated_at)
+            date_applied: new Date(row.date_applied).toLocaleString(),
+            updated_at: row.updated_at ? new Date(row.updated_at).toLocaleString() : null,
         }));
 
         res.status(200).json(formattedResults);
@@ -2702,12 +2750,15 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
 
     try {
         // 1. FETCH APPLICATION, USER, AND PROFILE DATA
+        // ⭐ SQL is updated to fetch birthdate and purok, but NOT 'age'
         const SQL_SELECT = ` 
             SELECT 
                 da.*, 
                 u.name AS registered_name, 
                 up.address, 
-                up.contact 
+                up.contact,
+                da.purok,           
+                da.birthdate        
             FROM document_applications da 
             LEFT JOIN users u ON da.user_email = u.email 
             LEFT JOIN user_profiles up ON u.id = up.user_id 
@@ -2735,30 +2786,48 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
 
         // Data preparation
         const residentName = applicationData.applicant_name;
-        const residentAddress = applicationData.address || 'N/A'; 
+        const residentPurok = applicationData.purok || 'N/A';
         const documentPurpose = applicationData.purpose; 
-        const contactNumber = applicationData.contact || 'N/A';
+        // const contactNumber = applicationData.contact || 'N/A'; // Contact is not used in the new mapping, but kept for context
         
+        // Date Preparation
         const currentDate = new Date();
         const currentDay = currentDate.getDate().toString();
         const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long' });
         const currentYear = currentDate.getFullYear().toString();
+        
+        // Birthdate Preparation
+        const birthDate = applicationData.birthdate ? new Date(applicationData.birthdate) : null;
+        
+        // ⭐ AGE CALCULATION LOGIC ⭐
+        let residentAge = 'N/A';
+        if (birthDate && !isNaN(birthDate)) {
+            const ageDate = new Date(currentDate - birthDate.getTime());
+            residentAge = Math.abs(ageDate.getUTCFullYear() - 1970).toString();
+        }
 
-        // --- PDF FIELD MAPPING LOGIC (Keep this identical to your existing snippet) ---
+        const birthDay = birthDate ? birthDate.getDate().toString() : 'N/A';
+        const birthMonth = birthDate ? birthDate.toLocaleDateString('en-US', { month: 'long' }) : 'N/A';
+        const birthYear = birthDate ? birthDate.getFullYear().toString() : 'N/A';
+
+
+        // --- PDF FIELD MAPPING LOGIC (Field 2 is now the calculated Age) ---
         const fieldsToFill = {
-            'text_1vhhu': residentName, 
-            'text_2topb': residentAddress,
-            'text_3mtyv': documentPurpose,
-            'text_11imkg': contactNumber,
-            'text_4lkmy': currentDay,
-            'text_5nfmg': currentMonth,
-            'text_6lnpt': currentYear,
-            'text_7cpbu': 'MAWII',
-            'text_8ieis': 'Barangay Secretary Name',
-            'text_9qual': 'Barangay Captain Name',
-            'text_10mkgy': 'Davao City',
-            'text_12ccdt': 'N/A',
-            'text_13raqg': 'N/A',
+            // Requested Order: Name, Age, Birthdate details, Purok, Name, Purpose, Date Approved, Month Approved, Name
+            'text_1xnlp': residentName,           // 1. Applicant Name (1st occurrence)
+            'text_2cjzz': residentAge,   
+            'text_4aofa': birthDay,          // 2. ⭐ CALCULATED AGE ⭐
+            'text_3hice': birthMonth,             // 3. Month of Birthdate
+                          // 4. Date of Birthdate
+            'text_5xksb': birthYear,              // 5. Year of Birthdate
+            'text_6dhjc': residentPurok,          // 6. Purok
+            'text_7fupb': residentName,           // 7. Applicant Name (2nd occurrence)
+            'text_8weom': documentPurpose,        // 8. Purpose
+            'text_9fcjd': currentDay,             // 9. Date of Approved (Current Day)
+            'text_10aoaw': currentMonth,          // 10. Month of Date Approve (Current Month)
+            'text_11bmid': residentName,          // 11. Applicant Name (3rd occurrence, often for signature)
+            
+             // Captain placeholder
         };
         
         for (const [fieldName, value] of Object.entries(fieldsToFill)) {
@@ -2782,9 +2851,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
 
         const filePath = path.join(uploadDir, fileName);
-        // Publicly accessible path used in the DB. NOTE: No host/port here, but you must ensure
-        // you prepend it on the frontend, or save the full URL (recommended).
-        // Since you used '/media/', we'll use that, and assume the frontend prepends the host.
         const generatedPathUrl = `/media/${fileName}`; 
 
         fs.writeFileSync(filePath, pdfBytes); 

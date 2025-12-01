@@ -18,7 +18,7 @@ const OFFICIAL_CATEGORIES = [
     'Barangay Official', 'SK Official', 'Staff', 'Tanod', 'Other'
 ];
 const OFFICIAL_STATUSES = [
-    'Working', 'On Site', 'On Leave', 'AWOL'
+    'Working', 'On Site', 'On Leave', 'AWOL', 'Officer of the Day'
 ];
 
 const BARANGAY_POSITIONS = [
@@ -974,6 +974,7 @@ const StatusDropdown = ({ currentStatus, statuses, onStatusChange, onClose, offi
                 return { backgroundColor: '#D1FAE5', color: '#047857' };
             case 'On Site':
                 return { backgroundColor: '#FEF9C3', color: '#A16207' };
+            case 'Officer of the Day': return { backgroundColor: '#E0F2FE', color: PRIMARY_BLUE };
             case 'On Leave':
                 return { backgroundColor: '#FEE2E2', color: '#B91C1C' };
             case 'AWOL':

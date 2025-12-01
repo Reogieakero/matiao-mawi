@@ -120,6 +120,14 @@ const DocumentViewModal = ({ show, document, onClose }) => {
                     <div style={modalStyles.label}><User size={18} />Full Name:</div>
                     <div style={modalStyles.value}>{document.fullName}</div>
                     
+                    {/* START OF CHANGE: Add Purok and Birthdate fields */}
+                    <div style={modalStyles.label}><MapPin size={18} />Purok:</div>
+                    <div style={modalStyles.value}>{document.purok || 'N/A'}</div>
+
+                    <div style={modalStyles.label}><Calendar size={18} />Birthdate:</div>
+                    <div style={modalStyles.value}>{document.birthdate ? new Date(document.birthdate).toLocaleDateString() : 'N/A'}</div>
+                    {/* END OF CHANGE */}
+
                     <div style={modalStyles.label}><Calendar size={18} />Date Requested:</div>
                     <div style={modalStyles.value}>{formatDate(document.dateRequested)}</div>
                     
@@ -645,6 +653,11 @@ const AdminDocumentsPage = () => {
                             <th style={styles.th} onClick={() => requestSort('fullName')}>
                                 Applicant Name {getSortIndicator('fullName')}
                             </th>
+                            {/* START OF CHANGE: Add Purok column */}
+                            <th style={styles.th} onClick={() => requestSort('purok')}>
+                                Purok {getSortIndicator('purok')}
+                            </th>
+                            {/* END OF CHANGE */}
                             <th style={styles.th} onClick={() => requestSort('documentType')}>
                                 Document Type {getSortIndicator('documentType')}
                             </th>
@@ -660,7 +673,7 @@ const AdminDocumentsPage = () => {
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan="6" style={styles.noResults}>
+                                <td colSpan="7" style={styles.noResults}>
                                     <Loader size={20} className="spinner" style={{ marginRight: '10px' }} />
                                     Loading applications...
                                 </td>
@@ -670,6 +683,9 @@ const AdminDocumentsPage = () => {
                                 <tr key={doc.id} style={styles.rowHover}>
                                     <td style={styles.td}>{doc.id}</td>
                                     <td style={styles.td}>{doc.fullName}</td>
+                                    {/* START OF CHANGE: Add Purok data cell */}
+                                    <td style={styles.td}>{doc.purok}</td>
+                                    {/* END OF CHANGE */}
                                     <td style={styles.td}>{doc.documentType}</td>
                                     <td style={styles.td}>{formatDate(doc.dateRequested)}</td>
                                     <td style={styles.td}>
@@ -697,7 +713,7 @@ const AdminDocumentsPage = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="6">
+                                <td colSpan="7">
                                     <div style={styles.noResults}>
                                         No document applications found matching your criteria.
                                     </div>

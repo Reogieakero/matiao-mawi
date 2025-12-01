@@ -5,7 +5,7 @@ from pypdf import PdfReader
 # --- Configuration ---
 # Since you confirmed the PDF is in the 'forms' folder,
 # we'll hardcode the path for the Barangay Clearance template.
-PDF_FILE_PATH = "forms/barangay_clearance_template.pdf" 
+PDF_FILE_PATH = "forms/barangay-clearance (1).pdf" 
 # ---------------------
 
 if not os.path.exists(PDF_FILE_PATH):

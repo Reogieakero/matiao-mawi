@@ -154,7 +154,14 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
 };
 
 // Application Modal Component (Simplified for brevity, assuming existing styles are present)
-const ApplicationModal = ({ show, document, onClose, onSubmit, fullName, setFullName, purpose, setPurpose, requirementsFiles, handleRequirementsChange, paymentMethod, setPaymentMethod, referenceNumber, setReferenceNumber, barangayPaymentDetails, feeRequired }) => {
+const ApplicationModal = ({ 
+    show, document, onClose, onSubmit, fullName, setFullName, purpose, setPurpose, 
+    requirementsFiles, handleRequirementsChange, paymentMethod, setPaymentMethod, 
+    referenceNumber, setReferenceNumber, barangayPaymentDetails, feeRequired,
+    // START OF CHANGE: Add new props
+    purok, setPurok, birthdate, setBirthdate 
+    // END OF CHANGE
+}) => {
     if (!show || !document) return null;
     
     // Use the existing modalStyles for the structure
@@ -173,6 +180,20 @@ const ApplicationModal = ({ show, document, onClose, onSubmit, fullName, setFull
                         <label style={modalStyles.label}>Applicant Full Name *</label>
                         <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} style={modalStyles.input} required />
                     </div>
+                    
+                    {/* START OF CHANGE: Add Purok and Birthdate fields */}
+                    <div style={{ display: 'flex', gap: '15px' }}>
+                        <div style={{ ...modalStyles.formGroup, flex: 1 }}>
+                            <label style={modalStyles.label}>Purok / Zone *</label>
+                            <input type="text" value={purok} onChange={(e) => setPurok(e.target.value)} style={modalStyles.input} placeholder="e.g., Purok 5" required />
+                        </div>
+                        <div style={{ ...modalStyles.formGroup, flex: 1 }}>
+                            <label style={modalStyles.label}>Birthdate *</label>
+                            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={modalStyles.input} required />
+                        </div>
+                    </div>
+                    {/* END OF CHANGE */}
+
                     <div style={modalStyles.formGroup}>
                         <label style={modalStyles.label}>Purpose of Application *</label>
                         <textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} style={modalStyles.textarea} placeholder="e.g., Job application, School registration, Business permit renewal" required />
@@ -246,6 +267,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     
     // Form States
     const [fullName, setFullName] = useState(userName || '');
+    // START OF CHANGE: Add new form states
+    const [purok, setPurok] = useState('');
+    const [birthdate, setBirthdate] = useState('');
+    // END OF CHANGE
     const [purpose, setPurpose] = useState('');
     const [requirementsFiles, setRequirementsFiles] = useState([]); 
     
@@ -395,6 +420,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
         setCurrentDocument(doc);
         setFullName(userName || ''); 
+        // START OF CHANGE: Reset new form states
+        setPurok('');
+        setBirthdate('');
+        // END OF CHANGE
         setPurpose('');
         setRequirementsFiles([]); 
         setPaymentMethod(barangayPaymentDetails.length > 0 ? barangayPaymentDetails[0].method_name : '');
@@ -414,10 +443,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const handleApply = async (e) => {
         e.preventDefault();
         
-        if (!currentDocument || !fullName || !purpose || requirementsFiles.length === 0) {
-            alert('Please fill out all required text fields and upload the necessary requirements.');
+        // START OF CHANGE: Include new form fields in validation
+        if (!currentDocument || !fullName || !purok || !birthdate || !purpose || requirementsFiles.length === 0) {
+            alert('Please fill out all required text fields (Name, Purok, Birthdate, Purpose) and upload the necessary requirements.');
             return;
         }
+        // END OF CHANGE
         
         const feeRequired = currentDocument.fee > 0;
         
@@ -432,6 +463,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         formData.append('document_id', currentDocument.id);
         formData.append('user_email', userEmail);
         formData.append('full_name', fullName);
+        // START OF CHANGE: Append new form fields to FormData
+        formData.append('purok', purok);
+        formData.append('birthdate', birthdate);
+        // END OF CHANGE
         formData.append('purpose', purpose);
         formData.append('requirements_details', currentDocument.requirements); 
         
@@ -583,6 +618,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                         <br />
 
                                         <p style={styles.proHistoryDetail}>
+                                            <FiInfo size={14} style={styles.proIcon} /> <strong>Purok:</strong> {app.purok || 'N/A'}
+                                        </p>
+                                        <p style={styles.proHistoryDetail}>
+                                            <FiCalendar size={14} style={styles.proIcon} /> <strong>Birthdate:</strong> {app.birthdate ? new Date(app.birthdate).toLocaleDateString() : 'N/A'}
+                                        </p>
+                                        <p style={styles.proHistoryDetail}>
                                             <FiCreditCard size={14} style={styles.proIcon} /> <strong>Payment:</strong> {app.payment_reference_number ? `Ref: ${app.payment_reference_number.substring(0, 10)}...` : 'N/A (No Fee or Pending Ref)'}
                                         </p>
                                         <p style={styles.proHistoryPurpose}>
@@ -642,6 +683,12 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 onSubmit={handleApply}
                 fullName={fullName}
                 setFullName={setFullName}
+                // START OF CHANGE: Pass new props
+                purok={purok}
+                setPurok={setPurok}
+                birthdate={birthdate}
+                setBirthdate={setBirthdate}
+                // END OF CHANGE
                 purpose={purpose}
                 setPurpose={setPurpose}
                 requirementsFiles={requirementsFiles}
@@ -791,7 +838,7 @@ const styles = {
     templatesHeader: { fontSize: '1.5rem', color: '#0369a1', fontWeight: '700', marginBottom: '10px', display: 'flex', alignItems: 'center' },
     templatesSubheader: { color: '#4b5563', marginBottom: '20px' },
     templateGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px' },
-    templateCard: { textDecoration: 'none', backgroundColor: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.05)', transition: 'transform 0.2s, box-shadow 0.2s', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e0f2fe', ':hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' } },
+    templateCard: { textDecoration: 'none', backgroundColor: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.05)', transition: 'transform 0.2s, boxShadow 0.2s', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e0f2fe', ':hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' } },
     templateCardContent: { display: 'flex', alignItems: 'center' },
     templateIcon: { color: '#3b82f6', marginRight: '10px' },
     templateName: { color: '#1f2937', fontWeight: '600', fontSize: '0.95rem' },

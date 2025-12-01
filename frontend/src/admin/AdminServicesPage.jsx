@@ -1052,17 +1052,18 @@ const AdminServicesPage = () => {
             gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', // Responsive card grid
             gap: '25px',
         },
+        // **MODIFIED SERVICE CARD STYLE BLOCK**
         serviceCard: {
             backgroundColor: 'white',
             borderRadius: '12px',
             boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
-            transition: 'transform 0.2s',
+            transition: 'transform 0.2s, box-shadow 0.2s', // Add box-shadow to transition
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
-            cursor: 'default',
-            '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 6px 20px rgba(0, 0, 0, 0.1)' }
+            cursor: 'pointer', // Change cursor to pointer to indicate interactivity
+            // Removed the old '&:hover' style as it cannot be used in inline JSX style objects directly
         },
         cardImageContainer: {
             width: '100%',
@@ -1333,14 +1334,28 @@ const AdminServicesPage = () => {
 
     // --- Card Component (Replacing Table Rows) ---
     const ServiceCard = ({ service, onView, onEdit, onDelete }) => {
+        const [isHovered, setIsHovered] = useState(false); // State for hover effect
+
         const tagColor = getCategoryColor(service.category);
         const TagIcon = tagColor.icon;
         
         // Prepare summary (first 3 lines of description)
         const summaryText = service.description || 'No description provided.';
+        
+        // Dynamic style based on hover state
+        const cardStyle = {
+            ...styles.serviceCard,
+            transform: isHovered ? 'translateY(-3px)' : 'translateY(0)',
+            boxShadow: isHovered ? '0 8px 25px rgba(0, 0, 0, 0.15)' : '0 4px 15px rgba(0, 0, 0, 0.05)',
+        };
+
 
         return (
-            <div style={styles.serviceCard}>
+            <div 
+                style={cardStyle}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            >
                 {/* Image Section */}
                 <div style={styles.cardImageContainer}>
                     {service.featured_image_url ? (
