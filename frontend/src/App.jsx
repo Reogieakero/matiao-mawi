@@ -37,6 +37,7 @@ import AdminAnnouncementsPage from './admin/AdminAnnouncementsPage';
 import AdminDocumentsPage from './admin/AdminDocumentsPage';
 import AdminServicesPage from './admin/AdminServicesPage';
 import AdminHotlinesPage from './admin/AdminHotlinesPage';
+import AdminContactPage from './admin/AdminContactPage';
 
 // --- Placeholder Component for missing pages ---
 const Placeholder = ({ title }) => (
@@ -258,7 +259,7 @@ const App = () => {
                         <Route path="/documents" element={<AdminDocumentsPage />} />
                         <Route path="/services" element={<AdminServicesPage />} />
                         <Route path="/hotlines" element={<AdminHotlinesPage/>} />
-                        <Route path="/contacts" element={<Placeholder title="Admin Contacts Management" />} />
+                        <Route path="/contacts" element={<AdminContactPage/>} />
                         
                         {/* Default Admin Route */}
                         <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />

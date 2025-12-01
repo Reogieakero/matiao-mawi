@@ -86,6 +86,9 @@ export default function CreateAccount() {
   // New State for validation and focus
   const [passwordErrors, setPasswordErrors] = useState([]);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  
+  // NEW: State for displaying status/error messages
+  const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
 
 
   // The API URL remains correct: backend is on 5000
@@ -113,16 +116,20 @@ export default function CreateAccount() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // NEW: Clear previous status/error message
+    setStatusMessage({ type: '', text: '' }); 
 
     // 1. Client-side Validation Checks
     const errors = validatePassword(password);
     if (errors.length > 0) {
-      alert(`Password is not strong enough. Missing requirements: ${errors.join(', ')}`);
+      // Replaced alert with status message
+      setStatusMessage({ type: 'error', text: 'Password is not strong enough. Please check requirements.' });
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+      // Replaced alert with status message
+      setStatusMessage({ type: 'error', text: 'Passwords do not match!' });
       return;
     }
 
@@ -142,7 +149,8 @@ export default function CreateAccount() {
 
       // 3. Handle the server's response
       if (response.ok) {
-        // REMOVED: alert(data.message || "Account created successfully!");
+        // Registration Success: Set success message (optional, as we are redirecting)
+        setStatusMessage({ type: 'success', text: data.message || "Account created successfully!" });
         
         // Clean up form state
         setName('');
@@ -152,16 +160,16 @@ export default function CreateAccount() {
         
         // --- CRUCIAL CHANGE: REDIRECT TO VERIFICATION PAGE AND PASS EMAIL ---
         navigate('/verify', { state: { email: data.userEmail || email } }); 
-        // Note: Using 'email' as a fallback if 'data.userEmail' is not provided by the API
         // --------------------------------------------------------------------
         
       } else {
         // Display error message from the server (e.g., "Email already exists")
-        alert(`Registration failed: ${data.message || 'Please try again.'}`);
+        setStatusMessage({ type: 'error', text: data.message || 'Registration failed. Please try again.' });
       }
     } catch (error) {
       console.error("Network or API call error:", error);
-      alert("Could not connect to the server. Please check the backend service."); 
+      // Replaced alert with status message
+      setStatusMessage({ type: 'error', text: "Could not connect to the server. Please check the backend service." }); 
     } finally {
       setLoading(false);
     }
@@ -169,6 +177,17 @@ export default function CreateAccount() {
 
   const isPasswordValid = passwordErrors.length === 0;
   const isFormValid = name && email && password && confirmPassword && isPasswordValid;
+
+  // Function to determine the style based on the status type
+  const getStatusStyle = () => {
+    if (statusMessage.type === 'error') {
+      return styles.errorMessage;
+    }
+    if (statusMessage.type === 'success') {
+      return styles.successMessage;
+    }
+    return {};
+  };
 
   return (
     <div style={styles.page}>
@@ -190,6 +209,14 @@ export default function CreateAccount() {
         <form onSubmit={handleSubmit} style={styles.form}>
           <h2 style={styles.title}>Create Account</h2>
           <p style={styles.subtitle}>Sign up to join the Community Mawii</p>
+          
+          {/* NEW: Status Message Display */}
+          {statusMessage.text && (
+            <div style={getStatusStyle()}>
+              {statusMessage.text}
+            </div>
+          )}
+          {/* END NEW */}
 
           <InputField
             label="Full Name"
@@ -215,14 +242,14 @@ export default function CreateAccount() {
             onBlur={() => setIsPasswordFocused(false)}
           />
           
-          {/* Password Validation Display (New Section) */}
+          {/* Password Validation Display */}
           {password.length > 0 && (
             <div style={styles.validationBox}>
               <p style={styles.validationTitle}>Password must contain:</p>
               <ul style={styles.validationList}>
                 {['at least 8 characters', 'at least 1 letter (uppercase or lowercase)', 'at least 1 special character (!@#$...)', 'at least 1 number'].map((req) => (
                   <li key={req} style={{ color: passwordErrors.includes(req) ? '#dc3545' : '#28a745' }}>
-                    {passwordErrors.includes(req) ? '' : ''} {req}
+                    {passwordErrors.includes(req) ? '' : '✓'} {req}
                   </li>
                 ))}
               </ul>
@@ -260,7 +287,7 @@ export default function CreateAccount() {
 }
 
 // ------------------------------------------------------------------
-// ---------- STYLES (Your original styles + New styles for validation) ----------
+// ---------- STYLES (Your original styles + New styles for validation and status messages) ----------
 // ------------------------------------------------------------------
 const styles = {
   page: {
@@ -429,5 +456,28 @@ const styles = {
     margin: 0,
     fontSize: "12px",
     lineHeight: "1.6",
+  },
+  // NEW: Status Message Styles
+  errorMessage: {
+    backgroundColor: "#fee2e2", // Light red background
+    color: "#b91c1c", // Darker red text
+    padding: "10px 14px",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    textAlign: "center",
+    marginBottom: "18px", 
+    border: "1px solid #fca5a5",
+  },
+  successMessage: {
+    backgroundColor: "#d1e7dd", // Light green background
+    color: "#0f5132", // Darker green text
+    padding: "10px 14px",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    textAlign: "center",
+    marginBottom: "18px",
+    border: "1px solid #badbcc",
   },
 };

@@ -8,6 +8,8 @@
 # testing
 /coverage
 
+backend/.env
+frontend/.env
 .env
 
 # production

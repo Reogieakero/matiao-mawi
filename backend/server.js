@@ -3151,6 +3151,66 @@ app.put('/api/documents/remove-from-history/:applicationId', (req, res) => {
     });
 });
 
+// =========================================================
+// --- NEW ADMIN API ENDPOINTS FOR CONTACT MESSAGES ---
+// =========================================================
+
+// 1. GET: Fetch All Contact Messages (Issues/Reports/Feedback)
+app.get('/api/admin/contact-messages', (req, res) => {
+    // Select all fields from contact_messages, ordered by creation date (latest first).
+    // The columns are based on the existing /api/contact-message POST route.
+    const SQL_FETCH_MESSAGES = `
+        SELECT id, user_id, full_name, email_address, subject, message, created_at
+        FROM contact_messages
+        ORDER BY created_at DESC
+    `;
+
+    db.query(SQL_FETCH_MESSAGES, (err, results) => {
+        if (err) {
+            console.error("Database error fetching all contact messages:", err);
+            return res.status(500).json({ message: 'Failed to fetch contact messages.' });
+        }
+        
+        // Format the date for consistent display on the frontend
+        const formattedResults = results.map(row => ({
+            ...row,
+            // Convert MySQL date object to a readable local string
+            created_at: new Date(row.created_at).toLocaleString(), 
+        }));
+
+        res.status(200).json(formattedResults);
+    });
+});
+
+// 2. DELETE: Delete a Contact Message
+app.delete('/api/admin/contact-messages/:id', (req, res) => {
+    const messageId = parseInt(req.params.id, 10);
+
+    if (isNaN(messageId)) {
+        return res.status(400).json({ message: 'Invalid message ID.' });
+    }
+
+    // Hard delete the message record
+    const SQL_DELETE_MESSAGE = `
+        DELETE FROM contact_messages
+        WHERE id = ?
+    `;
+
+    db.query(SQL_DELETE_MESSAGE, [messageId], (err, result) => {
+        if (err) {
+            console.error("Database error deleting contact message:", err);
+            return res.status(500).json({ message: 'Failed to delete message.' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Message not found.' });
+        }
+
+        res.status(200).json({ message: 'Contact message deleted successfully.' });
+    });
+});
+// End of NEW ADMIN API ENDPOINTS FOR CONTACT MESSAGES
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
