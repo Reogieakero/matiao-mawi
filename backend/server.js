@@ -2734,6 +2734,16 @@ app.put('/api/admin/documents/update-status/:applicationId', (req, res) => {
     });
 });
 
+const getOrdinalSuffix = (day) => {
+    const d = parseInt(day);
+    if (d > 3 && d < 21) return 'th'; 
+    switch (d % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
+};
 
 const getFullOfficialName = (official) => {
     if (!official) return 'N/A';
@@ -2764,8 +2774,8 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
                 u.name AS registered_name, 
                 up.address, 
                 up.contact,
-                da.purok,      
-                da.birthdate      
+                da.purok,
+                da.birthdate
             FROM document_applications da 
             LEFT JOIN users u ON da.user_email = u.email 
             LEFT JOIN user_profiles up ON u.id = up.user_id 
@@ -2781,7 +2791,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         });
 
         // ⭐ 2. FETCH BARANGAY OFFICIALS BY POSITION ⭐
-        // These position strings MUST EXACTLY MATCH the values in your 'barangay_officials' table.
         const OFFICIAL_POSITIONS = ['Barangay Captain', 'Secretary', 'Treasurer', 'Kagawad'];
 
         const SQL_SELECT_OFFICIALS = `
@@ -2804,21 +2813,19 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // Map officials data for easy lookup and set variables
+        // Map officials data for easy lookup
         const officialsMap = officialsData.reduce((map, official) => {
-            // Only map the first active official found for a specific unique position
             if (!map[official.position]) {
                 map[official.position] = getFullOfficialName(official);
             }
             return map;
         }, {});
 
-        // Set the dynamic variables using lookups (using clear NOT FOUND fallback)
+        // Set the dynamic variables using lookups
         const barangayCaptainName = officialsMap['Barangay Captain'] || 'CAPTAIN NAME NOT FOUND';
         const barangaySecretaryName = officialsMap['Secretary'] || 'SECRETARY NAME NOT FOUND';
         const barangayTreasurerName = officialsMap['Treasurer'] || 'TREASURER NAME NOT FOUND';
         
-        // Find the Kagawad to be the Officer of the Day (simply the first active one found)
         const kagawadData = officialsData.find(o => o.position === 'Kagawad');
         const kagawadOfficerOfTheDayName = getFullOfficialName(kagawadData) || 'KAGAWAD NAME NOT FOUND';
 
@@ -2838,54 +2845,78 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const residentName = applicationData.applicant_name;
         const residentPurok = applicationData.purok || 'N/A'; 
         const documentPurpose = applicationData.purpose; 
-        
+        const docType = getDocumentName(applicationData.document_id); // Get the document name
+
         // Date Preparation (Current Date)
         const currentDate = new Date();
         const currentDay = currentDate.getDate().toString();
         const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long' });
         const currentYear = currentDate.getFullYear().toString();
         
-        // Birthdate Preparation
+        // Birthdate Preparation (for Clearance, still calculated just in case)
         const birthDate = applicationData.birthdate ? new Date(applicationData.birthdate) : null;
-        
-        // ⭐ AGE CALCULATION LOGIC ⭐
         let residentAge = 'N/A';
         if (birthDate && !isNaN(birthDate)) {
             const ageDate = new Date(currentDate - birthDate.getTime());
             residentAge = Math.abs(ageDate.getUTCFullYear() - 1970).toString();
         }
-
         const birthDay = birthDate ? birthDate.getDate().toString() : 'N/A';
-        // Using 'short' for 3-letter month (e.g., Jan, Feb)
         const birthMonth = birthDate ? birthDate.toLocaleDateString('en-US', { month: 'short' }) : 'N/A'; 
         const birthYear = birthDate ? birthDate.getFullYear().toString() : 'N/A';
 
 
-        // --- PDF FIELD MAPPING LOGIC (15-Field Sequence) ---
-        const fieldsToFill = {
-            // APPLICANT INFO (1-5)
-            'text_1szvk': residentName,      // 1. applicant name
-            'text_2ofeq': residentAge,       // 2. age
-            'text_3umsl': birthMonth,        // 3. month of birth
-            'text_4eobd': birthDay,          // 4. day of birth
-            'text_5pfkm': birthYear,         // 5. year of birth
+        // --- PDF FIELD MAPPING LOGIC (Conditional based on document type) ---
+        let fieldsToFill = {};
 
-            // DOCUMENT DETAILS (6-11)
-            'text_6zeck': residentPurok,      // 6. purok
-            'text_7tjdb': residentName,      // 7. applicant name (2nd occ. before purpose)
-            'text_8rp': documentPurpose,     // 8. purpose
-            'text_9haur': currentDay,        // 9. date of approved document
-            'text_10vfnv': currentMonth,     // 10. month of the approve document
-            'text_11dspw': residentName,     // 11. applicant name (for signature)
+        // 1. **CERTIFICATE OF INDIGENCY MAPPING** (Using user-specified sequence)
+        // Check both document name and template file name (as a fallback)
+        if (docType === 'Certificate of Indigency' || templateFileName.toLowerCase().includes('indigency')) {
             
-            // OFFICIALS (12-15) - Mapped to position-based fetched names
-            'text_12enwt': barangaySecretaryName,      // 12. secretary name
-            'text_13zbts': barangayTreasurerName,      // 13. treasurer name
-            'text_14nczk': barangayCaptainName,        // 14. barangay captain
-            'text_15qpbm': kagawadOfficerOfTheDayName, // 15. barangay kagawad officer of the day
+            console.log("Applying Indigency Field Mapping...");
             
-        };
+            fieldsToFill = {
+                // MAPPING BASED ON DIAGNOSTIC FIELDS AND NEW USER SEQUENCE:
+                'text_1tprt': residentName,            // 1. Applicant Name
+                'text_2xlif': residentPurok,           // 2. Purok
+                'text_3nevm': documentPurpose,         // 3. Purpose
+                'text_4zres': currentDay,              // 4. Day of Approval (e.g., '1')
+                'text_5ikgb': currentMonth,            // 5. Month of Approval (e.g., 'December')
+                'text_6zjsp': barangayCaptainName,     // 6. Barangay Captain Name
+                'text_7dkwy': kagawadOfficerOfTheDayName,             // 7. Current Year (Assumed to be the last field, or static text)
+            };
+            
+        // 2. **BARANGAY CLEARANCE MAPPING** (Using existing 15 fields)
+        } else if (docType === 'Barangay Clearance' || templateFileName.toLowerCase().includes('clearance')) {
+            console.log("Applying Barangay Clearance Field Mapping...");
+            fieldsToFill = {
+                // APPLICANT INFO (1-5)
+                'text_1szvk': residentName,// 1. applicant name
+                'text_2ofeq': residentAge,// 2. age
+                'text_3umsl': birthMonth,// 3. month of birth
+                'text_4eobd': birthDay, // 4. day of birth
+                'text_5pfkm': birthYear, // 5. year of birth
+
+                // DOCUMENT DETAILS (6-11)
+                'text_6zeck': residentPurok, // 6. purok
+                'text_7tjdb': residentName, // 7. applicant name (2nd occ. before purpose)
+                'text_8rp': documentPurpose, // 8. purpose
+                'text_9haur': currentDay, // 9. day of approved document
+                'text_10vfnv': currentMonth, // 10. month of the approve document
+                'text_11dspw': residentName, // 11. applicant name (for signature)
+                
+                // OFFICIALS (12-15) - Mapped to position-based fetched names
+                'text_12enwt': barangaySecretaryName, // 12. secretary name
+                'text_13zbts': barangayTreasurerName, // 13. treasurer name
+                'text_14nczk': barangayCaptainName, // 14. barangay captain
+                'text_15qpbm': kagawadOfficerOfTheDayName, // 15. barangay kagawad officer of the day
+            };
+        } else {
+            // Log a warning if a document is approved but no mapping is defined
+            console.warn(`[WARNING] No specific PDF field mapping found for document type: ${docType} (Template: ${templateFileName}). The generated PDF may be blank.`);
+        }
         
+        
+        // --- Loop and Fill Fields ---
         for (const [fieldName, value] of Object.entries(fieldsToFill)) {
             try {
                 const field = form.getTextField(fieldName);
@@ -2901,7 +2932,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const pdfBytes = await pdfDoc.save();
 
         // 4. SAVE FILE TO DISK, UPDATE STATUS & PATH IN DATABASE 
-        const docType = getDocumentName(applicationData.document_id); // Assuming getDocumentName is defined elsewhere
         const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
         const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
