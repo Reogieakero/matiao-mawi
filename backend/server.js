@@ -2734,6 +2734,14 @@ app.put('/api/admin/documents/update-status/:applicationId', (req, res) => {
     });
 });
 
+
+const getFullOfficialName = (official) => {
+    if (!official) return 'N/A';
+    // Format: FIRST NAME M. LAST NAME
+    const middleInitial = official.middle_initial ? `${official.middle_initial.charAt(0)}.` : '';
+    // Use .trim() and replace() to handle cases where middleInitial is empty and prevent double spaces
+    return `${official.first_name} ${middleInitial} ${official.last_name}`.replace(/\s\s+/g, ' ').trim();
+};
 // server.js - Make sure the formatDateForForm function is defined at the top of the file!
 
 // =========================================================
@@ -2750,15 +2758,14 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
 
     try {
         // 1. FETCH APPLICATION, USER, AND PROFILE DATA
-        // ⭐ SQL is updated to fetch birthdate and purok, but NOT 'age'
         const SQL_SELECT = ` 
             SELECT 
                 da.*, 
                 u.name AS registered_name, 
                 up.address, 
                 up.contact,
-                da.purok,           
-                da.birthdate        
+                da.purok,      
+                da.birthdate      
             FROM document_applications da 
             LEFT JOIN users u ON da.user_email = u.email 
             LEFT JOIN user_profiles up ON u.id = up.user_id 
@@ -2773,24 +2780,66 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // Resolve file path (assuming templates are in a 'forms' directory in the root)
+        // ⭐ 2. FETCH BARANGAY OFFICIALS BY POSITION ⭐
+        // These position strings MUST EXACTLY MATCH the values in your 'barangay_officials' table.
+        const OFFICIAL_POSITIONS = ['Barangay Captain', 'Secretary', 'Treasurer', 'Kagawad'];
+
+        const SQL_SELECT_OFFICIALS = `
+            SELECT 
+                position, 
+                first_name, 
+                middle_initial, 
+                last_name,
+                status
+            FROM barangay_officials
+            WHERE position IN (?) 
+            AND (status = 'On Site' OR status = 'Working' OR status = 'Officer of the Day')
+            ORDER BY last_name ASC; 
+        `;
+        
+        const officialsData = await new Promise((resolve, reject) => {
+            db.query(SQL_SELECT_OFFICIALS, [OFFICIAL_POSITIONS], (err, result) => {
+                if (err) return reject(err);
+                resolve(result); 
+            });
+        });
+
+        // Map officials data for easy lookup and set variables
+        const officialsMap = officialsData.reduce((map, official) => {
+            // Only map the first active official found for a specific unique position
+            if (!map[official.position]) {
+                map[official.position] = getFullOfficialName(official);
+            }
+            return map;
+        }, {});
+
+        // Set the dynamic variables using lookups (using clear NOT FOUND fallback)
+        const barangayCaptainName = officialsMap['Barangay Captain'] || 'CAPTAIN NAME NOT FOUND';
+        const barangaySecretaryName = officialsMap['Secretary'] || 'SECRETARY NAME NOT FOUND';
+        const barangayTreasurerName = officialsMap['Treasurer'] || 'TREASURER NAME NOT FOUND';
+        
+        // Find the Kagawad to be the Officer of the Day (simply the first active one found)
+        const kagawadData = officialsData.find(o => o.position === 'Kagawad');
+        const kagawadOfficerOfTheDayName = getFullOfficialName(kagawadData) || 'KAGAWAD NAME NOT FOUND';
+
+
+        // Resolve file path 
         const templatePath = path.join(__dirname, 'forms', templateFileName); 
         if (!fs.existsSync(templatePath)) {
             return res.status(404).json({ message: `PDF template file not found: ${templateFileName}` });
         }
 
-        // 2. LOAD, FILL, AND FLATTEN PDF
+        // 3. LOAD, FILL, AND FLATTEN PDF
         const templateBytes = fs.readFileSync(templatePath);
         const pdfDoc = await PDFDocument.load(templateBytes);
         const form = pdfDoc.getForm();
 
         // Data preparation
         const residentName = applicationData.applicant_name;
-        const residentPurok = applicationData.purok || 'N/A';
+        const residentPurok = applicationData.purok || 'N/A'; 
         const documentPurpose = applicationData.purpose; 
-        // const contactNumber = applicationData.contact || 'N/A'; // Contact is not used in the new mapping, but kept for context
         
-        // Date Preparation
+        // Date Preparation (Current Date)
         const currentDate = new Date();
         const currentDay = currentDate.getDate().toString();
         const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long' });
@@ -2807,27 +2856,34 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         }
 
         const birthDay = birthDate ? birthDate.getDate().toString() : 'N/A';
-        const birthMonth = birthDate ? birthDate.toLocaleDateString('en-US', { month: 'long' }) : 'N/A';
+        // Using 'short' for 3-letter month (e.g., Jan, Feb)
+        const birthMonth = birthDate ? birthDate.toLocaleDateString('en-US', { month: 'short' }) : 'N/A'; 
         const birthYear = birthDate ? birthDate.getFullYear().toString() : 'N/A';
 
 
-        // --- PDF FIELD MAPPING LOGIC (Field 2 is now the calculated Age) ---
+        // --- PDF FIELD MAPPING LOGIC (15-Field Sequence) ---
         const fieldsToFill = {
-            // Requested Order: Name, Age, Birthdate details, Purok, Name, Purpose, Date Approved, Month Approved, Name
-            'text_1xnlp': residentName,           // 1. Applicant Name (1st occurrence)
-            'text_2cjzz': residentAge,   
-            'text_4aofa': birthDay,          // 2. ⭐ CALCULATED AGE ⭐
-            'text_3hice': birthMonth,             // 3. Month of Birthdate
-                          // 4. Date of Birthdate
-            'text_5xksb': birthYear,              // 5. Year of Birthdate
-            'text_6dhjc': residentPurok,          // 6. Purok
-            'text_7fupb': residentName,           // 7. Applicant Name (2nd occurrence)
-            'text_8weom': documentPurpose,        // 8. Purpose
-            'text_9fcjd': currentDay,             // 9. Date of Approved (Current Day)
-            'text_10aoaw': currentMonth,          // 10. Month of Date Approve (Current Month)
-            'text_11bmid': residentName,          // 11. Applicant Name (3rd occurrence, often for signature)
+            // APPLICANT INFO (1-5)
+            'text_1szvk': residentName,      // 1. applicant name
+            'text_2ofeq': residentAge,       // 2. age
+            'text_3umsl': birthMonth,        // 3. month of birth
+            'text_4eobd': birthDay,          // 4. day of birth
+            'text_5pfkm': birthYear,         // 5. year of birth
+
+            // DOCUMENT DETAILS (6-11)
+            'text_6zeck': residentPurok,      // 6. purok
+            'text_7tjdb': residentName,      // 7. applicant name (2nd occ. before purpose)
+            'text_8rp': documentPurpose,     // 8. purpose
+            'text_9haur': currentDay,        // 9. date of approved document
+            'text_10vfnv': currentMonth,     // 10. month of the approve document
+            'text_11dspw': residentName,     // 11. applicant name (for signature)
             
-             // Captain placeholder
+            // OFFICIALS (12-15) - Mapped to position-based fetched names
+            'text_12enwt': barangaySecretaryName,      // 12. secretary name
+            'text_13zbts': barangayTreasurerName,      // 13. treasurer name
+            'text_14nczk': barangayCaptainName,        // 14. barangay captain
+            'text_15qpbm': kagawadOfficerOfTheDayName, // 15. barangay kagawad officer of the day
+            
         };
         
         for (const [fieldName, value] of Object.entries(fieldsToFill)) {
@@ -2844,13 +2900,13 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         form.flatten(); // ⭐ FLATTEN THE FIELDS ⭐
         const pdfBytes = await pdfDoc.save();
 
-        // 3. SAVE FILE TO DISK, UPDATE STATUS & PATH IN DATABASE 
-        const docType = getDocumentName(applicationData.document_id);
+        // 4. SAVE FILE TO DISK, UPDATE STATUS & PATH IN DATABASE 
+        const docType = getDocumentName(applicationData.document_id); // Assuming getDocumentName is defined elsewhere
         const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
         const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
 
-        const filePath = path.join(uploadDir, fileName);
+        const filePath = path.join(uploadDir, fileName); // Assuming uploadDir is defined elsewhere
         const generatedPathUrl = `/media/${fileName}`; 
 
         fs.writeFileSync(filePath, pdfBytes); 
@@ -2870,7 +2926,7 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // 4. SERVE THE FILE FOR DOWNLOAD
+        // 5. SERVE THE FILE FOR DOWNLOAD
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Length', pdfBytes.length);
