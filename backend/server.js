@@ -26,23 +26,19 @@ app.use(bodyParser.json());
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    secure: false, // Use false for port 587 (TLS/STARTTLS)
+    secure: false, 
     auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS, // This is your Gmail App Password
+        pass: process.env.SMTP_PASS, 
     },
 });
-// ------------------------------------
 
-// --- Utility Function to Generate Code ---
 const generateVerificationCode = () => {
-    // Generates a random 6-digit number
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 const formatDateForForm = (dateString) => {
     if (!dateString) return '';
-    // Formats the date like: November 29, 2025
     return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
     });
@@ -54,13 +50,9 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 
-// Serve static files (like uploaded requirements)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// Serve PDF templates (assuming they are in a 'templates' folder)
 app.use('/forms', express.static(path.join(__dirname, 'forms')));
-// --- MULTER CONFIGURATION ---
 
-// Generic storage configuration (used by /api/upload-media for posts/jobs)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -70,13 +62,11 @@ const storage = multer.diskStorage({
     }
 });
 
-// For Post/Job media upload 
 const upload = multer({ 
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 } 
 }).single('media'); 
 
-// Dedicated storage for PROFILE PICTURES (Users)
 const profilePicStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
@@ -100,14 +90,12 @@ const profilePicUploader = multer({
     }
 }).single('profile_picture'); 
 
-// Dedicated storage for OFFICIAL PROFILE PICTURES
 const officialPicStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        // Use a distinct prefix for officials
         cb(null, `official-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`);
     }
 });
@@ -122,29 +110,23 @@ const officialPicUploader = multer({
             cb(new Error('Only image files are allowed!'), false);
         }
     }
-}).single('official_picture'); // Field name matches client-side: 'official_picture'
+}).single('official_picture'); 
 
-// Re-using the generic storage for document-related files, allowing image/pdf
 const documentStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir); 
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        // Use a distinct prefix for document related files
         cb(null, `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`);
     }
 });
 
 
 
-// =========================================================
-// UPDATED: Multer instance for the Document Application Route
-// Only handles 'requirements' files. Payment is now handled via text fields.
-// =========================================================
 const documentsApplicationUploader = multer({ 
     storage: documentStorage, 
-    limits: { fileSize: 5 * 1024 * 1024 * 5 }, // Global limit: 25MB (Max 5 requirements files)
+    limits: { fileSize: 5 * 1024 * 1024 * 5 }, 
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
             cb(null, true);
@@ -155,7 +137,6 @@ const documentsApplicationUploader = multer({
 }).fields([
     { name: 'requirements', maxCount: 5 },  
 ]);
-// =========================================================
 
 
 app.use('/media', express.static(uploadDir));
@@ -178,7 +159,6 @@ db.connect(err => {
 });
 
 
-// Modified to include author_id and author_picture_url
 const formatThread = (row, type) => {
     let mediaUrls = [];
     if (row.media_url) {
@@ -206,12 +186,10 @@ const formatThread = (row, type) => {
         isBookmarked: row.is_bookmarked || false,
         bookmarked_at: row.bookmarked_at || null,
         mediaUrls: mediaUrls || [],
-        // ADDED: Include contact number for jobs
         contactNumber: row.contact_number || null, 
     };
 };
 
-// Modified to include author_picture_url
 const formatResponse = (row) => ({
     id: row.id,
     author: row.name, 
@@ -222,7 +200,6 @@ const formatResponse = (row) => ({
     parent_author: row.parent_author_name,
 });
 
-// --- API ENDPOINTS ---
 
 app.post('/api/upload-media', (req, res) => {
     upload(req, res, (err) => {
@@ -249,9 +226,7 @@ app.post('/api/upload-media', (req, res) => {
     });
 });
 
-// NEW ENDPOINT: POST /api/upload-requirements (Kept but may not be used by DocumentsPage now)
 app.post('/api/upload-requirements', (req, res) => {
-    // This endpoint remains for completeness but is likely not used by the new DocumentsPage
     const requirementsStorage = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDir); 
@@ -298,18 +273,15 @@ app.post('/api/upload-requirements', (req, res) => {
     });
 });
 
-// server.js (Replace your current app.post('/api/register', ...) with this)
 
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
 
     try {
-        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS); // Use SALT_ROUNDS from .env
-        // 1. Generate a verification code
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS); 
         const verificationCode = generateVerificationCode();
 
-        // 2. Insert user data and verification code into the database
         const SQL_INSERT = `
             INSERT INTO users (name, email, password, verification_code, is_verified) 
             VALUES (?, ?, ?, ?, 0)
@@ -324,7 +296,6 @@ app.post('/api/register', async (req, res) => {
                 return res.status(500).json({ message: 'Database error during registration.' });
             }
             
-            // 3. Send the verification email
             const mailOptions = {
                 from: process.env.SMTP_USER,
                 to: email,
@@ -340,7 +311,6 @@ app.post('/api/register', async (req, res) => {
             transporter.sendMail(mailOptions, (error, info) => {
                 if (error) {
                     console.error("Error sending verification email:", error);
-                    // Account is created in DB, but email failed. Inform user.
                     return res.status(500).json({ 
                         message: 'Account created, but failed to send verification email. Please check your email address and try again later.', 
                         userId: result.insertId 
@@ -348,7 +318,6 @@ app.post('/api/register', async (req, res) => {
                 }
                 console.log('Verification email sent:', info.response);
                 
-                // 4. Send success response
                 res.status(201).json({ 
                     message: 'Account created successfully! A verification code has been sent to your email.', 
                     userId: result.insertId,
@@ -370,7 +339,6 @@ app.post('/api/verify-account', (req, res) => {
         return res.status(400).json({ message: 'Email and verification code are required.' });
     }
 
-    // 1. Check if the code matches the stored code for the given email
     const SQL_CHECK = `
         SELECT verification_code, is_verified 
         FROM users 
@@ -394,7 +362,6 @@ app.post('/api/verify-account', (req, res) => {
         }
 
         if (user.verification_code === code) {
-            // 2. Code is correct! Update the user's status to verified (is_verified = 1)
             const SQL_UPDATE = `
                 UPDATE users 
                 SET is_verified = 1, verification_code = NULL 
@@ -407,11 +374,9 @@ app.post('/api/verify-account', (req, res) => {
                     return res.status(500).json({ message: 'Failed to complete verification.' });
                 }
 
-                // 3. Success response
                 res.status(200).json({ message: 'Account successfully verified! You can now log in.' });
             });
         } else {
-            // 4. Code is incorrect
             res.status(401).json({ message: 'Invalid verification code.' });
         }
     });
@@ -465,14 +430,12 @@ app.post('/api/password-reset/request-code', (req, res) => {
             return res.status(500).json({ message: 'Server error.' });
         }
 
-        // IMPORTANT: Respond with a success message even if the user doesn't exist (security practice)
         if (results.length === 0) {
             return res.status(200).json({ message: 'If an account with that email exists, a password reset code has been sent.' });
         }
 
         const verificationCode = generateVerificationCode(); 
 
-        // Update the user's verification_code in the database (reusing the field)
         const SQL_UPDATE_CODE = `
             UPDATE users 
             SET verification_code = ? 
@@ -485,7 +448,6 @@ app.post('/api/password-reset/request-code', (req, res) => {
                 return res.status(500).json({ message: 'Failed to generate reset code.' });
             }
 
-            // Send the reset code email
             const mailOptions = {
                 from: process.env.SMTP_USER,
                 to: email,
@@ -514,7 +476,6 @@ app.post('/api/password-reset/request-code', (req, res) => {
     });
 });
 
-// 2. Verify Password Reset Code
 app.post('/api/password-reset/verify-code', (req, res) => {
     const { email, code } = req.body;
 
@@ -548,7 +509,6 @@ app.post('/api/password-reset/verify-code', (req, res) => {
     });
 });
 
-// 3. Reset Password
 app.post('/api/password-reset/reset', async (req, res) => {
     const { email, code, newPassword } = req.body;
 
@@ -556,7 +516,6 @@ app.post('/api/password-reset/reset', async (req, res) => {
         return res.status(400).json({ message: 'Email, code, and new password are required.' });
     }
 
-    // 1. Verify the code again
     const SQL_CHECK = `
         SELECT verification_code 
         FROM users 
@@ -564,16 +523,13 @@ app.post('/api/password-reset/reset', async (req, res) => {
     `;
 
     db.query(SQL_CHECK, [email], async (err, results) => {
-        // Handle server/DB error, user not found, or code mismatch/expiry
         if (err || results.length === 0 || results[0].verification_code !== code || results[0].verification_code === null) {
             return res.status(401).json({ message: 'Invalid or expired code. Please request a new reset link.' });
         }
         
         try {
-            // 2. Hash the new password
             const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-            // 3. Update password and clear the verification code (for one-time use)
             const SQL_UPDATE_PASSWORD = `
                 UPDATE users 
                 SET password = ?, verification_code = NULL 
@@ -766,14 +722,11 @@ app.delete('/api/user-threads/:userId', (req, res) => {
     });
 });
 
-// --- NEW API ENDPOINT: DELETE a single thread (Post or Job) ---
 app.delete('/api/threads/:threadType/:threadId', (req, res) => {
     const threadId = parseInt(req.params.threadId, 10);
-    const threadType = req.params.threadType; // 'post' or 'job'
-    // The userId is passed in the body from the client to verify ownership
+    const threadType = req.params.threadType;
     const userIdFromBody = parseInt(req.body.userId, 10); 
     
-    // Basic Validation
     if (isNaN(threadId) || isNaN(userIdFromBody) || !['post', 'job'].includes(threadType)) {
         return res.status(400).json({ message: 'Invalid thread ID, type, or user ID provided.' });
     }
@@ -781,31 +734,25 @@ app.delete('/api/threads/:threadType/:threadId', (req, res) => {
     const table = threadType === 'post' ? 'posts' : 'jobs';
     const threadIdKey = threadType === 'post' ? 'post_id' : 'job_id';
 
-    // 1. Delete associated responses
     const SQL_DELETE_RESPONSES = `DELETE FROM responses WHERE ${threadIdKey} = ?`;
-    // 2. Delete associated bookmarks
     const SQL_DELETE_BOOKMARKS = `DELETE FROM bookmarks WHERE ${threadIdKey} = ?`;
-    // 3. Delete the thread itself, ensuring user_id matches for authorization
     const SQL_DELETE_THREAD = `DELETE FROM ${table} WHERE id = ? AND user_id = ?`;
 
     db.beginTransaction(err => {
         if (err) return res.status(500).json({ message: 'Transaction start failed.' });
 
-        // Step 1: Delete Responses
         db.query(SQL_DELETE_RESPONSES, [threadId], (err) => {
             if (err) return db.rollback(() => { 
                 console.error("Database error deleting responses:", err);
                 res.status(500).json({ message: 'Failed to delete associated responses.' });
             });
 
-            // Step 2: Delete Bookmarks
             db.query(SQL_DELETE_BOOKMARKS, [threadId], (err) => {
                 if (err) return db.rollback(() => { 
                     console.error("Database error deleting bookmarks:", err);
                     res.status(500).json({ message: 'Failed to delete associated bookmarks.' });
                 });
 
-                // Step 3: Delete the Post/Job
                 db.query(SQL_DELETE_THREAD, [threadId, userIdFromBody], (err, result) => {
                     if (err) {
                         return db.rollback(() => {
@@ -816,19 +763,16 @@ app.delete('/api/threads/:threadType/:threadId', (req, res) => {
 
                     if (result.affectedRows === 0) {
                         return db.rollback(() => {
-                            // No rows deleted means unauthorized or thread not found
                             res.status(403).json({ message: 'Thread could not be deleted. It may not exist, or you are not the author.' });
                         });
                     }
 
-                    // Success: Commit Transaction
                     db.commit(commitErr => {
                         if (commitErr) return db.rollback(() => {
                             console.error("Transaction Commit Error:", commitErr);
                             res.status(500).json({ message: 'Failed to complete thread deletion.' });
                         });
                         
-                        // Success JSON Response
                         res.status(200).json({ message: `${threadType} deleted successfully.`, deletedId: threadId });
                     });
                 });
@@ -1332,7 +1276,6 @@ app.get('/api/profile/:userId', (req, res) => {
 });
 
 
-// --- API Endpoint: PUT Update Profile Details (The save function) ---
 app.put('/api/profile/:userId', (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) {
@@ -1341,16 +1284,12 @@ app.put('/api/profile/:userId', (req, res) => {
 
     const { editedName, editedContact, editedAddress, newProfilePictureUrl } = req.body;
 
-    // Validation
     if (!editedName) {
         return res.status(400).json({ message: 'Name is required.' });
     }
 
-    // SQL to update user's name in the 'users' table
     const SQL_UPDATE_USER = 'UPDATE users SET name = ? WHERE id = ?';
     
-    // SQL to update or insert profile details in 'user_profiles' table (UPSERT)
-    // Assumes user_id is a primary or unique key in user_profiles
     const SQL_UPSERT_PROFILE = `
         INSERT INTO user_profiles (user_id, contact, address, profile_picture_url)
         VALUES (?, ?, ?, ?)
@@ -1363,7 +1302,6 @@ app.put('/api/profile/:userId', (req, res) => {
     db.beginTransaction(err => {
         if (err) return res.status(500).json({ message: 'Transaction start failed.' });
 
-        // 1. Update user's name
         db.query(SQL_UPDATE_USER, [editedName, userId], (err) => {
             if (err) {
                 return db.rollback(() => {
@@ -1372,7 +1310,6 @@ app.put('/api/profile/:userId', (req, res) => {
                 });
             }
 
-            // 2. Upsert profile details (contact, address, picture URL)
             db.query(SQL_UPSERT_PROFILE, [userId, editedContact, editedAddress, newProfilePictureUrl], (err) => {
                 if (err) {
                     return db.rollback(() => {
@@ -1389,7 +1326,6 @@ app.put('/api/profile/:userId', (req, res) => {
                         });
                     }
 
-                    // Return updated info to client to refresh local state
                     res.status(200).json({ 
                         message: 'Profile updated successfully.',
                         updatedName: editedName,
@@ -1496,12 +1432,8 @@ app.get('/api/admin/dashboard-stats', (req, res) => {
     });
 });
 
-// Fetches counts for News, Announcements, Services, Officials, and Hotlines
 app.get('/api/admin/dashboard-stats-content', (req, res) => {
-    // NOTE: You should add authentication/authorization middleware here if needed
 
-    // All counts should generally exclude soft-deleted items.
-    // Officials count only includes 'Active' members.
     const SQL_COUNT_QUERIES = `
         SELECT COUNT(id) AS totalNews FROM barangay_news WHERE is_deleted = FALSE;
         SELECT COUNT(id) AS totalAnnouncements FROM barangay_announcements WHERE is_deleted = FALSE;
@@ -1516,7 +1448,6 @@ app.get('/api/admin/dashboard-stats-content', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch content statistics.' });
         }
         
-        // results is an array of result sets due to multiple statements
         const stats = {
             totalNews: results[0][0].totalNews,
             totalAnnouncements: results[1][0].totalAnnouncements,
@@ -1623,8 +1554,6 @@ app.get('/api/documents', (req, res) => {
     });
 });
 
-// Endpoint to fetch payment accounts for display in the modal
-// =========================================================
 app.get('/api/payment-details', (req, res) => {
     const SQL_GET_PAYMENT_DETAILS = 'SELECT method_name, account_name, account_number FROM barangay_payment_details WHERE is_active = TRUE ORDER BY id';
     db.query(SQL_GET_PAYMENT_DETAILS, (err, results) => {
@@ -1635,13 +1564,7 @@ app.get('/api/payment-details', (req, res) => {
         res.status(200).json(results);
     });
 });
-// =========================================================
-
-// UPDATED ENDPOINT: POST /api/documents/apply
-// Now uses documentsApplicationUploader for file uploads
-// =========================================================
 app.post('/api/documents/apply', (req, res) => {
-    // 1. Use the dedicated uploader middleware
     documentsApplicationUploader(req, res, (uploadErr) => {
         if (uploadErr instanceof multer.MulterError) {
             console.error("Multer Upload Error:", uploadErr.message);
@@ -1651,9 +1574,8 @@ app.post('/api/documents/apply', (req, res) => {
             return res.status(500).json({ message: uploadErr.message || 'An unknown error occurred during file upload.' });
         }
 
-        // 2. Extract text fields from req.body and file paths from req.files
         const { 
-            document_id, user_email, full_name, purok, birthdate, // *** NEW FIELDS: purok, birthdate ***
+            document_id, user_email, full_name, purok, birthdate, 
             purpose, requirements_details, payment_method, payment_reference_number 
         } = req.body;
         
@@ -1661,7 +1583,6 @@ app.post('/api/documents/apply', (req, res) => {
         const requirementsFilePaths = uploadedRequirements.map(file => `http://localhost:${PORT}/media/${file.filename}`);
         const requirementsFilePathsJson = requirementsFilePaths.length > 0 ? JSON.stringify(requirementsFilePaths) : null;
 
-        // *** UPDATED VALIDATION ***
         if (!document_id || !user_email || !full_name || !purok || !birthdate || !purpose || !requirements_details || uploadedRequirements.length === 0) {
             return res.status(400).json({ message: 'Missing required fields (document_id, user_email, full_name, purok, birthdate, purpose, requirements_details) or requirements files.' });
         }
@@ -1694,13 +1615,8 @@ app.post('/api/documents/apply', (req, res) => {
         });
     });
 });
-// =========================================================
 
-// UPDATED ENDPOINT: GET /api/documents/history/:userEmail
-// Now includes requirements_file_paths
-// =========================================================
-// GET: Fetch a user's document history for DocumentsPage
-// GET: Fetch a user's document history for DocumentsPage
+
 app.get('/api/documents/history/:userEmail', (req, res) => {
     const userEmail = req.params.userEmail;
     if (!userEmail) {
@@ -1716,7 +1632,7 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
             da.purpose, 
             da.requirements_details, 
             da.requirements_file_paths,
-            da.generated_path, -- ⭐ ADDED: This is the field needed for the download button. ⭐
+            da.generated_path, 
             da.payment_method, 
             da.payment_reference_number, 
             da.status, 
@@ -1735,43 +1651,30 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch application history.' });
         }
 
-        // --- FIX: Safely parse requirements_file_paths using try...catch ---
         const history = results.map(row => {
             let filePaths = [];
             const rawPaths = row.requirements_file_paths;
 
             if (rawPaths) {
                 try {
-                    // Attempt to parse the JSON string
                     const parsed = JSON.parse(rawPaths);
-                    // Ensure the result is an array
                     filePaths = Array.isArray(parsed) ? parsed : [];
                 } catch (e) {
-                    // Log the error for debugging (tells you which row is bad)
                     console.error(`User History: JSON Parse Error for ID ${row.id}:`, e.message, 'Raw Data:', rawPaths);
-                    filePaths = []; // Return an empty array on failure
+                    filePaths = []; 
                 }
             }
             
             return {
                 ...row,
-                requirements_file_paths: filePaths // Use the safe parsed value
+                requirements_file_paths: filePaths 
             };
         });
-        // --- END OF FIX ---
 
         res.status(200).json(history);
     });
 });
-// =========================================================
 
-
-// =========================================================
-// NEW ENDPOINT: PUT /api/documents/cancel/:applicationId
-// Updates the status of an application to 'Cancelled'
-// =========================================================
-// New Endpoint for application cancellation (updates status)
-// New Endpoint for application cancellation (updates status)
 app.put('/api/documents/cancel/:applicationId', (req, res) => {
     const applicationId = parseInt(req.params.applicationId, 10);
     const { userEmail } = req.body;
@@ -1780,7 +1683,6 @@ app.put('/api/documents/cancel/:applicationId', (req, res) => {
         return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
     }
 
-    // Only allow cancellation if the current status is 'Pending'
     const SQL_CANCEL_APPLICATION = `
         UPDATE document_applications 
         SET status = 'Cancelled', updated_at = NOW()
@@ -1800,20 +1702,16 @@ app.put('/api/documents/cancel/:applicationId', (req, res) => {
         res.status(200).json({ message: 'Application successfully cancelled.' });
     });
 });
-// =========================================================
 
 app.delete('/api/documents/history/:applicationId', (req, res) => {
     const applicationId = parseInt(req.params.applicationId, 10);
-    const userEmail = req.body.userEmail; // Passed in the body for verification
+    const userEmail = req.body.userEmail; 
 
     if (isNaN(applicationId) || !userEmail) {
         return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
     }
 
-    // FIX APPLIED: Removed 'status = 'Archived'' to prevent status change 
-    // for approved/rejected applications.
-    // The 'is_removed_from_history = TRUE' flag is now the only indicator
-    // that the user has removed it from their view.
+   
     const SQL_FETCH_HISTORY = `
         SELECT da.id, da.applicant_name, da.purpose, da.requirements_details, da.requirements_file_paths, 
         -- *** NEW FIELD: File paths of submitted requirements ***
@@ -1841,18 +1739,14 @@ app.delete('/api/documents/history/:applicationId', (req, res) => {
 });
 
 
-// Endpoint for deleting an application
-// Allows deletion if status is 'Pending' or 'Cancelled'
 app.delete('/api/documents/delete/:applicationId', (req, res) => {
     const applicationId = parseInt(req.params.applicationId, 10);
-    const { userEmail } = req.body; // To verify the user owns the application
+    const { userEmail } = req.body; 
 
     if (isNaN(applicationId) || !userEmail) {
         return res.status(400).json({ message: 'Invalid Application ID or missing user email.' });
     }
     
-    // NOTE: In a real application, you would also delete the files associated with the application
-    // from the file system using the requirements_file_paths.
 
     const SQL_DELETE_APPLICATION = `
         DELETE FROM document_applications 
@@ -1880,7 +1774,6 @@ app.get('/api/user/profile/:email', (req, res) => {
         return res.status(400).json({ message: 'User email is required.' });
     }
 
-    // --- CRITICAL CHANGE: USING LEFT JOIN to get profile_picture_url ---
     const SQL_QUERY_PROFILE = `
         SELECT 
             u.id, 
@@ -1902,25 +1795,18 @@ app.get('/api/user/profile/:email', (req, res) => {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        // Return the full user profile object
-        // Renaming 'full_name' to 'name' to match frontend convention
         const userProfile = {
             id: results[0].id,
-            name: results[0].name, // Corrected from results[0].full_name
+            name: results[0].name, 
             email: results[0].email,
-            // The profile picture URL is now correctly sourced via the JOIN
             profilePictureUrl: results[0].profile_picture_url, 
-            // Note: If profile_picture_url is NULL in the database, it will be NULL here, triggering the initials fallback on the frontend.
         };
 
         res.status(200).json(userProfile);
     });
 });
-// =========================================================
 
-// --- NEW API ENDPOINTS FOR BARANGAY OFFICIALS MANAGEMENT ---
 
-// 1. Upload Official Profile Picture
 app.post('/api/admin/officials/upload-picture', (req, res) => {
     officialPicUploader(req, res, (err) => {
         if (err instanceof multer.MulterError) {
@@ -1935,10 +1821,8 @@ app.post('/api/admin/officials/upload-picture', (req, res) => {
             return res.status(400).json({ message: 'No file selected for upload.' });
         }
 
-        // Construct the full URL for the image
         const pictureUrl = `http://localhost:${PORT}/media/${req.file.filename}`;
 
-        // Return the temporary URL to the frontend for use in the main form submission
         res.status(200).json({ 
             message: 'Picture uploaded successfully.', 
             profilePictureUrl: pictureUrl,
@@ -1946,17 +1830,13 @@ app.post('/api/admin/officials/upload-picture', (req, res) => {
     });
 });
 
-// 2. Add New Barangay Official
 app.post('/api/admin/officials', (req, res) => {
-    // --- UPDATED: Destructure new fields: position, committee ---
     const { firstName, middleInitial, lastName, contactNumber, category, status, profilePictureUrl, position, committee } = req.body;
 
-    // --- UPDATED: New required field 'position' ---
     if (!firstName || !lastName || !category || !status || !position) {
         return res.status(400).json({ message: 'Missing required official details (Name, Category, Status, Position).' });
     }
     
-    // Committee is optional or can be 'None', store as NULL if not provided or 'None'
     const finalCommittee = (committee === 'None' || !committee) ? null : committee;
 
     const SQL_INSERT = `
@@ -1969,8 +1849,8 @@ app.post('/api/admin/officials', (req, res) => {
         middleInitial || null, 
         lastName, 
         contactNumber || null, 
-        position, // <-- NEW PARAMETER
-        finalCommittee, // <-- NEW PARAMETER
+        position,
+        finalCommittee,
         category, 
         status, 
         profilePictureUrl || null
@@ -1989,7 +1869,7 @@ app.post('/api/admin/officials', (req, res) => {
                 position, committee, category, status, profile_picture_url, created_at 
             FROM barangay_officials 
             WHERE id = ?
-        `; // <-- UPDATED: Added position and committee
+        `; 
 
         db.query(SQL_FETCH_NEW, [newOfficialId], (fetchErr, fetchResults) => {
             if (fetchErr || fetchResults.length === 0) {
@@ -2013,7 +1893,7 @@ app.get('/api/admin/officials', (req, res) => {
             position, committee, category, status, profile_picture_url, created_at 
         FROM barangay_officials 
         ORDER BY last_name ASC, first_name ASC
-    `; // <-- UPDATED: Added position and committee
+    `; 
     
     db.query(SQL_FETCH_OFFICIALS, (err, results) => {
         if (err) {
@@ -2024,7 +1904,6 @@ app.get('/api/admin/officials', (req, res) => {
     });
 });
 
-// 4. Delete a Barangay Official
 app.delete('/api/admin/officials/:id', (req, res) => {
     const officialId = parseInt(req.params.id, 10);
     if (isNaN(officialId)) {
@@ -2049,7 +1928,6 @@ app.put('/api/admin/officials/:id/status', (req, res) => {
     const officialId = parseInt(req.params.id, 10);
     const { status } = req.body;
 
-    // Input Validation
     if (isNaN(officialId)) {
         return res.status(400).json({ message: 'Invalid Official ID.' });
     }
@@ -2069,7 +1947,6 @@ app.put('/api/admin/officials/:id/status', (req, res) => {
             return res.status(500).json({ message: 'Failed to update official status.' });
         }
         if (result.affectedRows === 0) {
-            // 404 if ID not found, or 200 if no change was made
             return res.status(404).json({ message: 'Official not found.' });
         }
         res.status(200).json({ message: 'Official status updated successfully.', officialId: officialId, newStatus: status });
@@ -2099,14 +1976,12 @@ app.put('/api/admin/officials/:id', (req, res) => {
         WHERE id = ?
     `;
     
-    // Begin Transaction to handle potential picture deletion
     db.beginTransaction(err => {
         if (err) {
             console.error("Transaction Begin Error:", err);
             return res.status(500).json({ message: 'Failed to start official update transaction.' });
         }
 
-        // 1. Fetch current data to check for existing picture
         db.query(SQL_FETCH_OLD_PICTURE, [officialId], (err, results) => {
             if (err) return db.rollback(() => {
                 console.error("Database error fetching old picture URL:", err);
@@ -2115,7 +1990,6 @@ app.put('/api/admin/officials/:id', (req, res) => {
             
             const oldProfilePictureUrl = results.length > 0 ? results[0].profile_picture_url : null;
             
-            // 2. Perform the update
             const params = [
                 firstName, middleInitial || null, lastName, contactNumber || null,
                 category, status, position, committee, 
@@ -2132,21 +2006,18 @@ app.put('/api/admin/officials/:id', (req, res) => {
                     res.status(404).json({ message: 'Official not found or no changes made.' });
                 });
                 
-                // 3. Delete old picture file if a NEW picture was uploaded (or old one was removed)
                 const pictureChanged = oldProfilePictureUrl && oldProfilePictureUrl !== profilePictureUrl;
                 
                 if (pictureChanged) {
                     deleteFile(oldProfilePictureUrl);
                 }
                 
-                // 4. Commit the transaction
                 db.commit(commitErr => {
                     if (commitErr) return db.rollback(() => {
                         console.error("Transaction Commit Error:", commitErr);
                         res.status(500).json({ message: 'Failed to complete official update.' });
                     });
                     
-                    // Respond with the updated official (by returning the fields sent)
                     res.status(200).json({ 
                         message: 'Official updated successfully!',
                         official: { 
@@ -2160,7 +2031,6 @@ app.put('/api/admin/officials/:id', (req, res) => {
                             position: position,
                             committee: committee,
                             profile_picture_url: profilePictureUrl,
-                            // Note: created_at and updated_at will not be returned here
                         }
                     });
                 });
@@ -2170,11 +2040,8 @@ app.put('/api/admin/officials/:id', (req, res) => {
 });
 
 
-// GET /api/admin/content/all - Fetches all posts and jobs with response counts
 app.get('/api/admin/content/all', (req, res) => {
-    // NOTE: Implement isAdmin middleware here for security
     
-    // CORRECTION APPLIED: Changed 'p.content_body' to 'p.body'
     const sql = `
         (
             SELECT
@@ -2213,7 +2080,6 @@ app.get('/api/admin/content/all', (req, res) => {
     });
 });
 
-// GET /api/admin/content/post/responses/:contentId - Get all responses for a thread
 app.get('/api/admin/content/post/responses/:postId', (req, res) => {
     const { postId } = req.params;
     
@@ -2238,11 +2104,9 @@ app.get('/api/admin/content/post/responses/:postId', (req, res) => {
     });
 });
 
-// GET /api/admin/content/job/responses/:contentId - Get all applications for a job
 app.get('/api/admin/content/job/responses/:jobId', (req, res) => {
     const { jobId } = req.params;
     
-    // Assuming job applications/responses are stored in the same 'responses' table but linked by job_id
     const sql = `
         SELECT 
             r.id,
@@ -2267,8 +2131,6 @@ app.get('/api/admin/content/job/responses/:jobId', (req, res) => {
 
 app.get('/api/admin/jobs/all', (req, res) => {
     
-    // SQL query to fetch all jobs, including author details, contact number, 
-    // and the count of applications (responses)
     const SQL_FETCH_ALL_JOBS = `
         SELECT 
             j.id, 
@@ -2299,7 +2161,6 @@ app.get('/api/admin/jobs/all', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch job listings.' });
         }
         
-        // Helper function to format media_url from JSON string to array
         const formatMediaUrls = (row) => {
             let mediaUrls = [];
             if (row.media_url) {
@@ -2330,7 +2191,6 @@ app.post('/api/admin/news', (req, res) => {
         valid_until, posted_by, target_audience, attachments_json 
     } = req.body;
 
-    // Basic validation
     if (!title || !category || !content || !posted_by) {
         return res.status(400).json({ message: 'Missing required news fields.' });
     }
@@ -2355,10 +2215,7 @@ app.post('/api/admin/news', (req, res) => {
     });
 });
 
-// 2. GET: Fetch All News Items (for Admin)
 app.get('/api/admin/news', (req, res) => {
-    // Fetch all news items, including deleted ones (for admin view/restore logic, if needed)
-    // We'll filter only non-deleted ones for simplicity in this initial fetch.
     const SQL_FETCH_ALL_NEWS = `
         SELECT 
             id, title, category, content, featured_image_url, 
@@ -2376,7 +2233,6 @@ app.get('/api/admin/news', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch news listings.' });
         }
         
-        // Helper function to format attachments_json from string to array
         const formatAttachments = (row) => {
             let attachments = [];
             if (row.attachments_json) {
@@ -2392,7 +2248,6 @@ app.get('/api/admin/news', (req, res) => {
         const formattedResults = results.map(row => ({
             ...row,
             attachments: formatAttachments(row),
-            // Remove the raw JSON string from the final output
             attachments_json: undefined 
         }));
 
@@ -2400,7 +2255,6 @@ app.get('/api/admin/news', (req, res) => {
     });
 });
 
-// 3. PUT: Update News Item
 app.put('/api/admin/news/:id', (req, res) => {
     const newsId = req.params.id;
     const { 
@@ -2437,11 +2291,9 @@ app.put('/api/admin/news/:id', (req, res) => {
     });
 });
 
-// 4. DELETE: Soft Delete News Item
 app.delete('/api/admin/news/:id', (req, res) => {
     const newsId = req.params.id;
     
-    // Perform a soft delete
     const SQL_DELETE_NEWS = `
         UPDATE barangay_news SET is_deleted = TRUE 
         WHERE id = ?
@@ -2460,8 +2312,6 @@ app.delete('/api/admin/news/:id', (req, res) => {
 });
 
 app.get('/api/news', (req, res) => {
-    // The query is identical to the admin version, excluding 'is_deleted' for safety 
-    // but relies on 'is_deleted = FALSE' to only show active news.
     const SQL_FETCH_ALL_NEWS = `
         SELECT id, title, category, content, featured_image_url, date_published, 
         valid_until, posted_by, target_audience, attachments_json 
@@ -2476,16 +2326,12 @@ app.get('/api/news', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch news.' });
         }
         
-        // Pass the results directly to the frontend
         res.status(200).json(results);
     });
 });
 
 
 
-// --- ADMIN ANNOUNCEMENT ROUTES ---
-
-// 1. GET ALL ANNOUNCEMENTS (For Admin Dashboard)
 app.get('/api/admin/announcements', (req, res) => {
     const SQL_FETCH_ALL_ANNOUNCEMENTS = `
         SELECT id, title, category, content, featured_image_url, date_published, 
@@ -2503,7 +2349,6 @@ app.get('/api/admin/announcements', (req, res) => {
     });
 });
 
-// 2. CREATE NEW ANNOUNCEMENT (Add)
 app.post('/api/admin/announcements', (req, res) => {
     const { 
         title, category, content, featured_image_url, 
@@ -2531,7 +2376,6 @@ app.post('/api/admin/announcements', (req, res) => {
     });
 });
 
-// 3. UPDATE ANNOUNCEMENT (Edit)
 app.put('/api/admin/announcements/:id', (req, res) => {
     const announcementId = req.params.id;
     const { 
@@ -2562,15 +2406,10 @@ app.put('/api/admin/announcements/:id', (req, res) => {
     });
 });
 
-// 4. DELETE/ARCHIVE ANNOUNCEMENT (Soft Delete)
 app.delete('/api/admin/announcements/:id', (req, res) => {
-    // NOTE: You should add authentication/authorization middleware here 
-    // to ensure only admins can access this route.
 
     const announcementId = req.params.id;
 
-    // 🛑 IMPORTANT: This SQL statement performs a PERMANENT DELETE 
-    // which removes the record entirely. There is no archiving.
     const SQL_HARD_DELETE_ANNOUNCEMENT = `
         DELETE FROM barangay_announcements
         WHERE id = ?
@@ -2586,14 +2425,12 @@ app.delete('/api/admin/announcements/:id', (req, res) => {
             return res.status(404).json({ message: 'Announcement not found.' });
         }
 
-        // Send a success status back to the frontend
         res.status(200).json({ message: 'Announcement permanently deleted successfully.' });
     });
 });
 
 
 app.get('/api/announcements', (req, res) => {
-    // Selects all non-deleted announcements, ordered by publish date
     const SQL_FETCH_ALL_ANNOUNCEMENTS = `
         SELECT 
             id, title, category, content, featured_image_url, 
@@ -2609,7 +2446,6 @@ app.get('/api/announcements', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch announcement listings.' });
         }
 
-        // Helper function to format attachments_json from string to array
         const formatAttachments = (row) => {
             let attachments = [];
             if (row.attachments_json) {
@@ -2625,7 +2461,6 @@ app.get('/api/announcements', (req, res) => {
         const formattedResults = results.map(row => ({
             ...row, 
             attachments: formatAttachments(row),
-            // Remove the raw JSON string from the final output
             attachments_json: undefined 
         }));
 
@@ -2643,11 +2478,6 @@ const getDocumentName = (documentId) => {
     }
 };
 
-// =========================================================
-// --- NEW ADMIN API ENDPOINT: GET All Document Applications ---
-// (Required by AdminDocumentsPage.jsx to fetch all data)
-// =========================================================
-// GET: Fetch all document applications for AdminDocumentsPage
 app.get('/api/admin/documents', (req, res) => {
     const SQL_GET_ALL_DOCUMENTS = `
         SELECT 
@@ -2671,23 +2501,16 @@ app.get('/api/admin/documents', (req, res) => {
             fullName: row.applicant_name,
             documentType: getDocumentName(row.document_id),
             
-            // --- FIX: Safely parse requirements_file_paths using try...catch ---
             requirementsFilePaths: (function() {
                 try {
-                    // Safely parse the JSON string, defaulting to '[]' if null/empty
                     const parsed = JSON.parse(row.requirements_file_paths || '[]');
-                    // Ensure the result is an array or default to an empty array
                     return Array.isArray(parsed) ? parsed : [];
                 } catch (e) {
-                    // Log the error for debugging, but prevent server crash
                     console.error(`Admin Docs: JSON Parse Error for ID ${row.id} - ${e.message}. Raw Data:`, row.requirements_file_paths);
-                    // Return an empty array on failure
                     return [];
                 }
             })(),
-            // --- END OF FIX ---
             
-            // Format dates (using the fields from your SQL query: date_applied and updated_at)
             date_applied: new Date(row.date_applied).toLocaleString(),
             updated_at: row.updated_at ? new Date(row.updated_at).toLocaleString() : null,
         }));
@@ -2696,17 +2519,10 @@ app.get('/api/admin/documents', (req, res) => {
     });
 });
 
-// =========================================================
-// --- NEW ADMIN API ENDPOINT: PUT Update Document Status ---
-// (Required by AdminDocumentsPage.jsx to change status)
-// =========================================================
 app.put('/api/admin/documents/update-status/:applicationId', (req, res) => {
-    // NOTE: You must add authentication/authorization middleware here 
-    // to ensure only admins can access this route.
     const applicationId = parseInt(req.params.applicationId, 10);
-    const { newStatus } = req.body; // e.g., 'Processing', 'Completed', 'Rejected'
+    const { newStatus } = req.body; 
 
-    // Validate input
     if (isNaN(applicationId) || !newStatus || !['Pending', 'Approved', 'Completed', 'Rejected', 'Cancelled'].includes(newStatus)) {
         return res.status(400).json({ message: 'Invalid application ID or new status.' });
     }
@@ -2747,18 +2563,12 @@ const getOrdinalSuffix = (day) => {
 
 const getFullOfficialName = (official) => {
     if (!official) return 'N/A';
-    // Format: FIRST NAME M. LAST NAME
     const middleInitial = official.middle_initial ? `${official.middle_initial.charAt(0)}.` : '';
-    // Use .trim() and replace() to handle cases where middleInitial is empty and prevent double spaces
     return `${official.first_name} ${middleInitial} ${official.last_name}`.replace(/\s\s+/g, ' ').trim();
 };
-// server.js - Make sure the formatDateForForm function is defined at the top of the file!
 
-// =========================================================
-// 3. GENERATE PDF, APPROVE, AND DIRECTLY SERVE/DOWNLOAD
-// =========================================================
+
 app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req, res) => {
-    // 🚨 Security Note: Implement authentication/authorization middleware here (e.g., isAdmin)
     const applicationId = parseInt(req.params.applicationId, 10);
     const { templateFileName } = req.body; 
 
@@ -2767,7 +2577,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
     }
 
     try {
-        // 1. FETCH APPLICATION, USER, AND PROFILE DATA
         const SQL_SELECT = ` 
             SELECT 
                 da.*, 
@@ -2790,7 +2599,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // ⭐ 2. FETCH BARANGAY OFFICIALS BY POSITION ⭐
         const OFFICIAL_POSITIONS = ['Barangay Captain', 'Secretary', 'Treasurer', 'Kagawad'];
 
         const SQL_SELECT_OFFICIALS = `
@@ -2813,7 +2621,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // Map officials data for easy lookup
         const officialsMap = officialsData.reduce((map, official) => {
             if (!map[official.position]) {
                 map[official.position] = getFullOfficialName(official);
@@ -2821,7 +2628,6 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             return map;
         }, {});
 
-        // Set the dynamic variables using lookups
         const barangayCaptainName = officialsMap['Barangay Captain'] || 'CAPTAIN NAME NOT FOUND';
         const barangaySecretaryName = officialsMap['Secretary'] || 'SECRETARY NAME NOT FOUND';
         const barangayTreasurerName = officialsMap['Treasurer'] || 'TREASURER NAME NOT FOUND';
@@ -2830,30 +2636,25 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const kagawadOfficerOfTheDayName = getFullOfficialName(kagawadData) || 'KAGAWAD NAME NOT FOUND';
 
 
-        // Resolve file path 
         const templatePath = path.join(__dirname, 'forms', templateFileName); 
         if (!fs.existsSync(templatePath)) {
             return res.status(404).json({ message: `PDF template file not found: ${templateFileName}` });
         }
 
-        // 3. LOAD, FILL, AND FLATTEN PDF
         const templateBytes = fs.readFileSync(templatePath);
         const pdfDoc = await PDFDocument.load(templateBytes);
         const form = pdfDoc.getForm();
 
-        // Data preparation
         const residentName = applicationData.applicant_name;
         const residentPurok = applicationData.purok || 'N/A'; 
         const documentPurpose = applicationData.purpose; 
-        const docType = getDocumentName(applicationData.document_id); // Get the document name
+        const docType = getDocumentName(applicationData.document_id); 
 
-        // Date Preparation (Current Date)
         const currentDate = new Date();
         const currentDay = currentDate.getDate().toString();
         const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long' });
         const currentYear = currentDate.getFullYear().toString();
         
-        // Birthdate Preparation (for Clearance, still calculated just in case)
         const birthDate = applicationData.birthdate ? new Date(applicationData.birthdate) : null;
         let residentAge = 'N/A';
         if (birthDate && !isNaN(birthDate)) {
@@ -2865,58 +2666,48 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
         const birthYear = birthDate ? birthDate.getFullYear().toString() : 'N/A';
 
 
-        // --- PDF FIELD MAPPING LOGIC (Conditional based on document type) ---
         let fieldsToFill = {};
 
-        // 1. **CERTIFICATE OF INDIGENCY MAPPING** (Using user-specified sequence)
-        // Check both document name and template file name (as a fallback)
         if (docType === 'Certificate of Indigency' || templateFileName.toLowerCase().includes('indigency')) {
             
             console.log("Applying Indigency Field Mapping...");
             
             fieldsToFill = {
-                // MAPPING BASED ON DIAGNOSTIC FIELDS AND NEW USER SEQUENCE:
-                'text_1tprt': residentName,            // 1. Applicant Name
-                'text_2xlif': residentPurok,           // 2. Purok
-                'text_3nevm': documentPurpose,         // 3. Purpose
-                'text_4zres': currentDay,              // 4. Day of Approval (e.g., '1')
-                'text_5ikgb': currentMonth,            // 5. Month of Approval (e.g., 'December')
-                'text_6zjsp': barangayCaptainName,     // 6. Barangay Captain Name
-                'text_7dkwy': kagawadOfficerOfTheDayName,             // 7. Current Year (Assumed to be the last field, or static text)
+                'text_1tprt': residentName,           
+                'text_2xlif': residentPurok,           
+                'text_3nevm': documentPurpose,         
+                'text_4zres': currentDay,              
+                'text_5ikgb': currentMonth,            
+                'text_6zjsp': barangayCaptainName,     
+                'text_7dkwy': kagawadOfficerOfTheDayName,             
             };
             
-        // 2. **BARANGAY CLEARANCE MAPPING** (Using existing 15 fields)
         } else if (docType === 'Barangay Clearance' || templateFileName.toLowerCase().includes('clearance')) {
             console.log("Applying Barangay Clearance Field Mapping...");
             fieldsToFill = {
-                // APPLICANT INFO (1-5)
-                'text_1szvk': residentName,// 1. applicant name
-                'text_2ofeq': residentAge,// 2. age
-                'text_3umsl': birthMonth,// 3. month of birth
-                'text_4eobd': birthDay, // 4. day of birth
-                'text_5pfkm': birthYear, // 5. year of birth
+                'text_1szvk': residentName,
+                'text_2ofeq': residentAge,
+                'text_3umsl': birthMonth,
+                'text_4eobd': birthDay, 
+                'text_5pfkm': birthYear,
 
-                // DOCUMENT DETAILS (6-11)
-                'text_6zeck': residentPurok, // 6. purok
-                'text_7tjdb': residentName, // 7. applicant name (2nd occ. before purpose)
-                'text_8rp': documentPurpose, // 8. purpose
-                'text_9haur': currentDay, // 9. day of approved document
-                'text_10vfnv': currentMonth, // 10. month of the approve document
-                'text_11dspw': residentName, // 11. applicant name (for signature)
+                'text_6zeck': residentPurok,
+                'text_7tjdb': residentName, 
+                'text_8rp': documentPurpose, 
+                'text_9haur': currentDay, 
+                'text_10vfnv': currentMonth,
+                'text_11dspw': residentName, 
                 
-                // OFFICIALS (12-15) - Mapped to position-based fetched names
-                'text_12enwt': barangaySecretaryName, // 12. secretary name
-                'text_13zbts': barangayTreasurerName, // 13. treasurer name
-                'text_14nczk': barangayCaptainName, // 14. barangay captain
-                'text_15qpbm': kagawadOfficerOfTheDayName, // 15. barangay kagawad officer of the day
+                'text_12enwt': barangaySecretaryName,
+                'text_13zbts': barangayTreasurerName, 
+                'text_14nczk': barangayCaptainName,
+                'text_15qpbm': kagawadOfficerOfTheDayName, 
             };
         } else {
-            // Log a warning if a document is approved but no mapping is defined
             console.warn(`[WARNING] No specific PDF field mapping found for document type: ${docType} (Template: ${templateFileName}). The generated PDF may be blank.`);
         }
         
         
-        // --- Loop and Fill Fields ---
         for (const [fieldName, value] of Object.entries(fieldsToFill)) {
             try {
                 const field = form.getTextField(fieldName);
@@ -2924,25 +2715,22 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
                     field.setText(value.toString());
                 }
             } catch (e) {
-                // console.warn(`PDF field '${fieldName}' not found or error setting: ${e.message}`); 
             }
         }
         
-        form.flatten(); // ⭐ FLATTEN THE FIELDS ⭐
+        form.flatten(); 
         const pdfBytes = await pdfDoc.save();
 
-        // 4. SAVE FILE TO DISK, UPDATE STATUS & PATH IN DATABASE 
         const safeDocType = docType.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const lastName = applicationData.applicant_name.split(' ').pop() || 'user'; 
         const fileName = `${applicationId}_${lastName}_${safeDocType}_Approved.pdf`;
 
-        const filePath = path.join(uploadDir, fileName); // Assuming uploadDir is defined elsewhere
+        const filePath = path.join(uploadDir, fileName); 
         const generatedPathUrl = `/media/${fileName}`; 
 
         fs.writeFileSync(filePath, pdfBytes); 
         console.log(`Successfully saved PDF to: ${filePath}`);
 
-        // Update the database with the Status AND the Path
         const SQL_UPDATE_STATUS_AND_PATH = `
             UPDATE document_applications 
             SET status = 'Approved', generated_path = ?, updated_at = NOW() 
@@ -2956,12 +2744,10 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
             });
         });
 
-        // 5. SERVE THE FILE FOR DOWNLOAD
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Length', pdfBytes.length);
 
-        // Send the generated PDF content to trigger the download in the Admin's browser
         res.send(Buffer.from(pdfBytes));
 
     } catch (error) {
@@ -2974,13 +2760,8 @@ app.post('/api/admin/documents/generate-and-approve/:applicationId', async (req,
     }
 });
 
-// =========================================================
-// --- NEW API ENDPOINTS FOR ADMIN SERVICES MANAGEMENT ---
-// =========================================================
 
-// 1. POST /api/admin/services - Create a new service
 app.post('/api/admin/services', (req, res) => {
-    // NOTE: You should add authentication/authorization middleware here
     const { 
         title, category, description, featured_image_url, 
         contact_person, contact_number, availability, department, requirements_list 
@@ -3008,7 +2789,6 @@ app.post('/api/admin/services', (req, res) => {
         }
         
         const newServiceId = result.insertId;
-        // Fetch the newly created record to return to the client
         const SQL_FETCH_NEW = `
             SELECT id, title, category, description, featured_image_url, contact_person, contact_number, availability, department, requirements_list, created_at, is_deleted
             FROM barangay_services WHERE id = ?
@@ -3018,12 +2798,10 @@ app.post('/api/admin/services', (req, res) => {
                 console.error("Database error fetching newly created service:", fetchErr);
                 return res.status(500).json({ message: 'Service added, but failed to retrieve details.' });
             }
-             // Send back the created service object
             res.status(201).json({ 
                 message: 'Service added successfully!', 
                 service: { 
                     ...fetchResults[0],
-                    // Convert date to match the format expected by the frontend formatDate function
                     created_at: fetchResults[0].created_at ? new Date(fetchResults[0].created_at).toISOString() : null 
                 }
             });
@@ -3031,9 +2809,7 @@ app.post('/api/admin/services', (req, res) => {
     });
 });
 
-// 2. GET /api/admin/services - Fetch all services for admin
 app.get('/api/admin/services', (req, res) => {
-    // Fetch all service items, including deleted ones (optional, using is_deleted = FALSE for active)
     const SQL_FETCH_ALL_SERVICES = `
         SELECT id, title, category, description, featured_image_url, contact_person, contact_number, availability, department, requirements_list, created_at, is_deleted
         FROM barangay_services 
@@ -3046,17 +2822,15 @@ app.get('/api/admin/services', (req, res) => {
             console.error("Database error fetching all services for admin:", err);
             return res.status(500).json({ message: 'Failed to fetch services listings.' });
         }
-        // Format results: ensure dates are compatible and pass through
         const formattedResults = results.map(row => ({
             ...row,
-            created_at: row.created_at ? new Date(row.created_at).toISOString() : null // Convert to ISO string
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null 
         }));
         
         res.status(200).json(formattedResults);
     });
 });
 
-// 3. PUT /api/admin/services/:id - Update an existing service
 app.put('/api/admin/services/:id', (req, res) => {
     const serviceId = parseInt(req.params.id, 10);
     if (isNaN(serviceId)) {
@@ -3097,14 +2871,12 @@ app.put('/api/admin/services/:id', (req, res) => {
     });
 });
 
-// 4. DELETE /api/admin/services/:id - Soft Delete a service
 app.delete('/api/admin/services/:id', (req, res) => {
     const serviceId = parseInt(req.params.id, 10);
     if (isNaN(serviceId)) {
         return res.status(400).json({ message: 'Invalid Service ID.' });
     }
 
-    // Perform a soft delete by setting is_deleted to TRUE
     const SQL_SOFT_DELETE = `
         UPDATE barangay_services 
         SET is_deleted = TRUE 
@@ -3124,7 +2896,6 @@ app.delete('/api/admin/services/:id', (req, res) => {
 });
 
 app.get('/api/services', (req, res) => {
-    // The query fetches all fields required for public display, filtering out soft-deleted items.
     const SQL_FETCH_ALL_SERVICES = `
         SELECT 
             id, title, description, category, requirements_list, contact_person, 
@@ -3141,16 +2912,11 @@ app.get('/api/services', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch barangay services.' });
         }
         
-        // Return the raw results. The frontend will handle parsing the requirements_list.
         res.status(200).json(results);
     });
 });
 
-// ===================================
-// HOTLINE MANAGEMENT API ROUTES
-// ===================================
 
-// GET: Fetch all active hotlines
 app.get('/api/hotlines', (req, res) => {
     const SQL_FETCH_ALL_HOTLINES = `
         SELECT 
@@ -3170,7 +2936,6 @@ app.get('/api/hotlines', (req, res) => {
     });
 });
 
-// POST: Add a new hotline
 app.post('/api/hotlines', (req, res) => {
     const { title, hotline_number, description, category } = req.body;
 
@@ -3197,7 +2962,6 @@ app.post('/api/hotlines', (req, res) => {
     });
 });
 
-// PUT: Update an existing hotline
 app.put('/api/hotlines/:id', (req, res) => {
     const hotlineId = req.params.id;
     const { title, hotline_number, description, category } = req.body;
@@ -3225,10 +2989,8 @@ app.put('/api/hotlines/:id', (req, res) => {
     });
 });
 
-// DELETE: Soft delete a hotline
 app.delete('/api/hotlines/:id', (req, res) => {
     const hotlineId = req.params.id;
-    // Use soft delete
     const SQL_SOFT_DELETE = `
         UPDATE barangay_hotlines 
         SET is_deleted = TRUE 
@@ -3247,9 +3009,7 @@ app.delete('/api/hotlines/:id', (req, res) => {
     });
 });
 
-// --- NEW API ENDPOINT: GET ALL ACTIVE HOTLINES (Public View) ---
 app.get('/api/hotlines', (req, res) => {
-    // Fetch all hotlines that are NOT soft-deleted
     const SQL_FETCH_ACTIVE_HOTLINES = `
         SELECT id, title, hotline_number, description, category, created_at
         FROM barangay_hotlines
@@ -3267,21 +3027,14 @@ app.get('/api/hotlines', (req, res) => {
 });
 
 
-// =========================================================
-// NEW ENDPOINT: PUT /api/documents/remove-from-history/:applicationId
-// Allows user to soft-delete/remove a document from their history view.
-// This is used for Approved/Rejected/Completed documents.
-// =========================================================
 app.put('/api/documents/remove-from-history/:applicationId', (req, res) => {
     const applicationId = parseInt(req.params.applicationId, 10);
-    // Use userEmail from the body for authorization, consistent with other document APIs
     const { userEmail } = req.body; 
 
     if (isNaN(applicationId) || !userEmail) {
         return res.status(400).json({ message: 'Invalid application ID or missing user email.' });
     }
 
-    // SQL to update the soft-delete flag, ensuring it belongs to the user
     const SQL_SOFT_DELETE = `
         UPDATE document_applications 
         SET is_removed_from_history = TRUE, updated_at = NOW()
@@ -3295,7 +3048,6 @@ app.put('/api/documents/remove-from-history/:applicationId', (req, res) => {
         }
         
         if (result.affectedRows === 0) {
-            // Either the application ID doesn't exist or it doesn't belong to the user
             return res.status(404).json({ message: 'Document application not found or unauthorized.' });
         }
         
@@ -3303,14 +3055,8 @@ app.put('/api/documents/remove-from-history/:applicationId', (req, res) => {
     });
 });
 
-// =========================================================
-// --- NEW ADMIN API ENDPOINTS FOR CONTACT MESSAGES ---
-// =========================================================
 
-// 1. GET: Fetch All Contact Messages (Issues/Reports/Feedback)
 app.get('/api/admin/contact-messages', (req, res) => {
-    // Select all fields from contact_messages, ordered by creation date (latest first).
-    // The columns are based on the existing /api/contact-message POST route.
     const SQL_FETCH_MESSAGES = `
         SELECT id, user_id, full_name, email_address, subject, message, created_at
         FROM contact_messages
@@ -3323,10 +3069,8 @@ app.get('/api/admin/contact-messages', (req, res) => {
             return res.status(500).json({ message: 'Failed to fetch contact messages.' });
         }
         
-        // Format the date for consistent display on the frontend
         const formattedResults = results.map(row => ({
             ...row,
-            // Convert MySQL date object to a readable local string
             created_at: new Date(row.created_at).toLocaleString(), 
         }));
 
@@ -3334,7 +3078,6 @@ app.get('/api/admin/contact-messages', (req, res) => {
     });
 });
 
-// 2. DELETE: Delete a Contact Message
 app.delete('/api/admin/contact-messages/:id', (req, res) => {
     const messageId = parseInt(req.params.id, 10);
 
@@ -3342,7 +3085,6 @@ app.delete('/api/admin/contact-messages/:id', (req, res) => {
         return res.status(400).json({ message: 'Invalid message ID.' });
     }
 
-    // Hard delete the message record
     const SQL_DELETE_MESSAGE = `
         DELETE FROM contact_messages
         WHERE id = ?
@@ -3361,7 +3103,6 @@ app.delete('/api/admin/contact-messages/:id', (req, res) => {
         res.status(200).json({ message: 'Contact message deleted successfully.' });
     });
 });
-// End of NEW ADMIN API ENDPOINTS FOR CONTACT MESSAGES
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
