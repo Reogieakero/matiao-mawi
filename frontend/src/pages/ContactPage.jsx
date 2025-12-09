@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Clock } from 'lucide-react';
 
 // Assumes the API is running on localhost:5000
@@ -15,6 +15,10 @@ const SUBJECT_OPTIONS = [
 ];
 
 const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
+    useEffect(() => {
+            document.title = "Contact"; 
+        }, []);
+    
     const mapEmbedUrl = "https://maps.google.com/maps?q=Matiao,+City+of+Mati,+Davao+Oriental&t=&z=14&ie=UTF8&iwloc=&output=embed";
 
     const [formData, setFormData] = useState({

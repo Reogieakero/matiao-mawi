@@ -1,6 +1,3 @@
-// ServicesPage.jsx
-// frontend/src/pages/ServicesPage.jsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
@@ -8,17 +5,14 @@ import {
     XCircle, Clock, Image, FileText, Zap, Activity, Phone, Home, Plus
 } from 'lucide-react'; 
 
-// NOTE: Ensure this matches your actual API base URL from server.js.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- Constants ---
 const SERVICE_CATEGORIES = [
     'Document Request', 'Health Services', 'Infrastructure', 
     'Social Welfare', 'Community Support', 'Emergency Response', 
     'Livelihood Programs', 'Other'
 ];
 
-// --- Utility Functions ---
 
 const formatDate = (dateString, includeTime = true) => {
     if (!dateString) return 'N/A';
@@ -31,19 +25,17 @@ const formatDate = (dateString, includeTime = true) => {
     return date.toLocaleDateString(undefined, options);
 };
 
-// Function to get a color and icon for the service category tag
 const getCategoryColor = (category) => {
     switch (category) {
-        case 'Emergency Response': return { bg: '#FEE2E2', text: '#DC2626', icon: Zap }; // Red
-        case 'Document Request': return { bg: '#FEF3C7', text: '#D97706', icon: FileText }; // Amber
-        case 'Health Services': return { bg: '#D1FAE5', text: '#059669', icon: Plus }; // Green
-        case 'Infrastructure': return { bg: '#DBEAFE', text: '#2563EB', icon: HardHat }; // Blue
-        case 'Social Welfare': return { bg: '#EDE9FE', text: '#7C3AED', icon: Users }; // Violet
-        default: return { bg: '#F3F4F6', text: '#6B7280', icon: Activity }; // Gray
+        case 'Emergency Response': return { bg: '#FEE2E2', text: '#DC2626', icon: Zap }; 
+        case 'Document Request': return { bg: '#FEF3C7', text: '#D97706', icon: FileText }; 
+        case 'Health Services': return { bg: '#D1FAE5', text: '#059669', icon: Plus }; 
+        case 'Infrastructure': return { bg: '#DBEAFE', text: '#2563EB', icon: HardHat }; 
+        case 'Social Welfare': return { bg: '#EDE9FE', text: '#7C3AED', icon: Users }; 
+        default: return { bg: '#F3F4F6', text: '#6B7280', icon: Activity }; 
     }
 };
 
-// --- Common Base Styles ---
 const styles = {
     container: { padding: '20px',
         maxWidth: '1200px',
@@ -406,6 +398,7 @@ const ServicesPage = () => {
     };
 
     useEffect(() => {
+        document.title = "Services";
         fetchServices();
     }, []);
 

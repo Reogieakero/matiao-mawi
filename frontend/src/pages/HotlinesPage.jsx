@@ -11,18 +11,16 @@ import {
     Filter
 } from 'lucide-react'; 
 
-// NOTE: Ensure this matches your actual API base URL from server.js.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// Define the color palette used across the application for consistency
 const colors = {
-    primary: '#2563eb', // Blue
-    secondary: '#f97316', // Orange
-    text: '#374151', // Dark Gray
-    background: '#f3f4f6', // Light Gray
-    cardBackground: '#ffffff', // White
-    success: '#10b981', // Green
-    error: '#ef4444', // Red
+    primary: '#2563eb',
+    secondary: '#f97316',
+    text: '#374151', 
+    background: '#f3f4f6', 
+    cardBackground: '#ffffff',
+    success: '#10b981', 
+    error: '#ef4444', 
 };
 
 const styles = {
@@ -45,7 +43,6 @@ const styles = {
         color: colors.text,
         marginBottom: '30px',
     },
-    // Filter container styles
     filterContainer: {
         marginBottom: '30px',
         display: 'flex',
@@ -87,44 +84,40 @@ const styles = {
 };
 
 
-// --- Helper Function to get Icon and Color based on Category ---
 const getIconAndColor = (category) => {
     const normalizedCategory = category ? category.toLowerCase().trim() : '';
-    let color = colors.text; // Default
+    let color = colors.text; 
 
     if (normalizedCategory.includes('emergency') || normalizedCategory.includes('police') || normalizedCategory.includes('fire') || normalizedCategory.includes('medical')) {
-        color = colors.error; // Red
+        color = colors.error; 
         return { Icon: Zap, color }; 
     }
     if (normalizedCategory.includes('health') || normalizedCategory.includes('services')) {
-        color = colors.success; // Green
+        color = colors.success;
         return { Icon: Stethoscope, color }; 
     }
     if (normalizedCategory.includes('barangay') || normalizedCategory.includes('government') || normalizedCategory.includes('office')) {
-        color = colors.primary; // Blue
+        color = colors.primary; 
         return { Icon: Home, color }; 
     }
     if (normalizedCategory.includes('disaster') || normalizedCategory.includes('management')) {
-        color = colors.secondary; // Orange
+        color = colors.secondary; 
         return { Icon: Shield, color }; 
     }
     if (normalizedCategory.includes('social welfare') || normalizedCategory.includes('support')) {
-        color = '#9333ea'; // Purple
+        color = '#9333ea'; 
         return { Icon: HeartHandshake, color }; 
     }
     
-    // Default fallback
     return { Icon: PhoneCall, color }; 
 };
 
 
-// --- HotlineCard Component (MODIFIED to accept and display category) ---
-const HotlineCard = ({ title, number, description, Icon, color, category }) => { // ADD category here
+const HotlineCard = ({ title, number, description, Icon, color, category }) => { 
     const [isHovered, setIsHovered] = useState(false); 
 
     const iconColor = color;
 
-    // Define base and hover styles
     const baseCardStyle = {
         backgroundColor: colors.cardBackground,
         padding: '20px',
@@ -157,7 +150,7 @@ const HotlineCard = ({ title, number, description, Icon, color, category }) => {
         marginBottom: '15px',
         transition: 'transform 0.2s',
         transform: isHovered ? 'scale(1.05)' : 'scale(1)', 
-        position: 'relative', // Set relative for absolute category tag
+        position: 'relative',
     };
 
     const titleStyle = {
@@ -185,7 +178,6 @@ const HotlineCard = ({ title, number, description, Icon, color, category }) => {
         gap: '10px',
     };
     
-    // NEW: Style for the Category Tag
     const categoryTagStyle = {
         position: 'absolute',
         top: '20px',
@@ -207,7 +199,6 @@ const HotlineCard = ({ title, number, description, Icon, color, category }) => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* NEW: Category Tag */}
             <span style={categoryTagStyle}>{category}</span>
 
             <div style={iconContainerStyle}>
@@ -225,24 +216,20 @@ const HotlineCard = ({ title, number, description, Icon, color, category }) => {
 
 
 const HotlinesPage = () => {
-    // State for fetched hotlines
     const [hotlines, setHotlines] = useState([]); 
     const [isLoading, setIsLoading] = useState(true); 
     const [error, setError] = useState(null); 
 
-    // State for active filter, initialized to 'All'
     const [activeFilter, setActiveFilter] = useState('All');
 
-    // Fetch data on component mount
     useEffect(() => {
+        document.title = "Hotlines";
         const fetchHotlines = async () => {
             try {
                 const response = await axios.get(`${API_BASE_URL}/hotlines`);
-                // 1. Map DB fields to UI fields
-                // 2. Add icon/color mapping
                 const processedHotlines = response.data.map(hotline => ({
                     ...hotline,
-                    number: hotline.hotline_number, // Map DB column to component prop
+                    number: hotline.hotline_number, 
                     ...getIconAndColor(hotline.category),
                 }));
                 setHotlines(processedHotlines);
@@ -255,20 +242,18 @@ const HotlinesPage = () => {
         };
 
         fetchHotlines();
-    }, []); // Run once on mount
+    }, []); 
 
 
-    // Dynamically calculate categories from fetched hotlines
     const categories = useMemo(() => {
         const uniqueCategories = [
-            'All', // Always include 'All'
+            'All', 
             ...new Set(hotlines.map(h => h.category))
-        ].filter(Boolean); // Filter out any null/undefined categories
+        ].filter(Boolean); 
         return uniqueCategories;
     }, [hotlines]);
 
 
-    // Filter hotlines based on the active filter
     const filteredHotlines = useMemo(() => {
         if (activeFilter === 'All') {
             return hotlines;
@@ -277,7 +262,6 @@ const HotlinesPage = () => {
     }, [hotlines, activeFilter]);
 
 
-    // Handle case where the active filter category might be removed by admin
     useEffect(() => {
         if (activeFilter !== 'All' && !categories.includes(activeFilter)) {
             setActiveFilter('All');
@@ -291,15 +275,13 @@ const HotlinesPage = () => {
                 Immediate contact numbers for emergency, health, and government services in Barangay Matiao.
             </p>
             
-            {/* Display Loading, Error, or Content */}
             {isLoading ? (
                 <p style={{ color: colors.primary, fontSize: '18px', textAlign: 'center' }}>Loading hotlines...</p>
             ) : error ? (
                 <p style={{ color: colors.error, fontSize: '18px', textAlign: 'center', padding: '20px', border: `1px solid ${colors.error}33`, borderRadius: '8px' }}>{error}</p>
             ) : (
                 <>
-                    {/* Filter Section */}
-                    {categories.length > 1 && ( // Only show filter if there are categories besides 'All'
+                    {categories.length > 1 && ( 
                         <div style={styles.filterContainer}>
                             <span style={styles.filterLabel}>
                                 <Filter size={18} style={{ marginRight: '5px' }} /> Filter By:
@@ -310,7 +292,6 @@ const HotlinesPage = () => {
                                     onClick={() => setActiveFilter(category)}
                                     style={{
                                         ...styles.filterButton,
-                                        // Use the filterButtonActive function defined in styles
                                         ...(activeFilter === category ? styles.filterButtonActive(colors.primary) : {}), 
                                     }}
                                 >
@@ -320,7 +301,6 @@ const HotlinesPage = () => {
                         </div>
                     )}
                     
-                    {/* Hotline Cards Grid */}
                     <div style={styles.cardGrid}>
                         {filteredHotlines.length > 0 ? (
                             filteredHotlines.map((hotline) => (
@@ -331,7 +311,7 @@ const HotlinesPage = () => {
                                     description={hotline.description}
                                     Icon={hotline.Icon}
                                     color={hotline.color}
-                                    category={hotline.category} // PASS category here
+                                    category={hotline.category}
                                 />
                             ))
                         ) : (

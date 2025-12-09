@@ -150,6 +150,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     };
 
     useEffect(() => {
+        document.title = "Home";
         fetchThreads();
     }, [userId, profilePictureUrl]); 
 
@@ -817,8 +818,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             style={styles.modalTextarea}
                         />
 
-                        {/* File Input Section */}
-                        <div style={styles.fileInputSection}>
+z                        <div style={styles.fileInputSection}>
                             <label htmlFor="media-upload" style={styles.fileInputLabel}>
                                 <FiPaperclip size={20} /> Attach Media ({postType === 'job' ? 'PDF/Image (optional)' : 'Image (optional)'})
                             </label>
@@ -837,7 +837,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                 <FiX size={20} style={{ cursor: 'pointer', color: '#dc2626' }} onClick={() => setSelectedFile(null)} />
                             </div>
                         )}
-                        {/* END File Input Section */}
                         
                         <button 
                             onClick={handlePostSubmit} 
@@ -850,7 +849,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 </div>
             )}
 
-            {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -883,7 +881,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             )}
                         </div>
 
-                        {/* Response Modal User Section */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
@@ -904,10 +901,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 </div>
             )}
             
-            {/* Custom Error Modal */}
             {isErrorModalOpen && (
                 <div style={styles.modalOverlay}>
-                    {/* ⭐ MODIFICATION: Using styles.modalContent with explicit border radius for the error modal */}
                     <div style={{ ...styles.modalContent, ...styles.errorModalOverride, maxWidth: '350px' }}> 
                         <div style={styles.modalHeader}>
                             <h3 style={{ color: '#dc2626' }}>Validation Error</h3>
@@ -934,7 +929,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     );
 }
 
-// --- Styles (for HomePage and shared components) ---
 const styles = {
     page: {
         minHeight: '100vh',
@@ -947,7 +941,7 @@ const styles = {
         width: '100%',
         maxWidth: '1200px',
         margin: '0 auto',
-        paddingRight: '340px', // Space for the fixed RightPanel
+        paddingRight: '340px',
         boxSizing: 'border-box'
     },
     mainContent: {
@@ -966,7 +960,6 @@ const styles = {
         fontSize: '18px',
         color: '#9ca3af',
     },
-    // --- Create Post Bar Styles ---
     createPostBar: {
         display: 'flex',
         alignItems: 'center',
@@ -989,9 +982,6 @@ const styles = {
         color: '#4b5563',
         cursor: 'pointer',
     },
-    // --- End: Create Post Bar Styles ---
-
-    // --- Thread/Post Styles ---
     threadPost: {
         backgroundColor: '#fff',
         padding: '20px',
@@ -1072,13 +1062,11 @@ const styles = {
     threadBodyModified: {
         fontSize: '16px',
         color: '#4b5563',
-        margin: '5px 0 0 0', // Top margin adjusted from previous steps
+        margin: '5px 0 0 0', 
         lineHeight: '1.5',
-        // Text wrapping fix
         wordWrap: 'break-word', 
         overflowWrap: 'break-word',
     },
-    // NEW Style for Read More Button
     readMoreButton: {
         display: 'flex',
         alignItems: 'center',
@@ -1088,7 +1076,7 @@ const styles = {
         color: '#3b82f6',
         cursor: 'pointer',
         marginTop: '10px',
-        marginBottom: '15px', // Adds space before the footer or media
+        marginBottom: '15px', 
         width: 'fit-content',
     },
     threadFooter: {
@@ -1125,9 +1113,7 @@ const styles = {
         borderRadius: '6px',
         backgroundColor: '#eff6ff',
     },
-    // --- End: Thread/Post Styles ---
 
-    // --- Response Styles ---
     responsesContainer: {
         marginTop: '15px',
         padding: '10px 0',
@@ -1191,9 +1177,7 @@ const styles = {
         fontSize: '14px', 
         color: '#9ca3af' 
     },
-    // --- End: Response Styles ---
 
-    // --- Modal Styles (Post & Response & Error & Read) ---
     modalOverlay: {
         position: 'fixed',
         top: 0,
@@ -1209,20 +1193,17 @@ const styles = {
     modalContent: {
         backgroundColor: '#fff',
         padding: '25px',
-        // Consistent Radius (for all modals)
         borderRadius: '16px', 
         width: '90%',
-        maxWidth: '500px', // CONSISTENT WIDTH
-        // Added for Read Modal overflow
-        maxHeight: '80vh', // CONSISTENT HEIGHT
+        maxWidth: '500px', 
+        maxHeight: '80vh', 
         overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
     },
-    // Explicit override for the error modal to ensure border radius is applied
     errorModalOverride: { 
         borderRadius: '16px', 
     },
-    modalHeader: { // For modals with a title (Post/Response/Error)
+    modalHeader: { 
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -1230,7 +1211,6 @@ const styles = {
         paddingBottom: '12px'
     },
     
-    // ⭐ NEW STYLE: Header for the Read Modal to ensure consistent internal structure
     readModalHeader: { 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -1238,22 +1218,13 @@ const styles = {
         padding: '15px 25px', 
         borderBottom: '1px solid #e5e7eb',
     },
-    // ⭐ NEW STYLE: Body for the Read Modal to handle scrolling
     readModalBody: { 
         padding: '25px', 
         overflowY: 'auto', 
         flexGrow: 1, 
     },
     
-    // OLD Style: For Read Modal (No Title) - DELETED/REPLACED BY readModalHeader
-    // modalHeaderNoBorder: { 
-    //     display: 'flex', 
-    //     justifyContent: 'flex-end', 
-    //     alignItems: 'center', 
-    //     paddingBottom: '10px', 
-    //     paddingTop: '5px',
-    //     marginBottom: '5px',
-    // },
+    
     toggleContainer: {
         display: 'flex',
         gap: '10px',
@@ -1282,8 +1253,8 @@ const styles = {
         alignItems: 'center',
         gap: '12px',
         marginBottom: '15px',
-        borderBottom: '1px solid #e5e7eb', // Added to separate from body
-        paddingBottom: '15px' // Added to separate from body
+        borderBottom: '1px solid #e5e7eb', 
+        paddingBottom: '15px'
     },
     avatarCircle: {
         width: '40px',
@@ -1352,15 +1323,13 @@ const styles = {
         cursor: 'pointer',
         transition: 'background-color 0.2s'
     },
-    // NEW Style for Full Post Content in Read Modal - REUSING the name, it's fine.
     modalThreadBody: {
         fontSize: '15px',
         color: '#4b5563',
         margin: '15px 0',
         lineHeight: '1.6',
-        whiteSpace: 'pre-wrap', // Preserve newlines
+        whiteSpace: 'pre-wrap', 
     },
-    // NEW Style for Close Button in Read Modal
     modalCloseButton: { 
         display: 'flex', 
         alignItems: 'center', 
@@ -1440,7 +1409,6 @@ const styles = {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
     },
-    // Styles for Error Modal
     errorModalText: {
         fontSize: '16px',
         color: '#4b5563',
@@ -1461,5 +1429,4 @@ const styles = {
         cursor: 'pointer',
         transition: 'background-color 0.2s'
     },
-    // --- End: Modal Styles ---
 };

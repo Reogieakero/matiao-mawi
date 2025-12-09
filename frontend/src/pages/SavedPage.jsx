@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { FiMessageSquare, FiBookmark,FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
-// Utility function to format the time
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -18,12 +17,9 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// CONSTANT for truncation length (Max characters to show before "Read More")
 const MAX_POST_LENGTH = 300; 
 
-// --- START: Helper functions copied from HomePage.jsx for consistent design ---
 
-// NEW HELPER: Function to render avatar based on URL presence
 const renderAvatar = (url, initial, size = 'small') => {
     let style;
     switch (size) {
@@ -56,11 +52,9 @@ const renderAvatar = (url, initial, size = 'small') => {
     );
 };
 
-// NEW HELPER: Function to render the media gallery (Copied from HomePage.jsx)
 const renderMediaGallery = (mediaUrls) => {
     if (!mediaUrls || mediaUrls.length === 0) return null;
 
-    // Common style for images in the gallery
     const imageStyle = {
         width: '100%', 
         height: '100%', 
@@ -87,7 +81,6 @@ const renderMediaGallery = (mediaUrls) => {
         </div>
     );
 
-    // Only handles 1 photo now (matching the minimal implementation found in HomePage.jsx)
     if (mediaUrls.length >= 1) { 
         return (
             <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
@@ -98,15 +91,11 @@ const renderMediaGallery = (mediaUrls) => {
 
     return null;
 };
-// --- END: Helper functions copied from HomePage.jsx ---
 
-
-// MODIFIED: Added profilePictureUrl prop
 export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
@@ -118,17 +107,13 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     const [expandedThreadId, setExpandedThreadId] = useState(null);
     const [responses, setResponses] = useState({}); 
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
-    // ---------------------------------
     
-    // ⭐ MODIFIED: Removed expandedPostIds state. Added Read Modal states.
     const [isReadModalOpen, setIsReadModalOpen] = useState(false);
     const [readModalThread, setReadModalThread] = useState(null); 
-    // ---------------------------------
     
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
 
-    // Function to fetch bookmarked threads
     const fetchSavedThreads = async () => {
         if (!userId) {
             setThreads([]);
@@ -141,7 +126,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             if (!res.ok) throw new Error("Failed to fetch saved threads");
             
             const data = await res.json();
-            // All fetched threads from the backend are marked as bookmarked
             setThreads(data.map(t => ({...t, isBookmarked: true}))); 
         } catch (error) {
             console.error("Error fetching saved threads:", error);
@@ -151,23 +135,21 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
 
-    // Fetch threads on component mount
     useEffect(() => {
+        document.title = "Saved";
         fetchSavedThreads();
     }, [userId]); 
 
-    // Function to handle unsaving a thread (Only unsaving is possible on this page)
     const handleUnsave = async (threadId, threadType) => {
         if (!userId) return alert('You must be logged in to unsave a thread.');
         
-        // Optimistic UI Update: Remove from list
         setThreads(prevThreads => prevThreads.filter(t => 
             !(t.id === threadId && t.type === threadType)
         ));
 
         try {
             const res = await fetch("http://localhost:5000/api/bookmarks", {
-                method: "POST", // POST handles both save and unsave
+                method: "POST", 
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     userId: userId,
@@ -179,19 +161,17 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             const data = await res.json();
             
             if (!res.ok || data.bookmarked) {
-                 // Revert optimistic update on failure or if it somehow saved instead of unsaved
                  alert(data.message || `Failed to unsave thread. Please refresh.`);
-                 fetchSavedThreads(); // Re-fetch to restore on failure
+                 fetchSavedThreads(); 
             }
 
         } catch (error) {
             console.error("Unsave network error:", error);
             alert(`A network error occurred. Failed to unsave thread.`);
-            fetchSavedThreads(); // Re-fetch to restore on failure
+            fetchSavedThreads(); 
         }
     };
     
-    // Function to fetch responses for a specific thread (Copied from HomePage)
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -216,7 +196,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
     
-    // Function to toggle response view (Copied from HomePage)
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -226,7 +205,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
 
-    // ⭐ NEW HANDLERS FOR READ MODAL (Copied from HomePage)
     const openReadModal = (thread) => {
         setReadModalThread(thread);
         setIsReadModalOpen(true);
@@ -237,7 +215,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         setReadModalThread(null);
     };
 
-    // handleReplyClick (Copied from HomePage - simplified)
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -258,7 +235,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit (Copied from HomePage - simplified)
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -280,7 +256,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             const data = await res.json();
 
             if (res.ok) {
-                // Manually update response count for the displayed saved thread
                 if (!parentResponseId) {
                     setThreads(prevThreads => prevThreads.map(t => 
                         t.id === threadIdToReply ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t
@@ -309,7 +284,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         setParentResponseContent(null); 
     };
 
-    // handleResponseKeyDown (Copied from HomePage)
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -317,14 +291,11 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         }
     };
     
-    // ⭐ MODIFIED: Function to render the post body with truncation (Opens Modal)
     const renderPostBody = (thread) => {
-        // Ensure body exists before accessing length
         const bodyContent = thread.body || ""; 
         const isLongPost = bodyContent.length > MAX_POST_LENGTH;
 
         if (isLongPost) {
-            // Truncated content
             const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
             return (
                 <>
@@ -333,7 +304,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                     </p>
                     <div 
                         style={styles.readMoreButton} 
-                        onClick={() => openReadModal(thread)} // <--- CALLS MODAL
+                        onClick={() => openReadModal(thread)} 
                     >
                         <FiChevronDown size={14} /> Read More
                     </div>
@@ -341,7 +312,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
             );
         }
 
-        // Full content if not long
         return (
             <p style={styles.threadBodyModified}>
                 {bodyContent}
@@ -349,7 +319,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
         );
     };
 
-    // renderResponses (Copied from HomePage)
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -362,7 +331,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
-                    {/* MODIFIED: Use new renderAvatar signature */}
                     {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
@@ -386,7 +354,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                     </span>
                 </div>
 
-                {/* Recursively render child responses */}
                 {renderResponses(threadResponses, threadId, threadType, response.id)}
             </div>
         ));
@@ -395,7 +362,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Saved Threads</h2>
                     {isLoading ? (
@@ -404,13 +370,11 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                         <p style={styles.loadingText}>You have no saved threads yet.</p>
                     ) : (
                         threads.map(thread => {
-                            // DESTRUCTURE NEW FIELDS HERE
                             const { 
                                 id, 
                                 type, 
                                 author, 
                                 title, 
-                                // body, // Handled by thread object
                                 tag, 
                                 time, 
                                 responseCount, 
@@ -422,7 +386,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                                 <div key={id} style={styles.threadPost}>
                                     <div style={styles.threadMetaTop}>
                                         <div style={styles.threadAuthorInfo}>
-                                            {/* MODIFIED: Use new renderAvatar signature */}
                                             {renderAvatar(author_picture_url, author, 'small')}
                                             <span style={styles.threadAuthorName}>{author}</span>
                                             <span style={styles.threadTime}>
@@ -432,19 +395,16 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                                         <span style={styles.threadTagModified}>{tag}</span>
                                     </div>
                                     
-                                    {/* ⭐ MODIFICATION: Use the new renderPostBody helper */}
                                     {renderPostBody(thread)}
                                     
-                                    {/* MODIFIED: Use renderMediaGallery for consistent image display */}
                                     {renderMediaGallery(mediaUrls)}
 
                                     <div style={styles.threadFooter}>
                                         <div style={styles.threadActions}>
-                                            {/* Unsave Button */}
                                             <div 
                                                 style={{ 
                                                     ...styles.threadActionButton, 
-                                                    color: '#ef4444', // Red for unsave
+                                                    color: '#ef4444', 
                                                     fontWeight: '600',
                                                 }}
                                                 onClick={() => handleUnsave(id, type)}
@@ -486,21 +446,16 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                     )}
                 </div>
 
-                {/* Right Panel */}
                 <RightPanel 
                     userName={userName} 
                     userEmail={userEmail} 
-                    profilePictureUrl={profilePictureUrl} // <-- ADDED PROP
+                    profilePictureUrl={profilePictureUrl} 
                 />
             </div>
             
-            {/* ⭐ NEW: Read Details Modal (Copied from HomePage) */}
             {isReadModalOpen && readModalThread && (
-                // Click outside to close
                 <div style={styles.modalOverlay} onClick={closeReadModal}>
-                    {/* Stop propagation for clicks inside content */}
                     <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        {/* Header without title/border */}
                         <div style={styles.modalHeaderNoBorder}> 
                             <FiX size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeReadModal} />
                         </div>
@@ -512,12 +467,10 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                             <span style={styles.threadTagModified}>{readModalThread.tag}</span>
                         </div>
                         
-                        {/* Full Content */}
                         <p style={styles.modalThreadBody}>
                             {readModalThread.body}
                         </p>
 
-                        {/* Media (if any) */}
                         {renderMediaGallery(readModalThread.mediaUrls)}
 
                         <button onClick={closeReadModal} style={styles.modalCloseButton}>
@@ -526,9 +479,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                     </div>
                 </div>
             )}
-            {/* End Read Modal */}
 
-            {/* Response Modal */}
             {isResponseModalOpen && threadToReplyDetails && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -561,9 +512,7 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
                             )}
                         </div>
 
-                        {/* MODIFIED: Response Modal User Section to use renderAvatar */}
                         <div style={styles.modalUserSection}>
-                            {/* Pass profilePictureUrl from props */}
                             {renderAvatar(profilePictureUrl, firstName, 'large')} 
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
@@ -586,7 +535,6 @@ export default function SavedPage({ userName, userEmail, profilePictureUrl }) {
     );
 }
 
-// --- Styles (Copied and merged from HomePage.jsx for consistency, including new modal styles) --- 
 const styles = { 
     page: { 
         minHeight: '100vh', 
@@ -599,7 +547,7 @@ const styles = {
         width: '100%', 
         maxWidth: '1200px', 
         margin: '0 auto', 
-        paddingRight: '340px', // Space for the fixed RightPanel 
+        paddingRight: '340px', 
         boxSizing: 'border-box' 
     }, 
     mainContent: { 
@@ -703,7 +651,6 @@ const styles = {
         wordWrap: 'break-word', 
         overflowWrap: 'break-word', 
     }, 
-    // ⭐ Read More Button Style (Copied from HomePage)
     readMoreButton: {
         display: 'flex',
         alignItems: 'center',
@@ -713,7 +660,7 @@ const styles = {
         color: '#3b82f6',
         cursor: 'pointer',
         marginTop: '10px',
-        marginBottom: '15px', // Adds space before the footer or media
+        marginBottom: '15px', 
         width: 'fit-content',
     },
     threadFooter: { 
@@ -830,8 +777,8 @@ const styles = {
         padding: '25px', 
         width: '90%', 
         maxWidth: '500px',
-        maxHeight: '80vh', // ⭐ Added for scrollable modal
-        overflowY: 'auto', // ⭐ Added for scrollable modal
+        maxHeight: '80vh',
+        overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
     }, 
     modalHeader: { 
@@ -841,7 +788,6 @@ const styles = {
         borderBottom: '1px solid #c7d2fe', 
         paddingBottom: '12px' 
     }, 
-    // ⭐ NEW Style: For Read Modal (No Title)
     modalHeaderNoBorder: { 
         display: 'flex', 
         justifyContent: 'flex-end', 
@@ -854,9 +800,9 @@ const styles = {
         display: 'flex', 
         alignItems: 'center', 
         gap: '12px', 
-        marginTop: '0px', // Adjusted for Read Modal flow
-        borderBottom: '1px solid #e5e7eb', // Added to separate from body
-        paddingBottom: '15px' // Added to separate from body
+        marginTop: '0px', 
+        borderBottom: '1px solid #e5e7eb', 
+        paddingBottom: '15px' 
     }, 
     avatarCircle: { 
         width: '40px', 
@@ -876,7 +822,7 @@ const styles = {
         fontSize: '16px', 
         color: '#1e3a8a' 
     }, 
-    modalTime: { // ⭐ Copied from HomePage
+    modalTime: { 
         fontSize: '13px',
         color: '#9ca3af',
         marginLeft: '10px',
@@ -909,15 +855,13 @@ const styles = {
         cursor: 'pointer', 
         transition: 'background-color 0.2s' 
     },
-    // ⭐ NEW Style for Full Post Content in Read Modal (Copied from HomePage)
     modalThreadBody: {
         fontSize: '15px',
         color: '#4b5563',
         margin: '15px 0',
         lineHeight: '1.6',
-        whiteSpace: 'pre-wrap', // Preserve newlines
+        whiteSpace: 'pre-wrap', 
     },
-    // ⭐ NEW Style for Close Button in Read Modal (Copied from HomePage)
     modalCloseButton: { 
         display: 'flex', 
         alignItems: 'center', 

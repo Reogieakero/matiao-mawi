@@ -1885,7 +1885,6 @@ app.post('/api/admin/officials', (req, res) => {
     });
 });
 
-// 3. Fetch All Barangay Officials
 app.get('/api/admin/officials', (req, res) => {
     const SQL_FETCH_OFFICIALS = `
         SELECT 
@@ -2329,8 +2328,6 @@ app.get('/api/news', (req, res) => {
         res.status(200).json(results);
     });
 });
-
-
 
 app.get('/api/admin/announcements', (req, res) => {
     const SQL_FETCH_ALL_ANNOUNCEMENTS = `

@@ -9,17 +9,14 @@ import {
     FiAlertOctagon, 
 } from 'react-icons/fi';
 
-// CONSTANT for truncation length (Max characters to show before "Read More")
 const MAX_POST_LENGTH = 300; 
 
-// NEW CONSTANT for filter options
 const THREAD_FILTERS = [
     { label: 'All Posts', value: 'All' },
     { label: 'Threads', value: 'post' },
     { label: 'Jobs', value: 'job' },
 ];
 
-// --- Utility Functions (Essential for rendering) ---
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -31,14 +28,12 @@ const getTimeSince = (date) => {
     interval = seconds / 3600;
     if (interval > 1) return Math.floor(interval) + "h ago";
     
-    // ADDED: Check for minutes (m)
     interval = seconds / 60;
     if (interval > 1) return Math.floor(interval) + "m ago"; 
     
     return Math.floor(seconds) + "s ago";
 };
 
-// Render Avatar (styles defined later)
 const renderAvatar = (url, initial, size = 'small') => {
     let style = styles.avatarCircleSmall;
     if (size === 'large') style = styles.avatarCircleLarge;
@@ -59,9 +54,7 @@ const renderAvatar = (url, initial, size = 'small') => {
         <div style={style}>{initial ? initial[0] : 'U'}</div> 
     );
 };
-// ----------------------------------------------------
 
-// --- Custom Alert Popup Component ---
 const AlertPopup = ({ message, type, onClose }) => {
     if (!message) return null;
 
@@ -116,11 +109,9 @@ const popupStyles = {
     },
 };
 
-// --- Custom Confirmation Modal Component ---
 const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody, mediaUrls, onConfirm, onCancel, confirmButtonText = 'Delete', confirmIcon = <FiTrash2 size={18} /> }) => {
     if (!isVisible) return null;
 
-    // Only show a preview for single thread deletion (when threadTitle is present)
     const isSingleThreadDelete = !!threadTitle; 
     const imageUrl = isSingleThreadDelete && mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null; 
 
@@ -130,14 +121,12 @@ const ConfirmationModal = ({ isVisible, title, message, threadTitle, threadBody,
                 <h3 style={modalStyles.title}>{title}</h3>
                 <p style={modalStyles.message}>{message}</p>
                 
-                {/* Image Preview (Only for single thread delete) */}
                 {imageUrl && (
                     <div style={modalStyles.imagePreviewContainer}>
                         <img src={imageUrl} alt="Thread Preview" style={modalStyles.imagePreview} />
                     </div>
                 )}
 
-                {/* Thread Content Display (Only for single thread delete) */}
                 {isSingleThreadDelete && (
                     <div style={{...modalStyles.threadContentBox, marginTop: imageUrl ? '15px' : '0'}}> 
                         <p style={modalStyles.threadBody}>{threadBody}</p>
@@ -182,7 +171,7 @@ const modalStyles = {
     title: { 
         fontSize: '20px', 
         fontWeight: '700', 
-        color: '#dc2626', // Red for danger
+        color: '#dc2626', 
         margin: '0 0 10px 0' 
     },
     message: { 
@@ -264,51 +253,44 @@ const modalStyles = {
     }
 };
 
-// --- NEW COMPONENT: EditProfileModal (REPLACES INLINE EDITING LOGIC) ---
 const EditProfileModal = ({ 
     isVisible, 
     onClose, 
     userData, 
-    onSave, // The master save handler from ProfilePage
+    onSave, 
     loading,
     currentProfilePictureUrl,
     setPopup,
-    userName // Original prop for fallback
+    userName 
 }) => {
     
-    // --- State Management for Editing Fields (Moved from ProfilePage) ---
     const [editedName, setEditedName] = useState(userData?.name || userName || '');
     const [editedContact, setEditedContact] = useState(userData?.contact || '');
     const [editedAddress, setEditedAddress] = useState(userData?.address || '');
-    // profilePictureUrl is local here, representing the current/preview picture state
     const [profilePictureUrl, setProfilePictureUrl] = useState(userData?.profilePictureUrl || currentProfilePictureUrl || ''); 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [previewUrl, setPreviewUrl] = useState(''); 
     const [isDragging, setIsDragging] = useState(false);
     
-    // NEW STATE: For inline validation errors
     const [nameError, setNameError] = useState(''); 
-    const [contactError, setContactError] = useState(''); // NEW STATE for contact number
+    const [contactError, setContactError] = useState(''); 
 
     const fileInputRef = useRef(null);
-    // const currentUserId = parseInt(localStorage.getItem('userId'), 10); // Commented out to prevent no-undef
 
-    // Reset state when modal opens/closes
     useEffect(() => {
+        document.title = "Profile";
         if (isVisible) {
-            // Initialize with current data from props
             setEditedName(userData?.name || userName || '');
             setEditedContact(userData?.contact || '');
             setEditedAddress(userData?.address || '');
             setProfilePictureUrl(userData?.profilePictureUrl || currentProfilePictureUrl || '');
-            setSelectedFile(null); // Reset file selection
-            setPreviewUrl(''); // Reset preview
-            setNameError(''); // Reset name error
-            setContactError(''); // Reset contact error
+            setSelectedFile(null);
+            setPreviewUrl(''); 
+            setNameError(''); 
+            setContactError(''); 
         }
     }, [isVisible, userData, userName, currentProfilePictureUrl]);
     
-    // Cleanup for local object URL
     useEffect(() => {
         return () => {
             if (previewUrl) {
@@ -319,7 +301,6 @@ const EditProfileModal = ({
 
     if (!isVisible) return null;
 
-    // --- Photo/File Handlers (Moved from ProfilePage) ---
     const handleFileSelect = (file) => {
         if (!file.type.startsWith('image/')) {
             setPopup({ message: 'Please select an image file.', type: 'error' });
@@ -328,7 +309,7 @@ const EditProfileModal = ({
             return;
         }
 
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        if (file.size > 2 * 1024 * 1024) { 
             setPopup({ message: 'File size must be under 2MB.', type: 'error' });
             setSelectedFile(null);
             setPreviewUrl('');
@@ -337,17 +318,15 @@ const EditProfileModal = ({
 
         setSelectedFile(file);
         
-        // Revoke old URL before creating a new one
         if (previewUrl) {
             URL.revokeObjectURL(previewUrl);
         }
         
         const newPreviewUrl = URL.createObjectURL(file);
         setPreviewUrl(newPreviewUrl);
-        setProfilePictureUrl(newPreviewUrl); // Update the main picture state with the preview URL
+        setProfilePictureUrl(newPreviewUrl); 
     };
     
-    // Manual click trigger for hidden file input
     const handlePictureClick = () => fileInputRef.current.click(); 
 
     const handleFileInputChange = (e) => {
@@ -381,8 +360,6 @@ const EditProfileModal = ({
 
     const currentPictureSource = previewUrl || profilePictureUrl;
 
-    // Helper to render an editable field (Modified for Modal)
-    // ADDED: error parameter
     const renderModalField = (label, value, stateSetter, icon, error) => ( 
         <div style={modalEditStyles.fieldRow}>
             <div style={modalEditStyles.fieldLabel}>
@@ -395,64 +372,53 @@ const EditProfileModal = ({
                 onChange={(e) => stateSetter(e.target.value)} 
                 style={{
                     ...modalEditStyles.fieldInput,
-                    // Apply error style if an error message exists
                     ...(error ? modalEditStyles.fieldInputError : {}) 
                 }}
                 disabled={loading}
                 placeholder={`Enter new ${label.toLowerCase()}`}
             />
-            {/* NEW: Display Error Message */}
             {error && (
                 <p style={modalEditStyles.errorMessage}><FiAlertTriangle size={14} /> {error}</p>
             )}
         </div>
     );
     
-    // --- Save/Cancel Handlers for Modal (NEW) ---
     const handleModalCancel = () => {
-        // Reset state before closing
         setEditedName(userData?.name || userName || '');
         setEditedContact(userData?.contact || '');
         setEditedAddress(userData?.address || '');
         setSelectedFile(null); 
         setPreviewUrl(''); 
         setNameError(''); 
-        setContactError(''); // Clear contact error on cancel
-        onClose(); // Calls setIsEditModalVisible(false)
+        setContactError(''); 
+        onClose(); 
     };
 
     const handleModalSave = () => {
-        // 1. Validate
-        setNameError(''); // Clear previous name error
-        setContactError(''); // Clear previous contact error
+        setNameError(''); 
+        setContactError(''); 
         
         if (!editedName.trim()) {
             setNameError('Name cannot be empty.'); 
             return;
         }
 
-        // --- CONTACT NUMBER VALIDATION ---
         const contactNumber = editedContact.trim();
-        // Regex: Must start with '09' followed by exactly 9 digits (total 11)
         const contactRegex = /^09\d{9}$/; 
 
-        // Only validate if a contact number is provided (it's optional, but if provided, it must be valid)
         if (contactNumber && !contactRegex.test(contactNumber)) {
             setContactError('Contact No. must start with "09" and have exactly 11 digits (e.g., 09xxxxxxxxx).'); 
-            return; // Stop if validation fails
+            return;
         }
-        // ---------------------------------
 
-        // 2. Prepare payload for the parent's onSave handler
         const savePayload = {
             editedName: editedName.trim(),
-            editedContact: contactNumber, // Use the validated/trimmed value
+            editedContact: contactNumber, 
             editedAddress: editedAddress.trim(),
             selectedFile: selectedFile, 
-            existingProfilePictureUrl: profilePictureUrl, // The current URL (DB or preview URL)
+            existingProfilePictureUrl: profilePictureUrl, 
         };
         
-        // 3. Call parent's onSave (which is handleSaveProfileDetails in ProfilePage)
         onSave(savePayload);
     };
 
@@ -463,7 +429,6 @@ const EditProfileModal = ({
                 <h3 style={modalEditStyles.title}>Edit Your Profile</h3>
                 <p style={modalEditStyles.message}>Update your personal details and profile picture.</p>
                 
-                {/* Picture Upload Area */}
                 <div style={modalEditStyles.pictureArea}>
                     <div 
                         style={{...modalEditStyles.pictureCircle, ...(isDragging ? modalEditStyles.pictureCircleDragging : {})}}
@@ -496,9 +461,7 @@ const EditProfileModal = ({
                     />
                 </div>
 
-                {/* Editable Fields */}
                 <div style={modalEditStyles.fieldsContainer}>
-                    {/* Name Field with inline error */}
                     {renderModalField('Name', editedName, setEditedName, <FiUser size={18} />, nameError)} 
                     
                     <div style={modalEditStyles.fieldRow}>
@@ -514,13 +477,11 @@ const EditProfileModal = ({
                         />
                     </div>
                     
-                    {/* Contact No. Field with inline error */}
                     {renderModalField('Contact No.', editedContact, setEditedContact, <FiPhone size={18} />, contactError)}
                     
                     {renderModalField('Address', editedAddress, setEditedAddress, <FiMapPin size={18} />)}
                 </div>
 
-                {/* Actions */}
                 <div style={modalEditStyles.actions}>
                     <button 
                         style={modalEditStyles.buttonStyles.cancelButton} 
@@ -531,7 +492,6 @@ const EditProfileModal = ({
                     </button>
                     <button 
                         style={modalEditStyles.buttonStyles.saveButton} 
-                        // Disable if loading or if there's a name or contact error
                         onClick={handleModalSave} 
                         disabled={loading || !editedName.trim() || !!nameError || !!contactError} 
                     >
@@ -543,16 +503,12 @@ const EditProfileModal = ({
     );
 };
 
-// --- END EditProfileModal ---
 
-// --- NEW COMPONENT: ReadPostModal (Pro-Level Polish) ---
 const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
     if (!isVisible || !thread) return null;
 
-    // Determine the post type label
     const postTypeLabel = thread.type === 'job' ? 'Job Posting' : 'Community Thread'; 
     
-    // Filter and prepare images
     const imageUrls = (thread.mediaUrls || []).filter(url => 
         url.match(/\.(jpeg|jpg|gif|png|webp)$/i)
     );
@@ -560,8 +516,7 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
     return (
         <div style={modalStyles.overlay} onClick={onClose}>
             <div style={modalReadStyles.box} onClick={(e) => e.stopPropagation()}>
-                
-                {/* Close Button & Header */}
+
                 <div style={modalReadStyles.header}>
                     <div style={modalReadStyles.postTypeTag}>{postTypeLabel}</div>
                     <button style={modalReadStyles.closeButton} onClick={onClose}>
@@ -569,7 +524,6 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
                     </button>
                 </div>
 
-                {/* User Info */}
                 <div style={modalReadStyles.userInfo}>
                     {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                     <div style={modalReadStyles.authorDetails}>
@@ -578,11 +532,8 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
                     </div>
                 </div>
                 
-                {/* Scrollable Body Content */}
                 <div style={modalReadStyles.bodyScrollContainer}>
-                    {/* Title */}
                     
-                    {/* Media Gallery (Before Body for better visual hierarchy) */}
                     {imageUrls.length > 0 && (
                         <div style={modalReadStyles.mediaGallery}>
                             {imageUrls.map((url, index) => (
@@ -591,10 +542,8 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
                         </div>
                     )}
 
-                    {/* Full Text Body */}
                     <p style={modalReadStyles.textBody}>{thread.body}</p>
 
-                    {/* Job Contact Info (If applicable) */}
                     {thread.type === 'job' && thread.contactNumber && (
                         <div style={modalReadStyles.jobContactBox}>
                             <FiPhone size={18} /> 
@@ -605,7 +554,6 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
                     )}
                 </div>
 
-                {/* Footer (Placeholder for actions/comments if needed) */}
                 <div style={modalReadStyles.footer}>
                     <span style={modalReadStyles.readFooterText}>
                         Viewing full content of the post.
@@ -615,19 +563,16 @@ const ReadPostModal = ({ isVisible, thread, onClose, renderAvatar }) => {
         </div>
     );
 };
-// --- END ReadPostModal ---
 
-// --- NEW MODAL STYLES (Use existing modalStyles and augment) ---
 const modalEditStyles = {
-    // Inherits overlay from modalStyles
     box: { 
         backgroundColor: '#fff', 
         borderRadius: '12px', 
         padding: '30px', 
-        maxWidth: '600px', // Wider box for fields
+        maxWidth: '600px',
         width: '90%', 
         boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)', 
-        textAlign: 'left', // Align text left
+        textAlign: 'left', 
         maxHeight: '90vh', 
         overflowY: 'auto', 
     },
@@ -717,11 +662,11 @@ const modalEditStyles = {
         boxSizing: 'border-box',
         marginTop: '5px',
     },
-    fieldInputError: { // STYLE for red border on error
+    fieldInputError: { 
         border: '1px solid #ef4444', 
         boxShadow: '0 0 0 1px #fca5a5',
     },
-    errorMessage: { // STYLE for the validation message
+    errorMessage: {
         color: '#ef4444', 
         fontSize: '12px',
         marginTop: '5px',
@@ -736,7 +681,6 @@ const modalEditStyles = {
         justifyContent: 'flex-end',
         gap: '10px',
     },
-    // NEW BUTTON STYLES FOR THE MODAL
     buttonStyles: {
         base: {
             padding: '10px 20px',
@@ -788,7 +732,7 @@ const modalEditStyles = {
             gap: '6px',
             transition: 'background-color 0.2s',
             marginTop: '10px',
-            backgroundColor: '#f3f4f6', // Light Gray
+            backgroundColor: '#f3f4f6', 
             color: '#4b5563',
             border: '1px solid #d1d5db',
             ':hover': {
@@ -803,13 +747,12 @@ const modalEditStyles = {
     }
 };
 
-// --- NEW MODAL READ STYLES (Pro-Level Polish) ---
 const modalReadStyles = {
     box: {
         backgroundColor: '#fff',
-        borderRadius: '16px', // Slightly larger border-radius
+        borderRadius: '16px', 
         width: '95%',
-        maxWidth: '800px', // Wider modal for content focus
+        maxWidth: '800px', 
         maxHeight: '90vh',
         boxShadow: '0 15px 35px rgba(0, 0, 0, 0.4)',
         display: 'flex',
@@ -837,9 +780,6 @@ const modalReadStyles = {
         cursor: 'pointer',
         padding: '5px',
         transition: 'color 0.2s',
-        // ':hover': { // Assuming styling-in-js handles this via separate style logic or a framework
-        //     color: '#ef4444',
-        // },
     },
     userInfo: {
         display: 'flex',
@@ -863,11 +803,11 @@ const modalReadStyles = {
     },
     bodyScrollContainer: {
         padding: '25px',
-        overflowY: 'auto', // Scrollable content area
+        overflowY: 'auto', 
         flexGrow: 1,
     },
     title: {
-        fontSize: '28px', // Larger, bolder title
+        fontSize: '28px',
         fontWeight: '800',
         color: '#111827',
         margin: '0 0 20px 0',
@@ -877,7 +817,7 @@ const modalReadStyles = {
         fontSize: '17px',
         color: '#374151',
         lineHeight: 1.7,
-        whiteSpace: 'pre-wrap', // Preserve formatting
+        whiteSpace: 'pre-wrap',
         marginBottom: '20px',
     },
     mediaGallery: {
@@ -892,10 +832,7 @@ const modalReadStyles = {
         objectFit: 'cover',
         borderRadius: '10px',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        // transition: 'transform 0.3s', // Assuming styling-in-js handles this
-        // ':hover': {
-        //     transform: 'scale(1.01)',
-        // },
+       
     },
     jobContactBox: {
         fontSize: '17px',
@@ -923,17 +860,12 @@ const modalReadStyles = {
     }
 };
 
-// --- END Modal Styles ---
 
-// --- Core Thread/Post Components (Simplified for context) ---
-// FIX 1: Converted renderPostBody function into a React Component (PostBody)
 const PostBody = ({ thread }) => {
-    // ... (existing renderPostBody logic)
     const postContent = thread.body || '';
     const needsTruncation = postContent.length > MAX_POST_LENGTH;
     const [isExpanded, setIsExpanded] = useState(false);
     
-    // Fallback to post type if no tag
     const postTypeLabel = thread.type === 'job' ? 'Job Posting' : 'Community Thread'; 
 
     const displayContent = isExpanded || !needsTruncation 
@@ -941,7 +873,7 @@ const PostBody = ({ thread }) => {
         : postContent.substring(0, MAX_POST_LENGTH) + '...';
 
     const handleReadMore = (e) => {
-        e.stopPropagation(); // Prevent opening the read modal
+        e.stopPropagation();
         if (needsTruncation) {
             setIsExpanded(prev => !prev);
         }
@@ -992,29 +924,27 @@ const renderMediaGallery = (mediaUrls) => {
     );
 };
 
-// --- Profile Page Component ---
 const ProfilePage = ({ 
     userName, 
     userEmail, 
-    userId, // <-- This is the key prop needed for API calls
+    userId, 
     currentProfilePictureUrl, 
-    onUpdateUser // <-- NEW PROP
+    onUpdateUser 
 }) => {
-    const [userData, setUserData] = useState(null); // User data from server (name, email, contact, address, pic_url)
+    const [userData, setUserData] = useState(null);
     const [userThreads, setUserThreads] = useState([]);
     const [isThreadsLoading, setIsThreadsLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [popup, setPopup] = useState(null);
     const [selectedFilter, setSelectedFilter] = useState('All');
-    const [deleteModal, setDeleteModal] = useState(null); // { id, type, title, body, mediaUrls } for single thread delete
-    const [deleteAllModal, setDeleteAllModal] = useState(false); // for bulk delete
+    const [deleteModal, setDeleteModal] = useState(null);
+    const [deleteAllModal, setDeleteAllModal] = useState(false); 
     const [isReadModalOpen, setIsReadModalOpen] = useState(false);
     const [readModalThread, setReadModalThread] = useState(null);
-    const [isEditModalVisible, setIsEditModalVisible] = useState(false); // <-- NEW STATE for Edit Modal
+    const [isEditModalVisible, setIsEditModalVisible] = useState(false); 
 
-    // State for response section
-    const [showResponses, setShowResponses] = useState(null); // thread id
+    const [showResponses, setShowResponses] = useState(null); 
     const [responses, setResponses] = useState([]);
     const [newResponse, setNewResponse] = useState('');
 
@@ -1022,19 +952,15 @@ const ProfilePage = ({
         selectedFilter === 'All' || thread.type === selectedFilter
     );
 
-    // Close popup handler
     const closePopup = () => setPopup(null);
     
-    // --- NEW: Helper to upload the picture to the server (Called by handleSaveProfileDetails) ---
     const uploadPictureToServer = useCallback(async (file) => {
         const formData = new FormData();
-        formData.append('profile_picture', file); // 'profile_picture' must match the multer field name
+        formData.append('profile_picture', file); 
 
         try {
-            // userId is passed in the URL params for the server's multer config
             const res = await fetch(`http://localhost:5000/api/profile/upload-picture/${userId}`, {
                 method: 'POST',
-                // Important: Do NOT set 'Content-Type' header for FormData. The browser handles it.
                 body: formData,
             });
 
@@ -1044,7 +970,7 @@ const ProfilePage = ({
             }
 
             setPopup({ message: 'Picture uploaded to server temporarily.', type: 'success' });
-            return data.pictureUrl; // The temporary URL of the uploaded file
+            return data.pictureUrl;
         } catch (err) {
             console.error("Picture upload error:", err);
             setPopup({ message: `Picture upload failed: ${err.message}`, type: 'error' });
@@ -1053,35 +979,32 @@ const ProfilePage = ({
     }, [userId]);
 
 
-    // --- NEW: Master Save Handler (Passed to EditProfileModal as onSave) ---
     const handleSaveProfileDetails = useCallback(async ({ editedName, editedContact, editedAddress, selectedFile, existingProfilePictureUrl }) => {
         setLoading(true);
         setError(null);
 
         let newPictureUrl = existingProfilePictureUrl; 
 
-        // 1. Handle profile picture upload first if a new file was selected
         if (selectedFile) {
             const uploadedUrl = await uploadPictureToServer(selectedFile);
             if (uploadedUrl) {
                 newPictureUrl = uploadedUrl;
             } else {
                 setLoading(false);
-                return; // Stop if picture upload fails
+                return; 
             }
         }
         
-        // 2. Handle profile details update (including the (new or existing) picture URL)
         try {
             const updatedFields = {
                 editedName,
                 editedContact,
                 editedAddress,
-                newProfilePictureUrl: newPictureUrl, // Pass the new or existing URL
+                newProfilePictureUrl: newPictureUrl, 
             };
 
             const res = await fetch(`http://localhost:5000/api/profile/${userId}`, {
-                method: 'PUT', // Use PUT for update
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -1094,20 +1017,18 @@ const ProfilePage = ({
             }
 
             setPopup({ message: 'Profile updated successfully!', type: 'success' });
-            setIsEditModalVisible(false); // Close modal on success
+            setIsEditModalVisible(false);
 
-            // Update local state in ProfilePage (FOR AUTO-REFRESH ON THE PAGE)
             setUserData(prev => ({
                 ...prev,
                 name: updatedFields.editedName,
                 contact: updatedFields.editedContact,
                 address: updatedFields.editedAddress,
-                profilePictureUrl: data.updatedPictureUrl, // Use the final URL returned by the server
+                profilePictureUrl: data.updatedPictureUrl, 
             }));
             
-            // Update global state in App.jsx (FOR AUTO-REFRESH ON OTHER COMPONENTS LIKE NAVBAR)
             onUpdateUser({ 
-                name: updatedFields.editedName, // Use the newly saved name
+                name: updatedFields.editedName, 
                 profilePictureUrl: data.updatedPictureUrl 
             });
 
@@ -1119,7 +1040,6 @@ const ProfilePage = ({
         }
     }, [userId, onUpdateUser, uploadPictureToServer]); 
 
-    // --- Fetch User Threads ---
     const fetchUserThreads = useCallback(async () => {
         if (!userId) {
             setIsThreadsLoading(false);
@@ -1141,7 +1061,6 @@ const ProfilePage = ({
         }
     }, [userId]);
 
-    // --- Fetch User Data (Profile Details) ---
     const fetchUserData = useCallback(async () => {
         if (!userId) {
             setError("User not logged in or User ID is missing.");
@@ -1151,17 +1070,15 @@ const ProfilePage = ({
         setLoading(true);
         setError(null);
         try {
-            // NEW FETCH: Use the dedicated GET endpoint
             const res = await fetch(`http://localhost:5000/api/profile/${userId}`); 
             if (!res.ok) {
                 if (res.status === 404) {
-                    // Handle 404: User exists but has no custom profile details yet
                     const defaultData = { 
                         name: userName, 
                         email: userEmail, 
                         contact: '', 
                         address: '', 
-                        profilePictureUrl: currentProfilePictureUrl // Fallback to current global state picture
+                        profilePictureUrl: currentProfilePictureUrl 
                     }; 
                     setUserData(defaultData); 
                     setLoading(false);
@@ -1169,7 +1086,7 @@ const ProfilePage = ({
                 }
                 throw new Error("Failed to fetch user data.");
             }
-            const data = await res.json(); // Data now includes name, email, contact, address, profilePictureUrl
+            const data = await res.json();
             setUserData(data); 
         } catch (err) {
             console.error("Fetch user data error:", err);
@@ -1179,15 +1096,12 @@ const ProfilePage = ({
         }
     }, [userId, userName, userEmail, currentProfilePictureUrl]);
 
-    // Initial load and refresh handler
     useEffect(() => {
         fetchUserThreads();
         fetchUserData();
     }, [fetchUserThreads, fetchUserData]);
     
-    // ... (rest of existing thread and response logic)
 
-    // --- Delete Thread Handlers ---
     const handleDeleteThread = (thread) => {
         setDeleteModal({
             id: thread.id,
@@ -1212,7 +1126,6 @@ const ProfilePage = ({
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                // FIX 2: Replaced undefined 'currentUserId' with 'userId' prop
                 body: JSON.stringify({ userId: userId }), 
             });
 
@@ -1221,7 +1134,6 @@ const ProfilePage = ({
                 throw new Error(data.message || `Failed to delete ${type}.`);
             }
 
-            // CRITICAL UPDATE FOR AUTO-REFRESH: Remove the deleted thread from state
             setUserThreads(prev => prev.filter(thread => !(thread.id === id && thread.type === type)));
 
             setPopup({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`, type: 'success' });
@@ -1233,12 +1145,10 @@ const ProfilePage = ({
         }
     };
     
-    // --- Delete All Posts Handler (NEW) ---
     const handleDeleteAllPosts = () => {
         setDeleteAllModal(true);
     };
 
-    // UPDATED: Clear userThreads state upon successful bulk deletion
     const confirmDeleteAllThreads = async () => {
         setDeleteAllModal(false);
         setLoading(true);
@@ -1252,13 +1162,10 @@ const ProfilePage = ({
                 const data = await res.json();
                 throw new Error(data.message || 'Failed to delete all threads.');
             }
-            // CRITICAL UPDATE FOR AUTO-REFRESH: Clear the state immediately
             setUserThreads([]);
             
-            // Set success popup
             setPopup({ message: 'All your community threads and jobs have been successfully deleted!', type: 'success' });
             
-            // New: Set a timeout to clear the popup after 2000ms (2 seconds)
             setTimeout(() => {
                 setPopup(null);
             }, 2000);
@@ -1271,17 +1178,15 @@ const ProfilePage = ({
         }
     };
 
-    // --- Read Modal Handlers ---
     const openReadModal = (thread) => {
         setReadModalThread(thread);
         setIsReadModalOpen(true);
-        setShowResponses(null); // Close responses when opening read modal
     };
 
     const closeReadModal = () => {
         setIsReadModalOpen(false);
         setReadModalThread(null);
-        setShowResponses(null); // Ensure responses are closed
+        setShowResponses(null); 
     };
 
     const fetchResponses = useCallback(async (threadId, threadType) => {
@@ -1296,7 +1201,6 @@ const ProfilePage = ({
         }
     }, []);
 
-    // Toggle responses
     const handleToggleResponses = (threadId, threadType) => {
         if (showResponses === threadId) {
             setShowResponses(null);
@@ -1307,7 +1211,6 @@ const ProfilePage = ({
         }
     };
     
-    // Response submission
     const handleSubmitResponse = async (e) => {
         e.preventDefault();
         if (!newResponse.trim() || !showResponses) return; 
@@ -1337,9 +1240,8 @@ const ProfilePage = ({
 
             setNewResponse('');
             setPopup({ message: 'Response submitted successfully!', type: 'success' });
-            fetchResponses(currentThread.id, currentThread.type); // Refresh responses
+            fetchResponses(currentThread.id, currentThread.type); 
 
-            // Optional: Increment responseCount in userThreads state locally
             setUserThreads(prev => prev.map(t => t.id === currentThread.id ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t));
 
         } catch (err) {
@@ -1362,7 +1264,6 @@ const ProfilePage = ({
     );
 
 
-    // Render individual thread card
     const renderThread = (thread) => (
         <div key={`${thread.type}-${thread.id}`} style={styles.threadCard} onClick={() => openReadModal(thread)}>
             <div style={styles.threadHeader}>
@@ -1377,19 +1278,15 @@ const ProfilePage = ({
                     {thread.tag}
                 </div>
             </div>
-            {/* Post title has been removed as per previous user request */}
-            {/* Use PostBody component for truncation/Read More */}
             <PostBody thread={thread} /> {/* FIX 1: Updated call site */}
             {renderMediaGallery(thread.mediaUrls)}
 
-            {/* ACTION BAR: Now includes the Delete Button */}
             <div style={styles.threadActions}>
                 <div style={{...styles.threadStats, cursor: 'pointer', color: showResponses === thread.id ? '#1d4ed8' : '#6b7280'}} 
                     onClick={(e) => { e.stopPropagation(); handleToggleResponses(thread.id, thread.type); }}
                 >
                     <FiMessageSquare size={18} /> {thread.responseCount ?? 0} Responses
                 </div>
-                {/* Delete Button - Passes full thread object */}
                 <button 
                     style={styles.deleteThreadButton} 
                     onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread); }} 
@@ -1399,10 +1296,8 @@ const ProfilePage = ({
                 </button>
             </div>
             
-            {/* Responses Section */}
             {showResponses === thread.id && (
                 <div style={styles.responsesContainer} onClick={(e) => e.stopPropagation()}>
-                    {/* Response Form */}
                     <form onSubmit={handleSubmitResponse} style={styles.responseForm}>
                         <input
                             type="text"
@@ -1417,7 +1312,6 @@ const ProfilePage = ({
                         </button>
                     </form>
 
-                    {/* Responses List */}
                     {responses.length > 0 ? (
                         responses.map(renderResponse)
                     ) : (
@@ -1433,22 +1327,18 @@ const ProfilePage = ({
 
     return (
         <main style={styles.container}>
-            {/* Alert Popup (for general errors like picture upload or server issues) */}
             <AlertPopup 
                 message={popup?.message} 
                 type={popup?.type} 
                 onClose={closePopup} 
             />
 
-            {/* Profile Card */}
             <div style={styles.profileCard}>
                 <div style={styles.profileHeader}>
-                    {/* Use userData?.profilePictureUrl if fetched, otherwise fallback */}
                     {renderAvatar(userData?.profilePictureUrl || currentProfilePictureUrl, userData?.name || userName, 'large')}
                     <h1 style={styles.profileName}>{userData?.name || userName}</h1>
                     <p style={styles.profileEmail}>{userData?.email || userEmail}</p>
                     
-                    {/* EDIT BUTTON: Updated onClick to show modal */}
                     <button style={styles.editButton} onClick={() => setIsEditModalVisible(true)} disabled={loading}>
                         <FiEdit size={18} /> Edit Profile
                     </button>
@@ -1460,24 +1350,20 @@ const ProfilePage = ({
                             <div style={styles.fieldLabel}>
                                 <FiPhone size={16} /> <span>Contact No.</span>
                             </div>
-                            {/* Use fetched userData (or N/A) */}
                             <div style={styles.fieldValue}>{userData?.contact || 'N/A'}</div>
                         </div>
                         <div style={styles.fieldRow}>
                             <div style={styles.fieldLabel}>
                                 <FiMapPin size={16} /> <span>Address</span>
                             </div>
-                            {/* Use fetched userData (or N/A) */}
                             <div style={styles.fieldValue}>{userData?.address || 'N/A'}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* User Posts Section */}
             <div style={styles.postsSectionContainer}>
                 <div style={styles.postsSectionHeader}>
-                    {/* Updated title to show filtered count */}
                     <h2 style={styles.postsSectionTitle}>Your Community Posts ({filteredThreads.length})</h2>
                     {userThreads.length > 0 && (
                         <button style={styles.deleteAllButton} onClick={handleDeleteAllPosts} disabled={isThreadsLoading || loading} >
@@ -1485,7 +1371,6 @@ const ProfilePage = ({
                         </button>
                     )}
                 </div>
-                {/* NEW: Filter Buttons */}
                 <div style={styles.filterBar}>
                     {THREAD_FILTERS.map(filter => (
                         <button 
@@ -1512,19 +1397,17 @@ const ProfilePage = ({
                 )}
             </div>
 
-            {/* NEW: Edit Profile Modal */}
             <EditProfileModal
                 isVisible={isEditModalVisible}
                 onClose={() => setIsEditModalVisible(false)}
                 userData={userData}
-                onSave={handleSaveProfileDetails} // Pass the master save handler
+                onSave={handleSaveProfileDetails} 
                 loading={loading}
                 currentProfilePictureUrl={currentProfilePictureUrl} 
                 setPopup={setPopup}
                 userName={userName}
             />
 
-            {/* Single Delete Confirmation Modal */}
             {deleteModal && (
                 <ConfirmationModal
                     isVisible={!!deleteModal}
@@ -1538,12 +1421,11 @@ const ProfilePage = ({
                 />
             )}
 
-            {/* Delete ALL Confirmation Modal */}
             <ConfirmationModal
                 isVisible={deleteAllModal}
                 title="Delete ALL Your Posts & Jobs"
                 message={`You are about to delete all ${userThreads.length} posts and jobs you have ever created. This action is irreversible and cannot be recovered.`}
-                threadTitle={null} // Important: Hide thread preview
+                threadTitle={null} 
                 threadBody={null}
                 mediaUrls={[]}
                 onConfirm={confirmDeleteAllThreads}
@@ -1552,7 +1434,6 @@ const ProfilePage = ({
                 confirmIcon={<FiAlertOctagon size={18} />}
             />
 
-            {/* NEW: Pro-Level Read Details Modal (Replaces the old inline modal) */}
             <ReadPostModal
                 isVisible={isReadModalOpen}
                 thread={readModalThread}
@@ -1564,11 +1445,9 @@ const ProfilePage = ({
     );
 };
 
-// --- STYLES (Existing) ---
 const styles = {
-    // ... (rest of existing styles)
     container: {
-        padding: '20px 20px 20px 15px', // Adjusted for sidebar
+        padding: '20px 20px 20px 15px', 
         minHeight: '100vh',
     },
     spinner: {
@@ -1578,7 +1457,6 @@ const styles = {
         from: { transform: 'rotate(0deg)' },
         to: { transform: 'rotate(360deg)' },
     },
-    // ... (rest of existing styles)
     profileCard: {
         backgroundColor: '#fff',
         borderRadius: '12px',
@@ -1719,7 +1597,7 @@ const styles = {
     filterButtonActive: {
         padding: '8px 15px',
         borderRadius: '20px',
-        backgroundColor: '#3b82f6', // Blue background for active
+        backgroundColor: '#3b82f6',
         color: '#fff',
         border: '1px solid #3b82f6',
         cursor: 'default',
@@ -1746,7 +1624,6 @@ const styles = {
         alignItems: 'center',
         gap: '10px',
     },
-    // Thread Card Styles
     threadCard: {
         backgroundColor: '#f9fafb',
         border: '1px solid #e5e7eb',
@@ -1815,8 +1692,6 @@ const styles = {
         overflow: 'hidden',
         display: '-webkit-box',
         WebkitBoxOrient: 'vertical',
-        // Max lines before truncation (set high if relying on MAX_POST_LENGTH)
-        // WebkitLineClamp: 3, 
     },
     jobContact: {
         fontSize: '14px',
@@ -1891,7 +1766,6 @@ const styles = {
             backgroundColor: '#fca5a5',
         },
     },
-    // Response Styles
     responsesContainer: {
         marginTop: '15px',
         padding: '10px 0',
@@ -1954,7 +1828,6 @@ const styles = {
         cursor: 'pointer',
         flexShrink: 0,
     },
-    // Avatar Styles
     avatarCircleLarge: { 
         width: '100px', 
         height: '100px', 
@@ -2002,89 +1875,7 @@ const styles = {
         width: '100%',
         height: '100%',
         objectFit: 'cover',
-    },
-    // The old Read Modal styles are now unused but kept here for reference:
-    // modalOverlay: {
-    //     position: 'fixed',
-    //     top: 0, right: 0, bottom: 0, left: 0,
-    //     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    //     zIndex: 1500,
-    //     display: 'flex',
-    //     alignItems: 'center',
-    //     justifyContent: 'center',
-    //     padding: '20px',
-    // },
-    // modalContent: {
-    //     backgroundColor: '#fff',
-    //     borderRadius: '12px',
-    //     width: '90%',
-    //     maxWidth: '700px',
-    //     maxHeight: '90vh',
-    //     overflowY: 'auto',
-    //     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
-    //     display: 'flex',
-    //     flexDirection: 'column',
-    // },
-    // modalHeaderNoBorder: {
-    //     padding: '15px 20px 0',
-    //     textAlign: 'right',
-    // },
-    // modalUserSection: {
-    //     display: 'flex',
-    //     alignItems: 'center',
-    //     gap: '15px',
-    //     padding: '0 20px 20px',
-    //     borderBottom: '1px solid #e5e7eb',
-    // },
-    // modalUserName: {
-    //     fontSize: '18px',
-    //     fontWeight: '700',
-    //     color: '#1f2937',
-    // },
-    // modalTime: {
-    //     fontSize: '14px',
-    //     color: '#9ca3af',
-    //     marginLeft: 'auto',
-    // },
-    // modalBody: {
-    //     padding: '20px',
-    // },
-    // modalTitle: {
-    //     fontSize: '24px',
-    //     fontWeight: '800',
-    //     color: '#111827',
-    //     margin: '0 0 10px 0',
-    // },
-    // modalText: {
-    //     fontSize: '16px',
-    //     color: '#374151',
-    //     lineHeight: 1.6,
-    //     whiteSpace: 'pre-wrap',
-    //     marginBottom: '20px',
-    // },
-    // modalJobContact: {
-    //     fontSize: '16px',
-    //     color: '#059669',
-    //     display: 'flex',
-    //     alignItems: 'center',
-    //     gap: '8px',
-    //     margin: '10px 0 20px 0',
-    //     padding: '10px',
-    //     backgroundColor: '#ecfdf5',
-    //     borderRadius: '8px',
-    // },
-    // modalMediaGallery: {
-    //     display: 'grid',
-    //     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    //     gap: '10px',
-    //     marginTop: '10px',
-    //     marginBottom: '20px',
-    // },
-    // modalMediaImage: {
-    //     width: '100%',
-    //     height: '200px',
-    //     objectFit: 'cover',
-    // }
+    }
 };
 
 export default ProfilePage;

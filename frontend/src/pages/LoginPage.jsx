@@ -43,18 +43,18 @@ export default function LoginPage({ onLoginSuccess }) {
   const [password, setPassword] = useState("");
   const [fadeIn, setFadeIn] = useState(false);
   const [loading, setLoading] = useState(false);
-  // NEW: State for real-time error message
   const [errorMessage, setErrorMessage] = useState(""); 
 
-  useEffect(() => setFadeIn(true), []);
+  useEffect(() => {
+    document.title = "Mawii Login"; // Sets the browser tab title
+    setFadeIn(true);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // NEW: Clear previous error message
     setErrorMessage(""); 
     
     if (!email || !password) {
-      // NEW: Set validation error message
       setErrorMessage("Please fill in all fields.");
       return;
     }
@@ -69,18 +69,15 @@ export default function LoginPage({ onLoginSuccess }) {
 
       const data = await res.json();
       if (res.ok) {
-        // CRITICAL FIX: Ensure userId is stored in localStorage to trigger HomePage re-fetch
         localStorage.setItem('userId', data.user.id);
         
         onLoginSuccess({ id: data.user.id, name: data.user.name, email: data.user.email });
         navigate("/home");
       } else {
-        // NEW: Set the API error message instead of alert
         setErrorMessage(data.message || "Login failed. Please check your credentials.");
       }
     } catch (err) {
       console.error("Login error:", err);
-      // NEW: Set the network/server error message instead of alert
       setErrorMessage("Something went wrong. Please check your network connection and server status.");
     } finally {
       setLoading(false);
@@ -101,13 +98,11 @@ export default function LoginPage({ onLoginSuccess }) {
           <h2 style={styles.title}>Welcome Back!</h2>
           <p style={styles.subtitle}>Login to continue to your dashboard</p>
           
-          {/* NEW: Error Message Display */}
           {errorMessage && (
             <div style={styles.errorMessage}>
               {errorMessage}
             </div>
           )}
-          {/* END NEW */}
           
           <InputField
             label="Email"
@@ -124,11 +119,9 @@ export default function LoginPage({ onLoginSuccess }) {
             placeholder="Enter your password"
           />
           
-          {/* NEW: FORGOT PASSWORD LINK */}
           <Link to="/forgot-password" style={styles.forgotPasswordLink}>
             Forgot Password?
           </Link>
-          {/* END NEW */}
 
           <button
             type="submit"
@@ -153,7 +146,6 @@ export default function LoginPage({ onLoginSuccess }) {
   );
 }
 
-// ---------- STYLES (updated with forgotPasswordLink and errorMessage) ----------
 const styles = {
   page: {
     display: "flex",
@@ -252,20 +244,18 @@ const styles = {
   },
   link: { color: "#2563eb", textDecoration: "none", fontWeight: "600", cursor: "pointer" },
   
-  // NEW STYLE: Error message banner
   errorMessage: {
-    backgroundColor: "#fee2e2", // Light red background
-    color: "#b91c1c", // Darker red text
+    backgroundColor: "#fee2e2", 
+    color: "#b91c1c", 
     padding: "10px 14px",
     borderRadius: "8px",
     fontSize: "14px",
     fontWeight: "500",
     textAlign: "center",
-    marginBottom: "18px", // Space before input fields
+    marginBottom: "18px", 
     border: "1px solid #fca5a5",
   },
   
-  // Existing NEW STYLE
   forgotPasswordLink: { 
     fontSize: "14px", 
     fontWeight: "500", 

@@ -283,6 +283,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        document.title = "Documents";
         fetchDocuments();
         fetchPaymentDetails(); 
         if (isLoggedIn && userEmail) {

@@ -1,30 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { FiCheckCircle, FiLock } from "react-icons/fi"; // FiLock is used for the single code input in the original file
+import { FiCheckCircle, FiLock } from "react-icons/fi"; 
 
 const BACKGROUND_IMAGE_PATH = require("../assets/philippine-barangay-community-hall.jpg");
 
-// --- START NEW VerificationCodeInput Component (Copied from ForgotPasswordPage.jsx) ---
 const VerificationCodeInput = ({ length = 6, value, onChange }) => {
-    // Split the external value prop into an array of digits for rendering
     const [digits, setDigits] = useState(Array(length).fill(''));
     const inputsRef = useRef([]);
 
-    // Sync external value prop with internal state when mounted or value changes
     useEffect(() => {
-        // Ensure the internal state reflects the full 6-digit code coming from the parent state
         const currentCodeArray = value.split('');
-        // Pad the array with empty strings if it's shorter than the required length
         const newDigits = Array(length).fill('').map((_, i) => currentCodeArray[i] || '');
         setDigits(newDigits);
     }, [value, length]);
 
 
     const handleChange = (index, e) => {
-        // Only take the last character typed (for security/simplicity)
         const newDigit = e.target.value.slice(-1); 
         
-        // Only allow digits (0-9)
         if (!/^\d*$/.test(newDigit)) return;
 
         const newDigits = [...digits];
@@ -32,23 +25,19 @@ const VerificationCodeInput = ({ length = 6, value, onChange }) => {
         setDigits(newDigits);
 
         const newValue = newDigits.join('');
-        onChange({ target: { value: newValue } }); // Propagate the full 6-digit string up to the parent
+        onChange({ target: { value: newValue } }); 
 
-        // Auto-focus to the next input field if a digit was entered
         if (newDigit && index < length - 1) {
             inputsRef.current[index + 1]?.focus();
         }
     };
 
     const handleKeyDown = (index, e) => {
-        // Handle Backspace to clear current and move to previous input
         if (e.key === 'Backspace') {
             if (!digits[index] && index > 0) {
-                // If the box is empty, move focus to the previous box
                 inputsRef.current[index - 1]?.focus();
             } else if (digits[index]) {
-                // If the box is not empty, clear the digit and propagate change
-                e.preventDefault(); // Prevent default backspace behavior (moving back)
+                e.preventDefault(); 
                 const newDigits = [...digits];
                 newDigits[index] = '';
                 setDigits(newDigits);
@@ -78,7 +67,6 @@ const VerificationCodeInput = ({ length = 6, value, onChange }) => {
         </div>
     );
 };
-// --- END NEW VerificationCodeInput Component ---
 
 
 const VerifyAccountPage = () => {
@@ -87,7 +75,6 @@ const VerifyAccountPage = () => {
     
     const userEmail = location.state?.email; 
 
-    // Changed state name to match ForgotPasswordPage's 'code' state for consistency
     const [code, setCode] = useState(''); 
     const [statusMessage, setStatusMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -98,6 +85,7 @@ const VerifyAccountPage = () => {
     useEffect(() => setFadeIn(true), []);
 
     useEffect(() => {
+        document.title = "Verify Account";
         if (!userEmail) {
             setTimeout(() => navigate('/signup', { replace: true }), 1000); 
         }
@@ -108,8 +96,7 @@ const VerifyAccountPage = () => {
         setStatusMessage('');
         setIsLoading(true);
 
-        // Simple validation
-        if (code.length !== 6) { // Check against the updated 'code' state
+        if (code.length !== 6) { 
             setStatusMessage('Code must be 6 digits.');
             setIsLoading(false);
             return;
@@ -121,7 +108,7 @@ const VerifyAccountPage = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: userEmail,
-                    code: code // Use the updated 'code' state
+                    code: code 
                 }),
             });
 
@@ -156,7 +143,6 @@ const VerifyAccountPage = () => {
         <div style={styles.page}>
             <div style={styles.backgroundOverlay}></div>
             <div style={styles.container}>
-                {/* Left Panel - Brand Info (Consistent with other pages) */}
                 <div style={styles.leftPanel}>
                     <h1 style={{ ...styles.brandText, opacity: fadeIn ? 1 : 0 }}>Community Mawii</h1>
                     <p style={{ ...styles.brandDescription, opacity: fadeIn ? 1 : 0 }}>
@@ -164,7 +150,6 @@ const VerifyAccountPage = () => {
                     </p>
                 </div>
                 
-                {/* Right Panel - Verification Form (Consistent styling) */}
                 <div style={styles.form}>
                     <h2 style={styles.title}>Account Verification</h2>
                     <p style={styles.subtitle}>
@@ -174,19 +159,16 @@ const VerifyAccountPage = () => {
                     </p>
 
                     <form onSubmit={handleVerify} style={styles.codeForm}>
-                        {/* --- NEW 6-BOX INPUT COMPONENT --- */}
                         <VerificationCodeInput
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
                             length={6}
                         />
-                        {/* --- END NEW COMPONENT --- */}
 
                         <button 
                             type="submit" 
                             style={{
                                 ...styles.button,
-                                // Condition updated to check `code.length` against 6 digits
                                 opacity: code.length === 6 && !isLoading && !isSuccess ? 1 : 0.6,
                                 cursor: code.length === 6 && !isLoading && !isSuccess ? "pointer" : "not-allowed",
                             }}
@@ -226,7 +208,6 @@ const VerifyAccountPage = () => {
     );
 };
 
-// Merged and adapted styles for consistency (Includes styles from ForgotPasswordPage.jsx for the code input)
 const styles = {
     page: {
         display: "flex",
@@ -308,7 +289,6 @@ const styles = {
         gap: '15px',
         alignItems: 'center',
     },
-    // --- Styles needed for VerificationCodeInput ---
     inputWrapper: { display: "flex", flexDirection: "column", marginBottom: "18px", width: "100%" },
     label: { fontSize: "14px", fontWeight: "500", marginBottom: "6px", color: "#333" },
     codeDigitContainer: {
@@ -333,11 +313,9 @@ const styles = {
             boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)',
         }
     },
-    // --- End Styles needed for VerificationCodeInput ---
 
-    // inputContainer is no longer used for the 6-box input but kept for consistency if other inputs use it
     inputContainer: { 
-        display: "none", // Hide the old single input container
+        display: "none", 
         alignItems: "center",
         border: "1px solid #dcdcdc",
         borderRadius: "12px",
@@ -356,7 +334,7 @@ const styles = {
         letterSpacing: '5px',
         color: '#333',
         padding: '0',
-        display: 'none', // Hide the old single input
+        display: 'none', 
     },
     button: {
         width: "100%",

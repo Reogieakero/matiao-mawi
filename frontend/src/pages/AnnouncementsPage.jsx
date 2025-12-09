@@ -447,6 +447,7 @@ const AnnouncementPage = () => {
     };
 
     useEffect(() => {
+        document.title = "Announcments";
         fetchAnnouncements();
     }, []);
 

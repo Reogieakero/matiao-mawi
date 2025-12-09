@@ -27,7 +27,6 @@ const DOCUMENT_TYPES = [
     'Certificate of Residency'
 ];
 
-// NEW CONSTANT: Map document types to available form templates (used by SelectFormModal)
 const SELECTABLE_FORMS = {
     'Barangay Clearance': 'barangay_clearance_template.pdf',
     'Certificate of Indigency': 'barangay_indigency_template.pdf',

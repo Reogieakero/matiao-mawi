@@ -1,20 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react'; 
 import {
-    Activity, // For Announcements & News
-    FileText, // For Documents & Services
-    Briefcase, // For Find Jobs
-    MessageSquare, // For Community Threads
-    Rocket, // For Vision
-    Users, // For Mission
-    Mail, // For Contact
-} from 'lucide-react'; // Import necessary Lucide Icons
+    Activity, 
+    FileText, 
+    Briefcase, 
+    MessageSquare, 
+    Rocket, 
+    Users, 
+    Mail, 
+} from 'lucide-react'; 
 
-// The page content is rendered within the AppLayout structure (which includes Header and Sidebar).
-// The main div uses styles to ensure content is displayed correctly.
 
 const AboutPage = ({ userName, profilePictureUrl }) => {
 
-    // --- Content Data Structure for Clean Rendering ---
+    useEffect(() => {
+        document.title = "About Matiao"; 
+    }, []);
     const missionSection = [
         {
             icon: Users,
@@ -49,10 +49,11 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
         },
     ];
 
+    
+
     return (
         <div style={styles.content}>
             <div style={styles.container}>
-                {/* --- Header Section --- */}
                 <div style={styles.header}>
                     <h1 style={styles.mainTitle}>About the Matiao Community Hub</h1>
                     <p style={styles.tagline}>Connecting Matiao, One Click at a Time.</p>
@@ -60,7 +61,6 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
                 
                 <hr style={styles.divider} />
 
-                {/* --- Mission Section --- */}
                 <div style={styles.section}>
                     <h2 style={styles.sectionTitle}>
                         <Users size={24} style={styles.titleIcon} />
@@ -73,7 +73,6 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
                     ))}
                 </div>
 
-                {/* --- What You Can Find Here (Card-based List) --- */}
                 <div style={styles.section}>
                     <h2 style={styles.sectionTitle}>What You Can Find Here</h2>
                     <div style={styles.cardGrid}>
@@ -87,7 +86,6 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
                     </div>
                 </div>
 
-                {/* --- Vision Section --- */}
                 <div style={styles.section}>
                     <h2 style={styles.sectionTitle}>
                         <Rocket size={24} style={styles.titleIcon} />
@@ -99,7 +97,6 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
                     </p>
                 </div>
 
-                {/* --- Footer/Contact Section --- */}
                 <div style={styles.contactFooter}>
                     <p>
                         <Mail size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
@@ -111,11 +108,10 @@ const AboutPage = ({ userName, profilePictureUrl }) => {
     );
 };
 
-// --- Professional Styling with a modern, clean aesthetic ---
 const colors = {
-    primary: '#1e40af', // Darker Blue
-    accent: '#3b82f6', // Lighter Primary Blue
-    background: '#f8fafc', // Very light gray/off-white
+    primary: '#1e40af', 
+    accent: '#3b82f6', 
+    background: '#f8fafc', 
     text: '#374151',
     lightText: '#6b7280',
     cardBackground: '#ffffff',
@@ -125,10 +121,10 @@ const colors = {
 const styles = {
     content: {
         padding: '30px 40px', 
-        minHeight: 'calc(100vh - 60px)', // Ensures the content clears the fixed header
+        minHeight: 'calc(100vh - 60px)', 
     },
     container: {
-        maxWidth: '1000px', // Slightly wider for a 'pro' feel
+        maxWidth: '1000px', 
         margin: '0 auto',
         padding: '40px',
         backgroundColor: colors.cardBackground,
@@ -179,13 +175,13 @@ const styles = {
     },
     cardGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', // Responsive grid
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
         gap: '20px',
         marginTop: '20px',
     },
     card: {
         padding: '25px',
-        backgroundColor: '#f1f5f9', // Slightly darker background for cards
+        backgroundColor: '#f1f5f9', 
         borderRadius: '8px',
         border: `1px solid #e2e8f0`,
         transition: 'all 0.3s ease',
@@ -225,4 +221,4 @@ const styles = {
     }
 };
 
-export default AboutPage;
+export default AboutPage

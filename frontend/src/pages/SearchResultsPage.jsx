@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
-// ⭐ IMPORT THE RIGHT PANEL
 import RightPanel from '../components/RightPanel'; 
 
-// Utility function to format the time (Copied from HomePage.jsx)
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -20,7 +18,6 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// ⭐ NEW HELPER: Function to render avatar based on URL presence (Copied from HomePage.jsx)
 const renderAvatar = (url, initial, size = 'small') => {
     let style;
     switch (size) {
@@ -54,13 +51,11 @@ const renderAvatar = (url, initial, size = 'small') => {
 };
 
 
-// ⭐ MODIFIED: Added profilePictureUrl prop for the Response Modal avatar
 export default function SearchResultsPage({ userName, profilePictureUrl }) {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const location = useLocation();
     
-    // --- STATE FOR RESPONSES (Copied from HomePage.jsx) ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
@@ -72,15 +67,12 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
     const [expandedThreadId, setExpandedThreadId] = useState(null);
     const [responses, setResponses] = useState({}); 
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
-    // ---------------------------------
     
     const firstName = userName ? userName.split(' ')[0] : 'User';
     const userId = localStorage.getItem('userId'); 
     
-    // Extract search query from URL
     const query = new URLSearchParams(location.search).get('q');
     
-    // ⭐ MODIFIED: Function to fetch search results
     const fetchSearchResults = async (searchTerm) => {
         if (!searchTerm) {
             setThreads([]);
@@ -90,7 +82,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
 
         setIsLoading(true);
         
-        // Step 1: Fetch Search Results
         let searchResults = [];
         try {
             const res = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(searchTerm)}`);
@@ -105,11 +96,9 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         
         const mapThreadMedia = (thread) => ({
             ...thread,
-            // Ensure mediaUrls is an array
             mediaUrls: thread.mediaUrls || (thread.mediaUrl ? [thread.mediaUrl] : []), 
         });
 
-        // Step 2: Fetch User Bookmarks to check status (Copied logic from HomePage.jsx)
         if (userId) {
             try {
                 const bookmarkRes = await fetch(`http://localhost:5000/api/bookmarks/${userId}`);
@@ -121,7 +110,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                     return acc;
                 }, {});
 
-                // Step 3: Merge bookmark status into threads
                 const threadsWithStatus = searchResults.map(thread => ({
                     ...mapThreadMedia(thread),
                     isBookmarked: bookmarkMap[`${thread.type}-${thread.id}`] || false,
@@ -139,16 +127,14 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         setIsLoading(false);
     };
 
-    // Fetch search results when the component mounts or the query changes
     useEffect(() => {
+        document.title = "Search Results";
         fetchSearchResults(query);
     }, [query, userId]); 
 
-    // Function to handle saving/unsaving a thread (Copied from HomePage.jsx)
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
         if (!userId) return alert('You must be logged in to save a thread.');
         
-        // Optimistic UI Update
         setThreads(prevThreads => prevThreads.map(t => 
             t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
         ));
@@ -169,7 +155,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
             const data = await res.json();
             
             if (!res.ok) {
-                 // Revert optimistic update on failure
                  alert(data.message || `Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
                  setThreads(prevThreads => prevThreads.map(t => 
                     t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
@@ -179,14 +164,12 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         } catch (error) {
             console.error("Bookmark network error:", error);
             alert(`A network error occurred. Failed to ${isBookmarked ? 'unsave' : 'save'} thread.`);
-            // Revert optimistic update on network error
             setThreads(prevThreads => prevThreads.map(t => 
                 t.id === threadId && t.type === threadType ? { ...t, isBookmarked: isBookmarked } : t
             ));
         }
     };
     
-    // Function to fetch responses for a specific thread (Copied from HomePage.jsx)
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -211,7 +194,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         }
     };
     
-    // Function to toggle response view (Copied from HomePage.jsx)
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -221,7 +203,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         }
     };
 
-    // handleReplyClick (Copied from HomePage.jsx)
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) return alert('You must be logged in to reply.');
         
@@ -242,7 +223,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit (Copied from HomePage.jsx)
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) return alert('Response cannot be empty!');
         
@@ -265,12 +245,10 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
 
             if (res.ok) {
                 if (!parentResponseId) {
-                    // Update response count only for top-level responses
                     setThreads(prevThreads => prevThreads.map(t => 
                         t.id === threadIdToReply ? { ...t, responseCount: (t.responseCount || 0) + 1 } : t
                     ));
                 }
-                // Refresh responses if the thread is currently expanded
                 if(expandedThreadId === threadIdToReply) {
                     fetchResponses(threadIdToReply, threadTypeToReply);
                 }
@@ -294,7 +272,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         setParentResponseContent(null); 
     };
 
-    // handleResponseKeyDown (Copied from HomePage.jsx)
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -302,7 +279,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
         }
     };
 
-    // NEW HELPER: Function to render the media gallery (Copied from HomePage.jsx)
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
 
@@ -328,7 +304,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
             </div>
         );
 
-        // Only handles 1 photo now
         if (mediaUrls.length >= 1) {
             return (
                 <div style={{ height: '350px', marginTop: '15px', marginBottom: '15px' }}>
@@ -341,7 +316,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
     };
 
 
-    // MODIFIED: renderResponses to use renderAvatar
     const renderResponses = (threadResponses, threadId, threadType, parentId = null) => {
         const children = threadResponses.filter(r => 
             (parentId === null && r.parent_id === null) || 
@@ -354,7 +328,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                 marginLeft: response.parent_id ? '30px' : '0', 
             }}>
                 <div style={styles.responseMeta}>
-                    {/* ⭐ MODIFIED: Use renderAvatar for response author */}
                     {renderAvatar(response.author_picture_url, response.author, 'tiny')}
                     <span style={styles.responseAuthorName}>{response.author}</span>
                 </div>
@@ -387,7 +360,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>
                         Search Results for: "{query || ''}"
@@ -401,7 +373,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                                 <div key={thread.id + thread.type} style={styles.threadPost}>
                                     <div style={styles.threadMetaTop}>
                                         <div style={styles.threadAuthorInfo}>
-                                            {/* ⭐ MODIFIED: Use renderAvatar for author */}
                                             {renderAvatar(thread.author_picture_url, thread.author, 'small')}
                                             <span style={styles.threadAuthorName}>{thread.author}</span>
                                             <span style={styles.threadTime}>
@@ -413,11 +384,9 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                                     <p style={styles.threadBodyModified}> 
                                         {thread.body} 
                                     </p>
-                                    {/* NEW: Render Media Gallery */}
                                     {renderMediaGallery(thread.mediaUrls)}
                                     <div style={styles.threadFooter}>
                                         <div style={styles.threadActions}>
-                                            {/* Bookmark Button (Same function as HomePage.jsx) */}
                                             <div 
                                                 style={{ 
                                                     ...styles.threadActionButton, 
@@ -428,7 +397,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                                             >
                                                 <FiBookmark size={18} /> {thread.isBookmarked ? 'Saved' : 'Bookmark'}
                                             </div>
-                                            {/* Add Response Button (Same function as HomePage.jsx) */}
                                             <div 
                                                 style={styles.threadActionButton}
                                                 onClick={() => handleReplyClick(thread.id, thread.type)}
@@ -465,17 +433,14 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                     )}
                 </div> 
 
-                {/* Right Panel */}
                 <div style={styles.rightPanel}>
                     <RightPanel 
-                        // Assuming you need to pass these props for it to function correctly
                         userName={userName} 
                         userEmail={localStorage.getItem('userEmail')} 
                         profilePictureUrl={profilePictureUrl}
                     /> 
                 </div>
 
-                {/* Response Modal (Copied and modified from HomePage.jsx) */}
                 {isResponseModalOpen && threadToReplyDetails && (
                     <div style={styles.modalOverlay}>
                         <div style={styles.modalContent}>
@@ -506,7 +471,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
                                     </>
                                 )}
                             </div>
-                            {/* ⭐ MODIFIED: Use renderAvatar for current user */}
                             <div style={styles.modalUserSection}>
                                 {renderAvatar(profilePictureUrl, firstName, 'large')}
                                 <span style={styles.modalUserName}>{userName}</span>
@@ -529,7 +493,6 @@ export default function SearchResultsPage({ userName, profilePictureUrl }) {
     );
 }
 
-// --- Styles (Modified to accommodate RightPanel and new avatar needs) --- 
 const styles = { 
     page: { minHeight: '100vh', padding: '10px' }, 
     container: { 
@@ -544,13 +507,13 @@ const styles = {
     }, 
     mainContent: { 
         flex: 1, 
-        minWidth: '600px' // Ensure main content has a minimum width 
+        minWidth: '600px'
     }, 
     rightPanel: { 
         width: '300px', 
         flexShrink: 0, 
         position: 'sticky', 
-        top: '80px', // Below the header 
+        top: '80px', 
     }, 
     sectionTitle: { 
         fontSize: '24px', 
@@ -566,7 +529,6 @@ const styles = {
         fontSize: '16px', 
         color: '#6b7280' 
     },
-    // --- Avatar Styles ---
     avatarCircle: { 
         width: '45px', 
         height: '45px', 
@@ -609,14 +571,12 @@ const styles = {
         flexShrink: 0,
         overflow: 'hidden' 
     },
-    // ⭐ NEW STYLE: For image inside the avatar circles (Copied from HomePage.jsx)
     avatarImage: {
         width: '100%',
         height: '100%',
         borderRadius: '50%',
         objectFit: 'cover',
     },
-    // --- End Avatar Styles ---
     modalOverlay: { 
         position: 'fixed', 
         top: 0, 
@@ -711,7 +671,6 @@ const styles = {
         margin: '5px 0 0 0',
         whiteSpace: 'pre-wrap',
     },
-    // --- Thread Post Styles --- 
     threadPost: { 
         backgroundColor: '#fff', 
         padding: '20px', 
@@ -758,9 +717,8 @@ const styles = {
     threadBodyModified: { 
          fontSize: '16px',
         color: '#4b5563',
-        margin: '5px 0 0 0', // Top margin adjusted from previous steps
+        margin: '5px 0 0 0',
         lineHeight: '1.5',
-        // Text wrapping fix
         wordWrap: 'break-word', 
         overflowWrap: 'break-word',
     }, 
@@ -793,7 +751,6 @@ const styles = {
         fontSize: '14px', 
         cursor: 'pointer' 
     }, 
-    // --- Response Styles --- 
     responsesContainer: { 
         marginTop: '15px', 
         paddingLeft: '10px', 

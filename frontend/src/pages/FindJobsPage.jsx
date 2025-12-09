@@ -121,6 +121,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
 
     // Effect to fetch jobs whenever the selected category changes
     useEffect(() => {
+        document.title = "Find Jobs";
         fetchJobs(selectedCategory);
     }, [selectedCategory]);
     

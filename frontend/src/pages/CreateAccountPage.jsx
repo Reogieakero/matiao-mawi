@@ -95,6 +95,7 @@ export default function CreateAccount() {
   const API_URL = "http://localhost:5000/api/register"; 
 
   useEffect(() => {
+    document.title = "Mawii Create Account"; // Sets the browser tab title
     setFadeIn(true);
   }, []);
 

@@ -178,6 +178,7 @@ const App = () => {
                                                 userEmail={currentUser?.email} 
                                                 profilePictureUrl={currentUser?.profilePictureUrl} 
                                                 setRefetchTrigger={setRefetchTrigger}
+                                                
                                             />
                                         } 
                                     />

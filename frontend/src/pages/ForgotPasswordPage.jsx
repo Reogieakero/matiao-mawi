@@ -61,6 +61,7 @@ const VerificationCodeInput = ({ length = 6, value, onChange }) => {
     // Sync external value prop with internal state when mounted or value changes
     useEffect(() => {
         // Ensure the internal state reflects the full 6-digit code coming from the parent state
+        document.title = "Mawii Forgot Password";
         const currentCodeArray = value.split('');
         // Pad the array with empty strings if it's shorter than the required length
         const newDigits = Array(length).fill('').map((_, i) => currentCodeArray[i] || '');
