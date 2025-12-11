@@ -1624,24 +1624,12 @@ app.get('/api/documents/history/:userEmail', (req, res) => {
     }
 
     const SQL_FETCH_HISTORY = `
-        SELECT 
-            da.id, 
-            da.applicant_name, 
-            da.purok,
-            da.birthdate,
-            da.purpose, 
-            da.requirements_details, 
-            da.requirements_file_paths,
-            da.generated_path, 
-            da.payment_method, 
-            da.payment_reference_number, 
-            da.status, 
-            da.application_date, 
-            bd.document_name, 
-            bd.fee
-        FROM document_applications da
-        JOIN barangay_documents bd ON da.document_id = bd.id
-        WHERE da.user_email = ?
+        SELECT da.id, da.applicant_name, da.purok, da.birthdate, da.purpose, da.requirements_details, 
+        da.requirements_file_paths, da.generated_path, da.payment_method, da.payment_reference_number, 
+        da.status, da.rejection_reason, da.application_date, bd.document_name, bd.fee 
+        FROM document_applications da 
+        JOIN barangay_documents bd ON da.document_id = bd.id 
+        WHERE da.user_email = ? 
         ORDER BY da.application_date DESC
     `;
 
@@ -3189,6 +3177,45 @@ app.post('/api/mark-as-read', (req, res) => {
     });
 });
 
+// Insert this block into your server.js file
+
+app.post('/api/admin/documents/update-status/:applicationId', (req, res) => {
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { newStatus, rejectionReason } = req.body;
+
+    if (isNaN(applicationId) || !newStatus) {
+        return res.status(400).json({ message: 'Invalid Application ID or missing status.' });
+    }
+
+    let SQL_UPDATE = `
+        UPDATE document_applications 
+        SET status = ?, 
+            rejection_reason = ?, 
+            updated_at = NOW() 
+        WHERE id = ?
+    `;
+
+    // The rejectionReason is only saved if the status is explicitly 'Rejected'
+    const finalRejectionReason = newStatus === 'Rejected' ? (rejectionReason || 'No reason provided.') : null;
+
+    db.query(SQL_UPDATE, [newStatus, finalRejectionReason, applicationId], (err, result) => {
+        if (err) {
+            console.error("Database error updating document status:", err);
+            return res.status(500).json({ message: 'Failed to update document status.' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Document application not found.' });
+        }
+
+        res.status(200).json({ 
+            message: `Document status updated to ${newStatus} successfully.`, 
+            applicationId: applicationId,
+            newStatus: newStatus,
+            rejectionReason: finalRejectionReason
+        });
+    });
+});
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

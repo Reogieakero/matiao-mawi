@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
     FiFileText, FiDollarSign, FiCheckCircle, FiAlertTriangle, FiLogIn, FiX, 
@@ -142,6 +141,36 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
     );
 };
 
+// --- REJECTION REASON MODAL COMPONENT ---
+const RejectedReasonModal = ({ isOpen, reason, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div style={styles.modalBackdrop}>
+            <div style={styles.modalContent}>
+                <div style={styles.modalHeader}>
+                    <h4 style={styles.modalTitle}><FiInfo size={18} style={{ marginRight: '8px' }} />Rejection Reason</h4>
+                    <button onClick={onClose} style={styles.closeButton} aria-label="Close modal">
+                        <FiX size={20} />
+                    </button>
+                </div>
+                <div style={styles.modalBody}>
+                    <p style={{ color: '#4b5563', whiteSpace: 'pre-wrap' }}>{reason}</p>
+                </div>
+                <div style={styles.modalFooter}>
+                    <button 
+                        onClick={onClose} 
+                        style={styles.closeReasonButton} 
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- END REJECTION REASON MODAL COMPONENT ---
+
 const ApplicationModal = ({ 
     show, document, onClose, onSubmit, fullName, setFullName, purpose, setPurpose, 
     requirementsFiles, handleRequirementsChange, paymentMethod, setPaymentMethod, 
@@ -237,6 +266,11 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const [confirmAction, setConfirmAction] = useState(null); 
     const [targetApplication, setTargetApplication] = useState(null); 
     
+    // --- STATE FOR REJECTION REASON MODAL ---
+    const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
+    const [currentRejectionReason, setCurrentRejectionReason] = useState('');
+    // ------------------------------------------
+
     const [downloadCounts, setDownloadCounts] = useState({}); 
     
     const [fullName, setFullName] = useState(userName || '');
@@ -295,6 +329,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const fetchApplicationHistory = async () => {
         if (!userEmail) return;
         try {
+            // NOTE: Ensure your backend history route includes rejection_reason!
             const response = await fetch(`${API_BASE_URL}/documents/history/${userEmail}`); 
             if (!response.ok) {
                 throw new Error('Failed to fetch application history.');
@@ -487,6 +522,18 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             alert('The document is not yet approved or the generated file is not available.');
         }
     };
+    
+    // --- HANDLERS FOR REJECTION REASON MODAL ---
+    const openReasonModal = (reason) => {
+        setCurrentRejectionReason(reason);
+        setIsReasonModalOpen(true);
+    };
+
+    const closeReasonModal = () => {
+        setIsReasonModalOpen(false);
+        setCurrentRejectionReason('');
+    };
+    // ----------------------------------------------
 
 
     if (loading) {
@@ -587,6 +634,21 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
 
 
                                     <div style={styles.historyActions}>
+                                        
+                                        {/* --- ACTION BUTTON LOGIC --- */}
+
+                                        {/* 1. View Reason (ONLY for Rejected applications with a reason) */}
+                                        {app.status === 'Rejected' && app.rejection_reason && (
+                                            <button
+                                                onClick={() => openReasonModal(app.rejection_reason)}
+                                                style={styles.viewReasonButton}
+                                                title="View the reason for rejection"
+                                            >
+                                                <FiInfo size={18} /> View Reason
+                                            </button>
+                                        )}
+                                        
+                                        {/* 2. Download (ONLY for Approved/Completed applications with a path) */}
                                         {isDownloadAvailable && (
                                             <button 
                                                 onClick={() => handleDownload(app)} 
@@ -598,7 +660,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                             </button>
                                         )}
                                         
-                                        {(app.status === 'Pending' || app.status === 'Rejected') && (
+                                        {/* 3. Cancel (ONLY for Pending applications) */}
+                                        {app.status === 'Pending' && (
                                             <button 
                                                 onClick={() => handleOpenConfirmation('cancel', app.id, app.document_name)}
                                                 style={styles.historyCancelButton}
@@ -607,6 +670,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                             </button>
                                         )}
                                         
+                                        {/* 4. Remove from History (For Cancelled, Rejected, or Completed applications) */}
                                         {(app.status === 'Cancelled' || app.status === 'Rejected' || app.status === 'Completed') && (
                                             <button 
                                                 onClick={() => handleOpenConfirmation('delete', app.id, app.document_name)}
@@ -660,6 +724,15 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 confirmText={confirmAction === 'delete' ? 'Remove from History' : 'Yes, Cancel Application'}
                 confirmStyle={confirmAction}
             />
+            
+            {/* --- RENDER REJECTED REASON MODAL --- */}
+            <RejectedReasonModal 
+                isOpen={isReasonModalOpen}
+                reason={currentRejectionReason}
+                onClose={closeReasonModal}
+            />
+            {/* -------------------------------------- */}
+
 
             <style jsx>{` /* Global Styles */ button { transition: background-color 0.2s; } button:hover:not(:disabled) { opacity: 0.9; } button:disabled { cursor: not-allowed; opacity: 0.6; } `}</style> 
         </div>
@@ -792,7 +865,102 @@ const styles = {
         requirementsList: { fontSize: '0.9rem', color: '#4b5563', marginBottom: '10px', paddingLeft: '10px', borderLeft: '3px solid #f59e0b', },
         paymentBox: { border: '2px dashed #34d399', backgroundColor: '#ecfdf5', padding: '15px', borderRadius: '8px', marginBottom: '20px', },
         submitButton: { width: '100%', padding: '12px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' },
+    },
+    
+    // --- STYLES FOR REJECTION REASON MODAL ---
+    modalBackdrop: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1002, // Higher than other modals
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        padding: '20px',
+        borderRadius: '10px',
+        width: '90%',
+        maxWidth: '500px',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+        maxHeight: '80vh',
+        overflowY: 'auto',
+    },
+    modalHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: '1px solid #fecaca',
+        paddingBottom: '10px',
+        marginBottom: '15px',
+        color: '#991b1b',
+    },
+    modalTitle: {
+        fontSize: '1.3rem',
+        fontWeight: '700',
+        display: 'flex',
+        alignItems: 'center',
+        margin: 0,
+        color: '#991b1b',
+    },
+    modalBody: {
+        marginBottom: '15px',
+        fontSize: '1rem',
+        lineHeight: '1.6',
+    },
+    modalFooter: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        borderTop: '1px solid #e5e7eb',
+        paddingTop: '15px',
+    },
+    closeButton: {
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        color: '#991b1b',
+        padding: '5px',
+    },
+    viewReasonButton: {
+        padding: '8px 12px',
+        backgroundColor: '#fef3c7', 
+        color: '#92400e',
+        border: '1px solid #fcd34d',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        transition: 'background-color 0.2s',
+    },
+    closeReasonButton: {
+        padding: '8px 15px',
+        backgroundColor: '#dc2626',
+        color: '#ffffff',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        transition: 'background-color 0.2s',
+    },
+    loginAlert: {
+        backgroundColor: '#fef9e9', 
+        color: '#92400e', 
+        padding: '15px', 
+        borderRadius: '8px', 
+        marginBottom: '20px', 
+        fontWeight: '600', 
+        display: 'flex', 
+        alignItems: 'center', 
+        border: '1px solid #fcd34d'
     }
+    // ---------------------------------------------
 };
 
 export default DocumentsPage;

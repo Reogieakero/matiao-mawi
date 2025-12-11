@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
     Search, ChevronDown, ChevronUp, Eye, FileText, User, 
-    Calendar, Phone, Mail, MapPin, CheckCircle, XCircle, RefreshCcw, Loader, HardDrive, Download 
+    Calendar, Mail, MapPin, CheckCircle, XCircle, RefreshCcw, Loader, HardDrive, Download 
 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api'; 
@@ -85,122 +84,156 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     );
 };
 
-const DocumentViewModal = ({ show, document, onClose }) => {
+const RejectReasonModal = ({ show, document, onClose, onSubmit }) => {
+    const [reason, setReason] = useState('');
     if (!show || !document) return null;
 
     const modalStyles = {
         backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-        modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },
-        header: { fontSize: '28px', fontWeight: '800', color: '#1F2937', marginBottom: '25px', borderBottom: '3px solid #1e40af', paddingBottom: '10px', display: 'flex', alignItems: 'center' },
-        infoGrid: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '18px', fontSize: '16px' },
-        label: { fontWeight: '700', color: '#374151', display: 'flex', alignItems: 'center', gap: '10px' },
-        value: { color: '#374151' },
-        sectionTitle: { fontSize: '20px', fontWeight: '700', color: '#1e40af', marginTop: '30px', marginBottom: '15px', borderBottom: '1px solid #E5E7EB', paddingBottom: '5px' },
-        list: { listStyleType: 'none', marginLeft: '0', paddingLeft: '0' },
-        listItem: { marginBottom: '8px' },
-        fileLink: { color: '#2563EB', textDecoration: 'none', cursor: 'pointer', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' },
+        modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '500px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },
+        header: { fontSize: '22px', fontWeight: '700', color: '#DC2626', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' },
+        subHeader: { color: '#6B7280', marginBottom: '25px', fontSize: '15px' },
+        label: { display: 'block', fontWeight: '600', marginBottom: '10px', color: '#374151', fontSize: '16px' },
+        textarea: { width: '100%', padding: '10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '16px', marginBottom: '20px', minHeight: '100px', resize: 'vertical', outline: 'none' },
+        buttonContainer: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+        button: (color) => ({ padding: '10px 15px', backgroundColor: color, color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s' }),
+    };
+
+    const handleSubmit = () => {
+        if (reason.trim()) {
+            onSubmit(document.id, reason);
+            setReason('');
+        } else {
+            alert('Please provide a rejection reason.');
+        }
     };
 
     return (
         <div style={modalStyles.backdrop} onClick={onClose}>
             <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
-                <div style={modalStyles.header}>
-                     Request for: {document.documentType}
+                <div style={modalStyles.header}><XCircle size={28} />Reject Document Application</div>
+                <div style={modalStyles.subHeader}>
+                    You are rejecting the application for **{document.documentType}** by **{document.fullName}**. A reason is required.
                 </div>
-                
-                <div style={modalStyles.infoGrid}>
-                    <div style={modalStyles.label}><User size={18} />Full Name:</div>
-                    <div style={modalStyles.value}>{document.fullName}</div>
-                    
-                    <div style={modalStyles.label}><MapPin size={18} />Purok:</div>
-                    <div style={modalStyles.value}>{document.purok || 'N/A'}</div>
-
-                    <div style={modalStyles.label}><Calendar size={18} />Birthdate:</div>
-                    <div style={modalStyles.value}>{document.birthdate ? new Date(document.birthdate).toLocaleDateString() : 'N/A'}</div>
-
-                    <div style={modalStyles.label}><Calendar size={18} />Date Requested:</div>
-                    <div style={modalStyles.value}>{formatDate(document.dateRequested)}</div>
-                    
-                    <div style={modalStyles.label}><Mail size={18} />Email:</div>
-                    <div style={modalStyles.value}>{document.user_email}</div>
-                    
-                    <div style={modalStyles.label}><CheckCircle size={18} />Status:</div>
-                    <div style={modalStyles.value}>
-                        <span style={styles.statusBadge(document.status)}>{document.status}</span>
-                    </div>
-                </div>
-
-                <div style={modalStyles.sectionTitle}>Purpose of Document</div>
-                <div style={modalStyles.value}>{document.purpose || '*Not specified*'}</div>
-
-                <div style={modalStyles.sectionTitle}>Payment Details</div>
-                <div style={{ ...modalStyles.infoGrid, gridTemplateColumns: '1fr 1fr' }}>
-                    <div style={modalStyles.label}>Method:</div>
-                    <div style={modalStyles.value}>{document.payment_method || 'N/A'}</div>
-                    <div style={modalStyles.label}>Ref. Number:</div>
-                    <div style={modalStyles.value}>{document.payment_reference_number || 'N/A'}</div>
-                </div>
-
-                <div style={modalStyles.sectionTitle}>Requirements Details/Notes</div>
-                <div style={modalStyles.value}>{document.requirements_details || '*None provided*'}</div>
-
-                <div style={modalStyles.sectionTitle}>Uploaded Requirements</div>
-                {document.requirementsFilePaths && document.requirementsFilePaths.length > 0 ? (
-                    <ul style={modalStyles.list}>
-                        {document.requirementsFilePaths.map((path, index) => (
-                            <li key={index} style={modalStyles.listItem}>
-                                <a 
-                                    href={path} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    style={modalStyles.fileLink}
-                                >
-                                    <FileText size={16}/> View Requirement File #{index + 1}
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <div style={modalStyles.value}>*No files uploaded.*</div>
-                )}
-                
-                {document.status === 'Approved' && document.generatedDocumentPath && (
-                    <div style={{...modalStyles.sectionTitle, color: '#059669'}}>Generated Document</div>
-                    
-                )}
-
-                <div style={{ textAlign: 'right', marginTop: '30px', borderTop: '1px solid #E5E7EB', paddingTop: '20px' }}>
-                    <button style={styles.actionButton('#6B7280')} onClick={onClose}>Close Details</button>
+                <label style={modalStyles.label}>Rejection Reason:</label>
+                <textarea
+                    style={modalStyles.textarea}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Enter the specific reason for rejecting this application (e.g., Missing ID, requirements are blurry, etc.)"
+                />
+                <div style={modalStyles.buttonContainer}>
+                    <button style={modalStyles.button('#6B7280')} onClick={() => { setReason(''); onClose(); }}>Cancel</button>
+                    <button style={modalStyles.button('#DC2626')} onClick={handleSubmit}>Confirm Reject</button>
                 </div>
             </div>
         </div>
     );
 };
 
-const SelectFormModal = ({ show, document, onClose, onSelect }) => {
-    
-    const [loading, setLoading] = useState(false);
-    
-    const availableForms = SELECTABLE_FORMS[document?.documentType] 
-                            ? [SELECTABLE_FORMS[document.documentType]]
-                            : Object.values(SELECTABLE_FORMS);
-                            
-    const [selectedForm, setSelectedForm] = useState(availableForms[0] || '');
-
-    useEffect(() => {
-        if (show && document) {
-            const defaultForm = SELECTABLE_FORMS[document.documentType] || availableForms[0] || '';
-            setSelectedForm(defaultForm);
-        }
-    }, [show, document, availableForms]);
-
+const DocumentViewModal = ({ show, document, onClose }) => {
     if (!show || !document) return null;
 
-    const handleSelect = async () => {
-        if (!selectedForm) return;
-        setLoading(true);
-        await onSelect(document.id, selectedForm); 
+    const modalStyles = {
+        backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, overflowY: 'auto' },
+        modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', maxWidth: '800px', width: '90%', margin: '40px 0', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)' },
+        header: { fontSize: '24px', fontWeight: '800', color: '#1e40af', marginBottom: '10px' },
+        closeButton: { position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', cursor: 'pointer' },
+        infoGrid: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '15px 20px', alignItems: 'center', border: '1px solid #E5E7EB', padding: '20px', borderRadius: '8px', backgroundColor: '#F9FAFB' },
+        label: { fontWeight: '600', color: '#4B5563', display: 'flex', alignItems: 'center', gap: '10px' },
+        value: { color: '#374151' },
+        sectionTitle: { fontSize: '20px', fontWeight: '700', color: '#1e40af', marginTop: '30px', marginBottom: '15px', borderBottom: '1px solid #E5E7EB', paddingBottom: '5px' },
+        list: { listStyleType: 'none', marginLeft: '0', paddingLeft: '0' },
+        listItem: { marginBottom: '8px' },
+        fileLink: { color: '#2563EB', textDecoration: 'none', cursor: 'pointer', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' },
+        rejectionBox: { marginTop: '20px', padding: '15px', backgroundColor: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '8px' },
+        rejectionTitle: { fontWeight: '700', color: '#DC2626', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '10px' },
+        rejectionReason: { color: '#DC2626' }
     };
+    
+    return (
+        <div style={modalStyles.backdrop} onClick={onClose}>
+            <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
+                <button style={modalStyles.closeButton} onClick={onClose}><XCircle size={24} color="#6B7280" /></button>
+                <div style={modalStyles.header}>Request for: {document.documentType}</div>
+                <div style={styles.statusBadge(document.status)}>{document.status}</div>
+
+                <div style={modalStyles.sectionTitle}>Applicant Information</div>
+                <div style={modalStyles.infoGrid}>
+                    <div style={modalStyles.label}><User size={18} />Full Name:</div> <div style={modalStyles.value}>{document.fullName}</div>
+                    <div style={modalStyles.label}><MapPin size={18} />Purok:</div> <div style={modalStyles.value}>{document.purok}</div>
+                    <div style={modalStyles.label}><Calendar size={18} />Birthdate:</div> <div style={modalStyles.value}>{document.birthdate || 'N/A'}</div>
+                    <div style={modalStyles.label}><Mail size={18} />Email:</div> <div style={modalStyles.value}>{document.user_email}</div>
+                    <div style={modalStyles.label}><FileText size={18} />Date Applied:</div> <div style={modalStyles.value}>{formatDate(document.dateRequested)}</div>
+                </div>
+
+                <div style={modalStyles.sectionTitle}>Application Details</div>
+                <div style={modalStyles.infoGrid}>
+                    <div style={modalStyles.label}>Purpose:</div> <div style={modalStyles.value}>{document.purpose}</div>
+                    <div style={modalStyles.label}>Details:</div> <div style={modalStyles.value}>{document.requirements_details || 'N/A'}</div>
+                    <div style={modalStyles.label}>Payment Method:</div> <div style={modalStyles.value}>{document.payment_method || 'N/A'}</div>
+                    <div style={modalStyles.label}>Reference #:</div> <div style={modalStyles.value}>{document.payment_reference_number || 'N/A'}</div>
+                </div>
+
+                {document.status === 'Rejected' && document.rejectionReason && (
+                    <div style={modalStyles.rejectionBox}>
+                        <div style={modalStyles.rejectionTitle}><XCircle size={20} />Rejection Reason</div>
+                        <div style={modalStyles.rejectionReason}>{document.rejectionReason}</div>
+                    </div>
+                )}
+                
+                {document.requirementsFilePaths && document.requirementsFilePaths.length > 0 && (
+                    <>
+                        <div style={modalStyles.sectionTitle}>Submitted Requirements</div>
+                        <ul style={modalStyles.list}>
+                            {document.requirementsFilePaths.map((path, index) => (
+                                <li key={index} style={modalStyles.listItem}>
+                                    <a 
+                                        href={path} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        style={modalStyles.fileLink}
+                                    >
+                                        <HardDrive size={16} />
+                                        Requirement File {index + 1}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </>
+                )}
+                
+                {document.generated_path && document.status === 'Completed' && (
+                    <>
+                        <div style={modalStyles.sectionTitle}>Generated Document</div>
+                        <a 
+                            href={document.generated_path} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={modalStyles.fileLink}
+                        >
+                            <Download size={16} />
+                            Download Generated Document
+                        </a>
+                    </>
+                )}
+
+            </div>
+        </div>
+    );
+};
+
+const UpdateStatusModal = ({ show, document, onClose, onUpdate, onApprove }) => {
+    // Hooks must be called unconditionally at the top
+    const [selectedStatus, setSelectedStatus] = useState('');
+    
+    useEffect(() => {
+        if (document) {
+            setSelectedStatus(document.status);
+        }
+    }, [document]);
+
+    if (!show || !document) return null;
 
     const modalStyles = {
         backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
@@ -210,141 +243,122 @@ const SelectFormModal = ({ show, document, onClose, onSelect }) => {
         label: { display: 'block', fontWeight: '600', marginBottom: '10px', color: '#374151', fontSize: '16px' },
         select: { width: '100%', padding: '10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '16px', marginBottom: '30px', outline: 'none' },
         buttonContainer: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-        button: (color) => ({ 
-            padding: '10px 15px', 
-            backgroundColor: color, 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px', 
-            fontWeight: '600', 
-            cursor: 'pointer', 
-            transition: 'background-color 0.2s' 
-        }),
-    };
-    
-    return (
-        <div style={modalStyles.backdrop} onClick={onClose}>
-            <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
-                <div style={modalStyles.header}>
-                    <HardDrive size={24}/> Select Form Template
-                </div>
-                <div style={modalStyles.subHeader}>
-                    Approve Request for: {document.fullName} | Document Type: {document.documentType}
-                </div>
-
-                <label style={modalStyles.label}>
-                    Select PDF Template:
-                    <select
-                        style={modalStyles.select}
-                        value={selectedForm}
-                        onChange={(e) => setSelectedForm(e.target.value)}
-                        disabled={loading}
-                    >
-                        {availableForms.map(form => (
-                            <option key={form} value={form}>{form}</option>
-                        ))}
-                    </select>
-                </label>
-                
-                <div style={modalStyles.buttonContainer}>
-                    <button style={modalStyles.button('#6B7280')} onClick={onClose} disabled={loading}>Cancel</button>
-                    <button 
-                        style={modalStyles.button('#1e40af')} 
-                        onClick={handleSelect} 
-                        disabled={loading || !selectedForm} 
-                    >
-                        {loading ? <Loader size={18} className="spinner" /> : <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><CheckCircle size={16}/> Approve & Generate</div>}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-const UpdateStatusModal = ({ show, document, onClose, onUpdate, onApprove }) => {
-    const [newStatus, setNewStatus] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (show && document) {
-            setNewStatus(document.status);
-        }
-    }, [show, document]);
-
-    if (!show || !document) return null;
-
-    const handleSave = async () => {
-        if (!newStatus || newStatus === document.status) {
-            onClose(); 
-            return;
-        }
-
-        if (newStatus === 'Approved') {
-            onApprove(document, 'Approved'); 
-            return;
-        }
-        
-        setLoading(true);
-        await onUpdate(document.id, newStatus); 
-        setLoading(false);
+        button: (color) => ({ padding: '10px 15px', backgroundColor: color, color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s' }),
     };
 
-    const modalStyles = {
-        backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-        modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '450px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },
-        header: { fontSize: '22px', fontWeight: '700', color: '#1F2937', marginBottom: '10px' },
-        subHeader: { color: '#6B7280', marginBottom: '25px', fontSize: '15px' },
-        label: { display: 'block', fontWeight: '600', marginBottom: '10px', color: '#374151', fontSize: '16px' },
-        select: { width: '100%', padding: '10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '16px', marginBottom: '30px', outline: 'none' },
-        buttonContainer: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-        button: (color) => ({ 
-            padding: '10px 15px', 
-            backgroundColor: color, 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px', 
-            fontWeight: '600', 
-            cursor: 'pointer', 
-            transition: 'background-color 0.2s' 
-        }),
+    const updatableStatusOptions = STATUS_OPTIONS.filter(s => s !== 'All' && s !== 'Pending' && s !== 'Approved'); 
+
+    const handleSubmit = () => {
+        if (selectedStatus === 'Approved') {
+            onApprove(document);
+        } else if (selectedStatus && selectedStatus !== document.status) {
+            onUpdate(document, selectedStatus);
+        } else {
+            onClose();
+        }
     };
 
-    const updatableStatusOptions = STATUS_OPTIONS.filter(s => s !== 'All' && s !== 'Cancelled');
-    
     return (
         <div style={modalStyles.backdrop} onClick={onClose}>
             <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
                 <div style={modalStyles.header}>Update Status for Document {document.id}</div>
                 <div style={modalStyles.subHeader}>Applicant: {document.fullName} | Current Status: <span style={styles.statusBadge(document.status)}>{document.status}</span></div>
-
-                <label style={modalStyles.label}>
-                    New Status:
-                    <select
-                        style={modalStyles.select}
-                        value={newStatus}
-                        onChange={(e) => setNewStatus(e.target.value)}
-                    >
-                        {updatableStatusOptions.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                        ))}
-                    </select>
-                </label>
-                
+                <label style={modalStyles.label}>Select New Status:</label>
+                <select 
+                    style={modalStyles.select}
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                >
+                    <option value="">Select Status</option>
+                    <option value="Approved">Approved (Start Generation)</option>
+                    <option value="Rejected">Rejected (Requires Reason)</option>
+                    {updatableStatusOptions.filter(s => s !== 'Rejected').map(status => (
+                        <option key={status} value={status}>{status}</option>
+                    ))}
+                </select>
                 <div style={modalStyles.buttonContainer}>
-                    <button style={modalStyles.button('#6B7280')} onClick={onClose} disabled={loading}>Cancel</button>
+                    <button style={modalStyles.button('#6B7280')} onClick={onClose}>Cancel</button>
                     <button 
-                        style={modalStyles.button(newStatus === 'Approved' ? '#1e40af' : '#2563eb')} 
-                        onClick={handleSave} 
-                        disabled={loading || newStatus === document.status} 
+                        style={modalStyles.button(selectedStatus === 'Rejected' ? '#DC2626' : '#1e40af')} 
+                        onClick={handleSubmit}
+                        disabled={!selectedStatus || selectedStatus === document.status}
                     >
-                        {loading ? <Loader size={18} className="spinner" /> : newStatus === 'Approved' ? 'Continue to Form Selection' : 'Save Changes'}
+                        Confirm Update
                     </button>
                 </div>
             </div>
         </div>
     );
 };
+
+
+const SelectFormModal = ({ show, document, onClose, onSelect }) => {
+    // Hooks must be called unconditionally at the top
+    const [selectedForm, setSelectedForm] = useState('');
+
+    useEffect(() => {
+        if (document) {
+            const defaultForm = SELECTABLE_FORMS[document.documentType];
+            setSelectedForm(defaultForm || '');
+        }
+    }, [document]);
+
+    if (!show || !document) return null;
+
+    const modalStyles = {
+        backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+        modal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '450px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },
+        header: { fontSize: '22px', fontWeight: '700', color: '#1F2937', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' },
+        subHeader: { color: '#6B7280', marginBottom: '25px', fontSize: '15px' },
+        label: { display: 'block', fontWeight: '600', marginBottom: '10px', color: '#374151', fontSize: '16px' },
+        select: { width: '100%', padding: '10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '16px', marginBottom: '30px', outline: 'none' },
+        buttonContainer: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+        button: (color) => ({ padding: '10px 15px', backgroundColor: color, color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s' }),
+    };
+
+    const formOptions = Object.entries(SELECTABLE_FORMS).filter(([type, filename]) => type === document.documentType);
+
+    const handleSubmit = () => {
+        if (selectedForm) {
+            onSelect(document.id, selectedForm);
+        } else {
+            alert('Please select a form template.');
+        }
+    };
+
+    return (
+        <div style={modalStyles.backdrop} onClick={onClose}>
+            <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
+                <div style={modalStyles.header}><FileText size={24} />Generate Document</div>
+                <div style={modalStyles.subHeader}>
+                    Confirm the template to use for **{document.documentType}** for **{document.fullName}**.
+                </div>
+                <label style={modalStyles.label}>Select Form Template:</label>
+                <select 
+                    style={modalStyles.select}
+                    value={selectedForm}
+                    onChange={(e) => setSelectedForm(e.target.value)}
+                >
+                    <option value="">Select Template</option>
+                    {formOptions.map(([type, filename]) => (
+                        <option key={filename} value={filename}>{type} - {filename}</option>
+                    ))}
+                </select>
+                <div style={modalStyles.buttonContainer}>
+                    <button style={modalStyles.button('#6B7280')} onClick={onClose}>Cancel</button>
+                    <button 
+                        style={modalStyles.button('#059669')} 
+                        onClick={handleSubmit}
+                        disabled={!selectedForm}
+                    >
+                        Generate & Approve
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const AdminDocumentsPage = () => {
     const [documents, setDocuments] = useState([]);
@@ -354,11 +368,11 @@ const AdminDocumentsPage = () => {
     const [statusFilter, setStatusFilter] = useState('All');
     const [typeFilter, setTypeFilter] = useState('All');
     const [sortConfig, setSortConfig] = useState({ key: 'dateRequested', direction: 'descending' });
-    const [messageModal, setMessageModal] = useState({ show: false, title: '', body: '', isSuccess: false });
     const [viewModal, setViewModal] = useState({ show: false, document: null });
     const [statusModal, setStatusModal] = useState({ show: false, document: null });
     const [selectFormModal, setSelectFormModal] = useState({ show: false, document: null, newStatus: null });
-
+    const [messageModal, setMessageModal] = useState({ show: false, title: '', body: '', isSuccess: false });
+    const [rejectModal, setRejectModal] = useState({ show: false, document: null });
 
     const fetchDocuments = async () => {
         setLoading(true);
@@ -368,7 +382,7 @@ const AdminDocumentsPage = () => {
             setDocuments(response.data);
         } catch (err) {
             console.error('Error fetching documents:', err);
-            setError('Failed to fetch document applications. Check network or server logs.');
+            setError('Failed to fetch document applications. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -378,107 +392,28 @@ const AdminDocumentsPage = () => {
         fetchDocuments();
     }, []);
 
-    const confirmStatusUpdate = async (documentId, newStatus) => {
+    const handleStatusUpdate = async (documentId, newStatus, rejectionReason) => {
+        setStatusModal({ show: false, document: null });
+        setRejectModal({ show: false, document: null });
+        setLoading(true);
         try {
-            await axios.put(`${API_BASE_URL}/admin/documents/update-status/${documentId}`, { newStatus });
-
-            setDocuments(prevDocs => 
-                prevDocs.map(doc => 
-                    doc.id === documentId ? { ...doc, status: newStatus } : doc
-                )
+            const response = await axios.post(
+                `${API_BASE_URL}/admin/documents/update-status/${documentId}`,
+                { newStatus, rejectionReason }
             );
-
+            fetchDocuments();
             setMessageModal({
                 show: true,
-                title: 'Success!',
-                body: `Document #${documentId} status updated to ${newStatus}.`,
+                title: newStatus + ' Successfully',
+                body: response.data.message,
                 isSuccess: true,
             });
-        } catch (err) {
-            console.error('Error updating status:', err);
+        } catch (error) {
+            console.error('Error updating status:', error.response?.data || error.message);
             setMessageModal({
                 show: true,
                 title: 'Update Failed',
-                body: err.response?.data?.message || 'Could not update document status. Please try again.',
-                isSuccess: false,
-            });
-        } finally {
-            setStatusModal({ show: false, document: null });
-        }
-    };
-    
-    const handleStatusApprove = (document, newStatus) => {
-        setSelectFormModal({ show: true, document, newStatus });
-    };
-
-    const generateDocumentAndApprove = async (documentId, selectedFormTemplate) => {
-        setSelectFormModal({ show: false, document: null, newStatus: null });
-        setLoading(true);
-        
-        try {
-            const response = await axios.post(
-                `${API_BASE_URL}/admin/documents/generate-and-approve/${documentId}`, 
-                {
-                    templateFileName: selectedFormTemplate, 
-                    newStatus: 'Approved' 
-                },
-                {
-                    responseType: 'blob', 
-                    headers: { 'Content-Type': 'application/json' }
-                }
-            );
-
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = `${documentId}_generated_document.pdf`;
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename="(.+)"/i);
-                if (match && match[1]) {
-                    fileName = match[1].replace(/['"]/g, '').trim(); 
-                }
-            }
-
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName);
-            
-            document.body.appendChild(link);
-            link.click();
-            
-            link.remove();
-            window.URL.revokeObjectURL(url);
-            
-            await fetchDocuments(); 
-            
-            setMessageModal({
-                show: true,
-                title: 'Document Approved & Generated! ',
-                body: `Document ${documentId} approved. File ${fileName} downloaded successfully.`,
-                isSuccess: true,
-            });
-
-        } catch (error) {
-            console.error('Error generating document:', error);
-            
-            let errorMessage = 'Could not generate and approve document. Please check the server logs.';
-            
-            if (error.response && error.response.data instanceof Blob) {
-                const errorText = await error.response.data.text();
-                try {
-                    const errorJson = JSON.parse(errorText);
-                    errorMessage = errorJson.message || errorMessage;
-                } catch { 
-                    console.warn("Server error response was a Blob but not valid JSON.");
-                    errorMessage = errorText || errorMessage;
-                }
-            } else if (error.response?.data?.message) {
-                 errorMessage = error.response.data.message;
-            }
-
-            setMessageModal({
-                show: true,
-                title: 'Generation Failed ❌',
-                body: errorMessage,
+                body: error.response?.data?.message || 'An error occurred during status update. Please try again.',
                 isSuccess: false,
             });
         } finally {
@@ -486,21 +421,87 @@ const AdminDocumentsPage = () => {
         }
     };
 
+    const confirmStatusUpdate = (document, newStatus) => {
+        if (newStatus === 'Approved') {
+            handleStatusApprove(document, newStatus);
+        } else if (newStatus === 'Rejected') {
+            setStatusModal({ show: false, document: null });
+            setRejectModal({ show: true, document: document });
+        } else {
+            handleStatusUpdate(document.id, newStatus, null);
+        }
+    };
+    
+    const handleStatusRejectSubmit = (documentId, reason) => {
+        handleStatusUpdate(documentId, 'Rejected', reason);
+    };
+
+    const handleStatusApprove = (document) => {
+        setStatusModal({ show: false, document: null });
+        setSelectFormModal({ show: true, document, newStatus: 'Approved' });
+    };
+
+    const generateDocumentAndApprove = async (documentId, selectedFormTemplate) => {
+        setSelectFormModal({ show: false, document: null, newStatus: null });
+        setLoading(true);
+        try {
+            const response = await axios.post(
+                `${API_BASE_URL}/admin/documents/generate-and-approve/${documentId}`,
+                { templateFileName: selectedFormTemplate, newStatus: 'Approved' },
+                { responseType: 'blob', headers: { 'Content-Type': 'application/json' } }
+            );
+            const contentDisposition = response.headers['content-disposition'];
+            let fileName = `${documentId}_generated_document.pdf`;
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="(.+)"/i);
+                if (match && match[1]) {
+                    fileName = match[1].replace(/['"]/g, '').trim();
+                }
+            }
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            
+            fetchDocuments();
+
+            setMessageModal({
+                show: true,
+                title: 'Document Approved',
+                body: 'Document has been successfully generated, approved, and downloaded.',
+                isSuccess: true,
+            });
+
+        } catch (error) {
+            console.error('Error generating and approving document:', error.response?.data || error.message);
+            setMessageModal({
+                show: true,
+                title: 'Generation/Approval Failed',
+                body: error.response?.data?.message || 'An error occurred during document generation or approval. Please ensure all data is correct and try again.',
+                isSuccess: false,
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const sortedDocuments = useMemo(() => {
         let sortableItems = [...documents];
-        
         if (sortConfig.key) {
             sortableItems.sort((a, b) => {
                 let aValue = a[sortConfig.key];
                 let bValue = b[sortConfig.key];
 
-                if (sortConfig.key.includes('date')) {
-                    aValue = new Date(aValue);
-                    bValue = new Date(bValue);
-                } else if (typeof aValue === 'string') {
-                    aValue = aValue.toLowerCase();
-                    bValue = bValue.toLowerCase();
+                if (sortConfig.key === 'dateRequested') {
+                    aValue = new Date(aValue).getTime();
+                    bValue = new Date(bValue).getTime();
+                } else if (sortConfig.key === 'fullName' || sortConfig.key === 'documentType') {
+                    aValue = aValue ? aValue.toLowerCase() : '';
+                    bValue = bValue ? bValue.toLowerCase() : '';
                 }
 
                 if (aValue < bValue) {
@@ -516,16 +517,13 @@ const AdminDocumentsPage = () => {
     }, [documents, sortConfig]);
 
     const filteredDocuments = useMemo(() => {
-        
         return sortedDocuments.filter(doc => {
-            const matchesSearch = doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  doc.documentType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  (doc.user_email && doc.user_email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                                  (doc.purpose && doc.purpose.toLowerCase().includes(searchTerm.toLowerCase()));
-            
+            const matchesSearch = searchTerm === '' || 
+                                  doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                  doc.user_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  doc.documentType.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = statusFilter === 'All' || doc.status === statusFilter;
             const matchesType = typeFilter === 'All' || doc.documentType === typeFilter;
-            
             return matchesSearch && matchesStatus && matchesType;
         });
     }, [sortedDocuments, searchTerm, statusFilter, typeFilter]);
@@ -550,133 +548,121 @@ const AdminDocumentsPage = () => {
             <div style={styles.header}>
                 <h1 style={styles.title}>Document Applications</h1>
                 <button style={styles.actionButton('#1e40af')} onClick={fetchDocuments} disabled={loading}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        {loading ? <Loader size={18} className="spinner" /> : <RefreshCcw size={18} />}
-                        Fetch All
-                    </div>
+                    {loading ? <Loader size={20} className="spinner" /> : <RefreshCcw size={20} />}
+                    <span style={{ marginLeft: '8px' }}>Refresh</span>
                 </button>
             </div>
-
             {error && (
                 <div style={styles.error}>
                     <XCircle size={20} />
                     {error}
                 </div>
             )}
-
             <div style={styles.controls}>
                 <div style={styles.searchContainer}>
                     <Search size={20} style={styles.searchIcon} />
                     <input
                         type="text"
-                        placeholder="Search by name, email, or purpose..."
+                        placeholder="Search by name, email, or document..."
                         style={styles.searchInput}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                
-                <div style={{ flexGrow: 1 }} />
 
                 <select 
-                    style={styles.select} 
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                >
-                    {DOCUMENT_TYPES.map(type => (
-                        <option key={type} value={type}>Type: {type}</option>
-                    ))}
-                </select>
-
-                <select 
-                    style={styles.select} 
+                    style={styles.select}
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                 >
                     {STATUS_OPTIONS.map(status => (
-                        <option key={status} value={status}>Status: {status}</option>
+                        <option key={status} value={status}>{status} Applications</option>
                     ))}
                 </select>
+                
+                <select 
+                    style={styles.select}
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                    {DOCUMENT_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                    ))}
+                </select>
+
+                <div style={{ marginLeft: 'auto', fontSize: '15px', fontWeight: '600', color: '#4B5563' }}>
+                    Total: {filteredDocuments.length}
+                </div>
             </div>
 
             <div style={styles.tableWrapper}>
                 <table style={styles.table}>
                     <thead>
                         <tr>
-                            <th style={styles.th} onClick={() => requestSort('id')}>
-                                ID {getSortIndicator('id')}
+                            <th style={{ ...styles.th, width: '5%' }}>ID</th>
+                            <th style={{ ...styles.th, width: '25%' }} onClick={() => requestSort('fullName')}>
+                                Applicant {getSortIndicator('fullName')}
                             </th>
-                            <th style={styles.th} onClick={() => requestSort('fullName')}>
-                                Applicant Name {getSortIndicator('fullName')}
-                            </th>
-                            <th style={styles.th} onClick={() => requestSort('purok')}>
-                                Purok {getSortIndicator('purok')}
-                            </th>
-                            <th style={styles.th} onClick={() => requestSort('documentType')}>
+                            <th style={{ ...styles.th, width: '25%' }} onClick={() => requestSort('documentType')}>
                                 Document Type {getSortIndicator('documentType')}
                             </th>
-                            <th style={styles.th} onClick={() => requestSort('dateRequested')}>
-                                Date Requested {getSortIndicator('dateRequested')}
+                            <th style={{ ...styles.th, width: '20%' }} onClick={() => requestSort('dateRequested')}>
+                                Date Applied {getSortIndicator('dateRequested')}
                             </th>
-                            <th style={styles.th} onClick={() => requestSort('status')}>
+                            <th style={{ ...styles.th, width: '15%' }} onClick={() => requestSort('status')}>
                                 Status {getSortIndicator('status')}
                             </th>
-                            <th style={styles.th}>Actions</th>
+                            <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan="7" style={styles.noResults}>
-                                    <Loader size={20} className="spinner" style={{ marginRight: '10px' }} />
-                                    Loading applications...
+                                <td colSpan="6" style={{ ...styles.td, textAlign: 'center' }}>
+                                    <Loader size={30} className="spinner" color="#1e40af" />
                                 </td>
                             </tr>
                         ) : filteredDocuments.length > 0 ? (
                             filteredDocuments.map((doc) => (
-                                <tr key={doc.id} style={styles.rowHover}>
+                                <tr key={doc.id} style={styles.rowHover} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F9FAFB'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
                                     <td style={styles.td}>{doc.id}</td>
-                                    <td style={styles.td}>{doc.fullName}</td>
-                                    <td style={styles.td}>{doc.purok}</td>
+                                    <td style={styles.td}>
+                                        <div style={{ fontWeight: '600' }}>{doc.fullName}</div>
+                                        <div style={{ color: '#6B7280', fontSize: '12px' }}>{doc.user_email}</div>
+                                    </td>
                                     <td style={styles.td}>{doc.documentType}</td>
                                     <td style={styles.td}>{formatDate(doc.dateRequested)}</td>
                                     <td style={styles.td}>
                                         <span style={styles.statusBadge(doc.status)}>{doc.status}</span>
                                     </td>
-                                    <td style={styles.td}>
+                                    <td style={{ ...styles.td, textAlign: 'center', display: 'flex' }}>
                                         <button 
-                                            style={styles.actionButton('#1e40af')}
+                                            style={styles.actionButton('#6B7280')}
                                             onClick={() => setViewModal({ show: true, document: doc })}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Eye size={16} /> View</div>
+                                            <Eye size={16} />
                                         </button>
-                                        <button 
-                                            style={styles.actionButton(doc.status === 'Cancelled' ? '#9CA3AF' : (doc.status === 'Approved' ? '#059669' : '#F59E0B'))}
+                                        <button
+                                            style={styles.actionButton(doc.status === 'Approved' ? '#059669' : '#1e40af')}
                                             onClick={() => setStatusModal({ show: true, document: doc })}
-                                            disabled={doc.status === 'Cancelled'} 
+                                            disabled={doc.status === 'Completed' || doc.status === 'Cancelled'}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                {doc.status === 'Approved' ? <CheckCircle size={16} /> : <RefreshCcw size={16} />} 
-                                                {doc.status === 'Approved' ? 'Approved' : 'Update Status'}
-                                            </div>
+                                            <CheckCircle size={16} />
                                         </button>
                                     </td>
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="7">
-                                    <div style={styles.noResults}>
-                                        No document applications found matching your criteria.
-                                    </div>
+                                <td colSpan="6" style={{ ...styles.td, ...styles.noResults }}>
+                                    No document applications match your filters.
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
             </div>
-            
-            
+
             <DocumentViewModal
                 show={viewModal.show}
                 document={viewModal.document}
@@ -689,6 +675,13 @@ const AdminDocumentsPage = () => {
                 onClose={() => setStatusModal({ show: false, document: null })}
                 onUpdate={confirmStatusUpdate}
                 onApprove={handleStatusApprove}
+            />
+            
+            <RejectReasonModal
+                show={rejectModal.show}
+                document={rejectModal.document}
+                onClose={() => setRejectModal({ show: false, document: null })}
+                onSubmit={handleStatusRejectSubmit}
             />
             
             <SelectFormModal
@@ -706,7 +699,7 @@ const AdminDocumentsPage = () => {
                 onClose={() => setMessageModal({ ...messageModal, show: false })}
             />
         </div>
-    )
+    );
 };
 
 const styleSheet = document.createElement('style');
