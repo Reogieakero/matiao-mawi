@@ -1,4 +1,3 @@
-// frontend/src/admin/AdminContentManagementPage.jsx
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
@@ -6,19 +5,15 @@ import {
     Search, ChevronDown, ChevronUp, Eye, MessageSquare, Briefcase, FileText, CheckCircle
 } from 'lucide-react';
 
-// NOTE: Please ensure you replace this with your actual API base URL.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- Utility Function: Format Date ---
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
-// --- Success Alert Component ---
 const SuccessAlert = ({ message, style }) => {
-    // Keeping SuccessAlert for potential future use or consistency, but removing usage in main component
     if (!message) return null;
     return (
         <div style={{...styles.successAlert, ...style}}>
@@ -28,13 +23,8 @@ const SuccessAlert = ({ message, style }) => {
     );
 };
 
-// --- START: CUSTOM SELECT COMPONENT (Copied from AdminOfficialsPage for consistent design) ---
-
-// Base styles for CustomSelect derived from AdminOfficialsPage modal styles
 const selectBaseStyles = {
-    // Mimics addModalStyles.label
     label: { color: '#374151', marginBottom: '5px', marginTop: '10px', fontWeight: '600', fontSize: '14px', },
-    // Mimics addModalStyles.input
     input: {
         width: '100%',
         padding: '10px',
@@ -58,7 +48,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
     const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
     const containerRef = useRef(null);
 
-    // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -70,7 +59,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Handle Keyboard Navigation
     const handleKeyDown = useCallback((e) => {
         if (!isOpen) {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -110,7 +98,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         }
     }, [isOpen, options, activeIndex, name, onChange]);
 
-    // Update activeIndex when options or value changes externally
     useEffect(() => {
         setActiveIndex(options.findIndex(opt => opt === value));
     }, [options, value]);
@@ -123,7 +110,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         }
     };
 
-    // Custom select button/display styles
     const selectDisplayStyles = {
         ...selectBaseStyles.input,
         display: 'flex',
@@ -134,10 +120,9 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         fontWeight: '500',
         color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        marginBottom: '0', // Keep dropdown compact for the filter bar
+        marginBottom: '0', 
     };
     
-    // Pro-level dropdown list styles
     const listContainerStyles = {
         position: 'absolute',
         top: '100%',
@@ -171,7 +156,7 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
             ref={containerRef} 
             style={{ 
                 position: 'relative', 
-                minWidth: '200px', // Ensure it has a reasonable minimum width
+                minWidth: '200px', 
                 ...style
             }}
             onKeyDown={handleKeyDown}
@@ -216,33 +201,24 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         </div>
     );
 };
-// --- END: CUSTOM SELECT COMPONENT ---
 
 
-// --- Main Component ---
 const AdminContentManagementPage = () => {
     const [content, setContent] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Filter/Sort State
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterType, setFilterType] = useState('All'); // <-- NEW FILTER STATE
+    const [filterType, setFilterType] = useState('All'); 
     const [sortBy, setSortBy] = useState('created_at');
     const [sortDirection, setSortDirection] = useState('desc');
 
-    // Detail Modal State
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedContent, setSelectedContent] = useState(null);
     const [responses, setResponses] = useState([]);
     const [responsesLoading, setResponsesLoading] = useState(false);
     const [responsesError, setResponsesError] = useState(null);
 
-    // Alert State (Removed successMessage as deletion is removed)
-
-    /**
-     * Fetches all posts (threads) and jobs from the server.
-     */
     const fetchContent = async () => {
         setLoading(true);
         setError(null);
@@ -259,9 +235,6 @@ const AdminContentManagementPage = () => {
         }
     };
 
-    /**
-     * Fetches all responses/applications for a specific content item.
-     */
     const fetchResponses = async (contentId, contentType) => {
         setResponsesLoading(true);
         setResponsesError(null);
@@ -284,7 +257,6 @@ const AdminContentManagementPage = () => {
         fetchContent();
     }, []);
 
-    // --- Sorting Logic ---
     const handleSort = (key) => {
         if (sortBy === key) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -294,18 +266,14 @@ const AdminContentManagementPage = () => {
         }
     };
 
-    // --- Filtering and Sorting Memoized Data ---
     const filteredAndSortedContent = useMemo(() => {
         let currentContent = [...content];
 
-        // 1. Filtering by Content Type (NEW)
         if (filterType !== 'All') {
-            // Note: 'Thread' maps to 'Post' in the DB query alias
             const filterValue = filterType === 'Thread' ? 'Post' : filterType; 
             currentContent = currentContent.filter(item => item.content_type === filterValue);
         }
 
-        // 2. Filtering by search query
         if (searchQuery) {
             const lowerCaseQuery = searchQuery.toLowerCase();
             currentContent = currentContent.filter(item =>
@@ -315,7 +283,6 @@ const AdminContentManagementPage = () => {
             );
         }
 
-        // 3. Sorting
         currentContent.sort((a, b) => {
             let aValue = a[sortBy];
             let bValue = b[sortBy];
@@ -334,20 +301,16 @@ const AdminContentManagementPage = () => {
         });
 
         return currentContent;
-    }, [content, searchQuery, sortBy, sortDirection, filterType]); // <-- Added filterType dependency
+    }, [content, searchQuery, sortBy, sortDirection, filterType]); 
 
 
-    // --- Handlers ---
 
     const handleViewResponses = (item) => {
         setSelectedContent(item);
         setIsDetailModalOpen(true);
-        fetchResponses(item.id, item.content_type); // Pass the content type (Post/Job)
+        fetchResponses(item.id, item.content_type); 
     };
     
-    // NOTE: handleDeleteContent has been removed as requested.
-    
-    // --- Render Helper: Sort Icon ---
     const renderSortIcon = (columnKey) => {
         if (sortBy === columnKey) {
             return sortDirection === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />;
@@ -355,7 +318,6 @@ const AdminContentManagementPage = () => {
         return null;
     };
 
-    // --- Detail Modal Component ---
     const DetailModal = () => {
         if (!isDetailModalOpen || !selectedContent) return null;
         
@@ -363,9 +325,8 @@ const AdminContentManagementPage = () => {
         const typeText = isPost ? 'Thread' : 'Job Listing';
         const responsesLabel = isPost ? 'Responses' : 'Responses';
         
-        // Define blue colors for the badge
-        const threadColor = '#BFDBFE'; // Light Blue
-        const jobColor = '#60A5FA'; // Medium Blue
+        const threadColor = '#BFDBFE'; 
+        const jobColor = '#60A5FA'; 
 
         return (
             <div style={modalStyles.backdrop}>
@@ -386,7 +347,6 @@ const AdminContentManagementPage = () => {
                     <p style={styles.contentDetailMeta}>
                         Author: <strong>{selectedContent.author_name || 'N/A'}</strong> | Posted on: {formatDate(selectedContent.created_at)}
                     </p>
-                    {/* The content_body field is available here */}
                     <p style={styles.contentDetailBody}>{selectedContent.content_body}</p>
                     
                     <hr style={styles.divider} />
@@ -414,22 +374,18 @@ const AdminContentManagementPage = () => {
                         ))}
                     </div>
 
-                    {/* Deletion button removed */}
                 </div>
             </div>
         );
     };
 
-    // --- Main Render ---
     return (
         <div style={styles.pageContainer}>
             <h1 style={styles.pageTitle}>Content Management</h1>
             <p style={styles.pageSubtitle}>Manage and moderate all community threads and job listings, including their responses/applications.</p>
-            {/* SuccessAlert removed */}
             {error && <p style={styles.errorText}>{error}</p>}
             
             <div style={styles.controlBar}>
-                {/* Search Input */}
                 <div style={styles.searchContainer}>
                     <Search size={20} style={styles.searchIcon} />
                     <input 
@@ -441,7 +397,6 @@ const AdminContentManagementPage = () => {
                     />
                 </div>
 
-                {/* Content Type Filter (NEW) - REPLACED WITH CUSTOM SELECT */}
                 <div style={styles.filterContainer}> 
                     <CustomSelect 
                         label="Filter By Content Type" 
@@ -501,7 +456,6 @@ const AdminContentManagementPage = () => {
                                         >
                                             <Eye size={18} />
                                         </button>
-                                        {/* Delete button removed */}
                                     </td>
                                 </tr>
                             ))}
@@ -520,7 +474,6 @@ const AdminContentManagementPage = () => {
     );
 };
 
-// --- Styles ---
 const styles = {
     pageContainer: {
         padding: '30px',
@@ -557,15 +510,13 @@ const styles = {
         color: '#4B5563',
     },
 
-    // Control Bar Styles
     controlBar: {
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-end', // Aligned to bottom because CustomSelect has a label above the input
+        alignItems: 'flex-end', 
         marginBottom: '20px',
         gap: '20px'
     },
-    // Search Styles
     searchContainer: { 
         position: 'relative', 
         flexGrow: 1, 
@@ -587,15 +538,11 @@ const styles = {
         boxSizing: 'border-box', 
         outline: 'none',
     },
-    // Filter Styles (Adjusted to accommodate CustomSelect)
     filterContainer: { 
         display: 'flex', 
         alignItems: 'center', 
         gap: '10px',
-        // The rest of the styling is handled by the CustomSelect component now.
     }, 
-
-    // Table Styles
     tableContainer: {
         backgroundColor: '#FFFFFF',
         borderRadius: '10px',
@@ -630,10 +577,9 @@ const styles = {
         fontSize: '15px',
         color: '#374151',
     },
-    // Action button style updated for yellow shades
     actionButton: {
-        backgroundColor: '#FEF3C7', // Light yellow background
-        color: '#F59E0B', // Strong yellow/amber icon color
+        backgroundColor: '#FEF3C7', 
+        color: '#F59E0B',
         border: 'none',
         borderRadius: '50%',
         padding: '8px',
@@ -643,7 +589,7 @@ const styles = {
         justifyContent: 'center',
         transition: 'background-color 0.2s, transform 0.1s',
         ':hover': {
-            backgroundColor: '#FDE68A', // Medium yellow hover background
+            backgroundColor: '#FDE68A', 
             transform: 'scale(1.05)'
         },
         marginRight: '8px',
@@ -654,7 +600,6 @@ const styles = {
         fontSize: '12px',
         fontWeight: '600',
         backgroundColor: color,
-        // Using a dark blue text color for both blue badges
         color: '#1E40AF', 
         opacity: 0.9,
     }),
@@ -664,8 +609,6 @@ const styles = {
         color: '#6B7280',
         fontSize: '16px',
     },
-
-    // Modal Specific Styles
     contentDetailMeta: {
         fontSize: '14px',
         color: '#6B7280',
@@ -678,7 +621,7 @@ const styles = {
         color: '#1F2937',
         marginBottom: '20px',
         lineHeight: '1.6',
-        whiteSpace: 'pre-wrap', // Preserve formatting
+        whiteSpace: 'pre-wrap', 
         maxHeight: '200px',
         overflowY: 'auto',
         paddingRight: '10px',
@@ -792,7 +735,6 @@ const modalStyles = {
             color: '#4B5563',
         },
     },
-    // Styles for action buttons removed as no actions are defined in the modal
 };
 
 export default AdminContentManagementPage;

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Clock } from 'lucide-react';
 
-// Assumes the API is running on localhost:5000
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// тнР NEW: Define subject options
 const SUBJECT_OPTIONS = [
     { value: '', label: 'Select a Subject' },
     { value: 'Technical Support', label: 'Technical Support (App Errors, Bugs)' },
@@ -24,12 +22,11 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
     const [formData, setFormData] = useState({
         fullName: userName || '',
         emailAddress: userEmail || '',
-        subject: SUBJECT_OPTIONS[0].value, // тнР MODIFIED: Set initial subject to the first option (empty)
+        subject: SUBJECT_OPTIONS[0].value,
         message: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitMessage, setSubmitMessage] = useState(null); // { type: 'success' | 'error', text: string }
-
+    const [submitMessage, setSubmitMessage] = useState(null); 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -38,7 +35,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // тнР NEW: Validation for subject selection
         if (formData.subject === '') {
             setSubmitMessage({ type: 'error', text: 'Please select a subject from the list.' });
             return;
@@ -57,7 +53,7 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                     userId: userId, 
                     fullName: formData.fullName,
                     emailAddress: formData.emailAddress,
-                    subject: formData.subject, // Value is sent to server
+                    subject: formData.subject, 
                     message: formData.message,
                 }),
             });
@@ -66,7 +62,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
 
             if (response.ok) {
                 setSubmitMessage({ type: 'success', text: data.message || 'Thank you for your message! We will get back to you soon.' });
-                // Clear the subject and message fields upon successful submission
                 setFormData(prev => ({ ...prev, subject: SUBJECT_OPTIONS[0].value, message: '' }));
             } else {
                 setSubmitMessage({ type: 'error', text: data.message || 'Failed to send message. Please try again.' });
@@ -89,9 +84,7 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
             </header>
 
             <div style={styles.contentGrid}>
-                {/* Contact Information Cards */}
                 <div style={styles.infoCards}>
-                    {/* Email Card */}
                     <div style={styles.card}>
                         <Mail size={24} style={styles.cardIcon} />
                         <h3 style={styles.cardTitle}>General Inquiries</h3>
@@ -101,7 +94,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                         </a>
                     </div>
 
-                    {/* Phone Card */}
                     <div style={styles.card}>
                         <Phone size={24} style={styles.cardIcon} />
                         <h3 style={styles.cardTitle}>Support Hotline</h3>
@@ -111,7 +103,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                         </a>
                     </div>
 
-                    {/* Working Hours Card */}
                     <div style={styles.card}>
                         <Clock size={24} style={styles.cardIcon} />
                         <h3 style={styles.cardTitle}>Operating Hours</h3>
@@ -122,7 +113,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                     </div>
                 </div>
 
-                {/* Contact Form */}
                 <div style={styles.formContainer}>
                     <h2 style={styles.formTitle}>Send a Direct Message</h2>
                     {submitMessage && (
@@ -157,7 +147,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                             />
                         </div>
 
-                        {/* тнР MODIFIED: SUBJECT FIELD (Input changed to Select) */}
                         <div style={styles.formGroup}>
                             <label htmlFor="subject" style={styles.label}>Subject</label>
                             <select 
@@ -165,7 +154,7 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                                 name="subject" 
                                 value={formData.subject} 
                                 onChange={handleChange}
-                                style={styles.select} // Use the new select style
+                                style={styles.select} 
                                 required 
                             >
                                 {SUBJECT_OPTIONS.map(option => (
@@ -175,7 +164,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                                 ))}
                             </select>
                         </div>
-                        {/* тнР END MODIFIED SUBJECT FIELD */}
 
                         <div style={styles.formGroup}>
                             <label htmlFor="message" style={styles.label}>Your Message</label>
@@ -202,7 +190,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
                 </div>
             </div>
 
-            {/* Map/Location Section */}
             <div style={styles.locationSection}>
                 <MapPin size={24} style={{ color: styles.locationTitle.color }} />
                 <h3 style={styles.locationTitle}>Our Headquarters Location</h3>
@@ -228,7 +215,6 @@ const ContactPage = ({ userName, userEmail, userId, profilePictureUrl }) => {
 };
 
 const styles = {
-    // --- Layout and Structure ---
     container: {
         padding: '30px',
         maxWidth: '1300px', 
@@ -260,7 +246,6 @@ const styles = {
         marginBottom: '50px',
     },
 
-    // --- Info Cards ---
     infoCards: {
         display: 'grid',
         gridTemplateColumns: '1fr',
@@ -316,7 +301,6 @@ const styles = {
         }
     },
 
-    // --- Contact Form ---
     formContainer: {
         backgroundColor: '#ffffff',
         padding: '40px',
@@ -357,7 +341,6 @@ const styles = {
             outline: 'none',
         }
     },
-    // тнР NEW: Style for the select dropdown
     select: {
         padding: '12px',
         borderRadius: '8px',
@@ -366,7 +349,6 @@ const styles = {
         backgroundColor: '#ffffff',
         cursor: 'pointer',
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        // Optional: Custom arrow styling can be complex in plain CSS-in-JS but often handled by browser
         ':focus': {
             borderColor: '#1e40af',
             boxShadow: '0 0 0 1px #1e40af',
@@ -407,14 +389,12 @@ const styles = {
         ':active': {
             transform: 'scale(0.99)',
         },
-        // For disabled state
         ':disabled': {
             backgroundColor: '#9ca3af',
             cursor: 'not-allowed',
         }
     },
 
-    // Alert Styles
     successAlert: {
         padding: '15px',
         marginBottom: '20px',
@@ -436,7 +416,6 @@ const styles = {
         textAlign: 'center',
     },
 
-    // --- Location Section ---
     locationSection: {
         backgroundColor: '#ffffff',
         padding: '40px',

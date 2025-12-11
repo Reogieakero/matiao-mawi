@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { FiEye, FiEyeOff, FiMail, FiLock, FiUser } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 
-// --- InputField Component (No change needed here) ---
 const InputField = ({ label, type, value, onChange, placeholder, onFocus, onBlur }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password" || label.includes("Password");
@@ -48,7 +47,6 @@ const InputField = ({ label, type, value, onChange, placeholder, onFocus, onBlur
   );
 };
 
-// --- Password Validation Utility ---
 const validatePassword = (password) => {
   const errors = [];
 
@@ -56,7 +54,6 @@ const validatePassword = (password) => {
     errors.push("at least 8 characters");
   }
 
-  // Check for at least one letter (uppercase or lowercase)
   if (!/[a-zA-Z]/.test(password)) {
     errors.push("at least 1 letter (uppercase or lowercase)");
   }
@@ -73,7 +70,6 @@ const validatePassword = (password) => {
 };
 
 
-// --- CreateAccount Main Component ---
 export default function CreateAccount() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -83,24 +79,20 @@ export default function CreateAccount() {
   const [fadeIn, setFadeIn] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // New State for validation and focus
   const [passwordErrors, setPasswordErrors] = useState([]);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   
-  // NEW: State for displaying status/error messages
   const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
 
 
-  // The API URL remains correct: backend is on 5000
   const API_URL = "http://localhost:5000/api/register"; 
 
   useEffect(() => {
-    document.title = "Mawii Create Account"; // Sets the browser tab title
+    document.title = "Mawii Create Account"; 
     setFadeIn(true);
   }, []);
 
   useEffect(() => {
-    // Real-time validation check whenever password changes
     if (password.length > 0 || isPasswordFocused) {
       const errors = validatePassword(password);
       setPasswordErrors(errors);
@@ -117,13 +109,10 @@ export default function CreateAccount() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // NEW: Clear previous status/error message
     setStatusMessage({ type: '', text: '' }); 
 
-    // 1. Client-side Validation Checks
     const errors = validatePassword(password);
     if (errors.length > 0) {
-      // Replaced alert with status message
       setStatusMessage({ type: 'error', text: 'Password is not strong enough. Please check requirements.' });
       return;
     }
@@ -137,7 +126,6 @@ export default function CreateAccount() {
     setLoading(true);
 
     try {
-      // 2. Send data to the backend API
       const response = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -148,28 +136,21 @@ export default function CreateAccount() {
 
       const data = await response.json();
 
-      // 3. Handle the server's response
       if (response.ok) {
-        // Registration Success: Set success message (optional, as we are redirecting)
         setStatusMessage({ type: 'success', text: data.message || "Account created successfully!" });
         
-        // Clean up form state
         setName('');
         setEmail('');
         setPassword('');
         setConfirmPassword('');
         
-        // --- CRUCIAL CHANGE: REDIRECT TO VERIFICATION PAGE AND PASS EMAIL ---
         navigate('/verify', { state: { email: data.userEmail || email } }); 
-        // --------------------------------------------------------------------
         
       } else {
-        // Display error message from the server (e.g., "Email already exists")
         setStatusMessage({ type: 'error', text: data.message || 'Registration failed. Please try again.' });
       }
     } catch (error) {
       console.error("Network or API call error:", error);
-      // Replaced alert with status message
       setStatusMessage({ type: 'error', text: "Could not connect to the server. Please check the backend service." }); 
     } finally {
       setLoading(false);
@@ -179,7 +160,6 @@ export default function CreateAccount() {
   const isPasswordValid = passwordErrors.length === 0;
   const isFormValid = name && email && password && confirmPassword && isPasswordValid;
 
-  // Function to determine the style based on the status type
   const getStatusStyle = () => {
     if (statusMessage.type === 'error') {
       return styles.errorMessage;
@@ -195,7 +175,6 @@ export default function CreateAccount() {
       <div style={styles.backgroundOverlay}></div>
 
       <div style={styles.container}>
-        {/* Left Panel - Brand Info */}
         <div style={styles.leftPanel}>
           <h1 style={{ ...styles.brandText, opacity: fadeIn ? 1 : 0 }}>
             Community Mawii
@@ -206,18 +185,15 @@ export default function CreateAccount() {
           </p>
         </div>
 
-        {/* Right Panel - Registration Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <h2 style={styles.title}>Create Account</h2>
           <p style={styles.subtitle}>Sign up to join the Community Mawii</p>
           
-          {/* NEW: Status Message Display */}
           {statusMessage.text && (
             <div style={getStatusStyle()}>
               {statusMessage.text}
             </div>
           )}
-          {/* END NEW */}
 
           <InputField
             label="Full Name"
@@ -243,7 +219,6 @@ export default function CreateAccount() {
             onBlur={() => setIsPasswordFocused(false)}
           />
           
-          {/* Password Validation Display */}
           {password.length > 0 && (
             <div style={styles.validationBox}>
               <p style={styles.validationTitle}>Password must contain:</p>
@@ -287,17 +262,12 @@ export default function CreateAccount() {
   );
 }
 
-// ------------------------------------------------------------------
-// ---------- STYLES (Your original styles + New styles for validation and status messages) ----------
-// ------------------------------------------------------------------
 const styles = {
   page: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100vh",
-    // NOTE: This require statement for the background image path might need adjustment
-    // based on your exact file structure and build tool configuration.
     backgroundImage: `url(${require("../assets/philippine-barangay-community-hall.jpg")})`, 
     backgroundSize: "cover",
     backgroundPosition: "center",
@@ -434,11 +404,10 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
   },
-  // --- New styles for validation feedback ---
   validationBox: {
     padding: "10px",
     marginBottom: "18px",
-    marginTop: "-10px", // Adjusting space
+    marginTop: "-10px", 
     borderRadius: "8px",
     backgroundColor: "#f8f9fa",
     border: "1px solid #e9ecef",
@@ -458,10 +427,9 @@ const styles = {
     fontSize: "12px",
     lineHeight: "1.6",
   },
-  // NEW: Status Message Styles
   errorMessage: {
-    backgroundColor: "#fee2e2", // Light red background
-    color: "#b91c1c", // Darker red text
+    backgroundColor: "#fee2e2", 
+    color: "#b91c1c", 
     padding: "10px 14px",
     borderRadius: "8px",
     fontSize: "14px",
@@ -471,8 +439,8 @@ const styles = {
     border: "1px solid #fca5a5",
   },
   successMessage: {
-    backgroundColor: "#d1e7dd", // Light green background
-    color: "#0f5132", // Darker green text
+    backgroundColor: "#d1e7dd",
+    color: "#0f5132", 
     padding: "10px 14px",
     borderRadius: "8px",
     fontSize: "14px",

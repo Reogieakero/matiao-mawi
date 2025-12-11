@@ -1,5 +1,3 @@
-// frontend/src/admin/AdminContactPage.jsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
@@ -8,7 +6,6 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- Reusable Alert Component ---
 const SuccessAlert = ({ message, style }) => {
     if (!message) return null;
     return (
@@ -19,7 +16,6 @@ const SuccessAlert = ({ message, style }) => {
     );
 };
 
-// --- Modal Component for Deletion (Unchanged) ---
 const DeleteConfirmationModal = ({ show, message, onConfirm, onCancel }) => {
     if (!show || !message) return null;
 
@@ -47,7 +43,6 @@ const DeleteConfirmationModal = ({ show, message, onConfirm, onCancel }) => {
     );
 };
 
-// --- NEW: Modal Component for Viewing Full Message ---
 const MessageViewModal = ({ show, messageItem, onClose }) => {
     if (!show || !messageItem) return null;
 
@@ -102,14 +97,10 @@ const AdminContactPage = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [messageToDelete, setMessageToDelete] = useState(null); 
     const [successMessage, setSuccessMessage] = useState(null);
-    
-    // --- NEW: State for View Modal ---
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedMessageForView, setSelectedMessageForView] = useState(null); 
 
-    // --- Data Fetching (Unchanged) ---
     const fetchMessages = async () => {
-        // ... (fetch logic remains the same)
         setLoading(true);
         setError(null);
         try {
@@ -128,10 +119,8 @@ const AdminContactPage = () => {
         fetchMessages();
     }, []);
 
-    // --- Sorting and Filtering Logic (Unchanged) ---
     const filteredAndSortedMessages = useMemo(() => {
         let currentMessages = [...messages];
-        // ... (filtering and sorting logic remains the same)
         if (searchTerm) {
             const lowerCaseSearchTerm = searchTerm.toLowerCase();
             currentMessages = currentMessages.filter(message =>
@@ -173,16 +162,13 @@ const AdminContactPage = () => {
         return sortDirection === 'asc' ? <ChevronUp size={14} style={styles.sortIcon} /> : <ChevronDown size={14} style={styles.sortIcon} />;
     };
 
-    // --- Deletion Logic (Unchanged) ---
     const openDeleteModal = (message) => {
         setMessageToDelete(message);
         setShowDeleteModal(true);
     };
 
     const confirmDelete = async () => {
-        // ... (deletion logic remains the same)
         if (!messageToDelete) return;
-        // ...
         const messageId = messageToDelete.id;
         const messageSubject = messageToDelete.subject;
         setShowDeleteModal(false);
@@ -209,7 +195,6 @@ const AdminContactPage = () => {
         setMessageToDelete(null);
     };
 
-    // --- NEW: View Modal Handlers ---
     const openViewModal = (message) => {
         setSelectedMessageForView(message);
         setIsViewModalOpen(true);
@@ -220,7 +205,6 @@ const AdminContactPage = () => {
         setSelectedMessageForView(null);
     };
     
-    // --- Message Preview Component (Unchanged) ---
     const MessagePreview = ({ content }) => {
         const MAX_LENGTH = 100;
         return (
@@ -245,13 +229,11 @@ const AdminContactPage = () => {
                 onCancel={cancelDelete}
             />
 
-            {/* NEW: View Modal Inclusion */}
             <MessageViewModal
                 show={isViewModalOpen}
                 messageItem={selectedMessageForView}
                 onClose={handleCloseViewModal}
             />
-            {/* End NEW */}
 
             <h1 style={styles.pageTitle}>Contact Messages</h1>
             <p style={styles.subtitle}>Manage all issues, feedback, and reports submitted by users. Total: {messages.length}</p>
@@ -324,7 +306,6 @@ const AdminContactPage = () => {
                                         >
                                             <Trash2 size={16} />
                                         </button>
-                                        {/* MODIFIED: Calls openViewModal instead of alert */}
                                         <button 
                                             onClick={() => openViewModal(message)} 
                                             style={styles.actionButton(false)}
@@ -357,7 +338,6 @@ const AdminContactPage = () => {
     );
 };
 
-// --- View Modal Custom Styles ---
 const viewModalStyles = {
     header: {
         display: 'flex',
@@ -405,7 +385,7 @@ const viewModalStyles = {
     messageText: {
         fontSize: '15px',
         color: '#4B5563',
-        whiteSpace: 'pre-wrap', // Ensures line breaks from the message are respected
+        whiteSpace: 'pre-wrap', 
         padding: '10px',
         border: '1px solid #D1D5DB',
         borderRadius: '8px',
@@ -413,39 +393,38 @@ const viewModalStyles = {
     }
 };
 
-// --- General Styles Object (Unchanged) ---
 const styles = {
-    container: { /* ... (styles for container) ... */ 
+    container: {
         padding: '30px',
         height: '100%',
         overflowY: 'auto',
         backgroundColor: '#F9FAFB', 
         position: 'relative',
     },
-    center: { /* ... */ 
+    center: { 
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '200px',
     },
-    pageTitle: { /* ... */ 
+    pageTitle: { 
         fontSize: '28px',
         fontWeight: '800',
         color: '#1F2937', 
         marginBottom: '5px',
     },
-    subtitle: { /* ... */ 
+    subtitle: { 
         fontSize: '16px',
         color: '#6B7280', 
         marginBottom: '20px',
     },
-    header: { /* ... */ 
+    header: {  
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: '20px',
     },
-    searchContainer: { /* ... */ 
+    searchContainer: { 
         display: 'flex',
         alignItems: 'center',
         backgroundColor: '#ffffff',
@@ -455,17 +434,17 @@ const styles = {
         width: '400px',
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
     },
-    searchIcon: { /* ... */ 
+    searchIcon: { 
         color: '#6B7280',
         marginRight: '10px',
     },
-    searchInput: { /* ... */ 
+    searchInput: { 
         border: 'none',
         outline: 'none',
         fontSize: '15px',
         width: '100%',
     },
-    tableWrapper: { /* ... */ 
+    tableWrapper: {  
         backgroundColor: '#ffffff',
         borderRadius: '12px',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
@@ -473,12 +452,12 @@ const styles = {
         border: '1px solid #E5E7EB',
         position: 'relative',
     },
-    table: { /* ... */ 
+    table: { 
         width: '100%',
         borderCollapse: 'separate',
         borderSpacing: 0,
     },
-    tableHeader: { /* ... */ 
+    tableHeader: {
         padding: '15px',
         textAlign: 'left',
         backgroundColor: '#F3F4F6', 
@@ -489,21 +468,21 @@ const styles = {
         borderBottom: '2px solid #E5E7EB',
         whiteSpace: 'nowrap',
     },
-    headerContent: { /* ... */ 
+    headerContent: { 
         display: 'flex',
         alignItems: 'center',
     },
-    sortIcon: { /* ... */ 
+    sortIcon: { 
         marginLeft: '5px',
         color: '#4B5563',
     },
-    tableData: { /* ... */ 
+    tableData: { 
         padding: '15px',
         borderBottom: '1px solid #E5E7EB',
         color: '#4B5563', 
         fontSize: '15px',
     },
-    tableDataActions: { /* ... */ 
+    tableDataActions: {
         padding: '15px',
         borderBottom: '1px solid #E5E7EB',
         display: 'flex',
@@ -511,7 +490,7 @@ const styles = {
         alignItems: 'center',
         whiteSpace: 'nowrap',
     },
-    actionButton: (isDelete) => ({ /* ... */ 
+    actionButton: (isDelete) => ({ 
         backgroundColor: isDelete ? '#FEE2E2' : '#EFF6FF', 
         color: isDelete ? '#DC2626' : '#1D4ED8',
         border: 'none',
@@ -523,7 +502,7 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'center',
     }),
-    badgeUser: { /* ... */ 
+    badgeUser: { 
         backgroundColor: '#EFF6FF', 
         color: '#1D4ED8',
         padding: '4px 8px',
@@ -533,13 +512,13 @@ const styles = {
         fontWeight: '600',
         textTransform: 'uppercase',
     },
-    emptyState: { /* ... */ 
+    emptyState: {
         textAlign: 'center',
         padding: '50px',
         color: '#6B7280',
         fontSize: '16px',
     },
-    successAlert: { /* ... */ 
+    successAlert: { 
         display: 'flex',
         alignItems: 'center',
         padding: '15px',
@@ -551,7 +530,7 @@ const styles = {
         fontSize: '15px',
         marginBottom: '15px',
     },
-    errorAlert: { /* ... */ 
+    errorAlert: { 
         padding: '15px',
         backgroundColor: '#FEE2E2', 
         color: '#991B1B', 
@@ -561,7 +540,7 @@ const styles = {
         fontSize: '15px',
         marginBottom: '15px',
     },
-    overlay: { /* ... */ 
+    overlay: {
         position: 'absolute',
         top: 0,
         left: 0,
@@ -576,7 +555,6 @@ const styles = {
     }
 };
 
-// --- Modal Styles (Unchanged) ---
 const modalStyles = {
     backdrop: {
         position: 'fixed',
@@ -600,7 +578,6 @@ const modalStyles = {
         maxHeight: '90vh',
         overflowY: 'auto',
     },
-    // ... (rest of modalStyles for delete modal)
     header: {
         fontSize: '24px',
         fontWeight: '700',

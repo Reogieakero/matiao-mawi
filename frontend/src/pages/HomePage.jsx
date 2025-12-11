@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { FiPlus, FiMessageSquare, FiBookmark, FiX, FiChevronDown, FiChevronUp, FiPaperclip } from 'react-icons/fi';
 import RightPanel from '../components/RightPanel';
 
-// Utility function to format the time
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -21,7 +20,6 @@ const getTimeSince = (date) => {
 const postCategories = ["General", "Invention", "Achievement", "Competition", "Events", "Maintenance"];
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 
-// CONSTANT for truncation length (Max characters to show before "Read More")
 const MAX_POST_LENGTH = 300; 
 
 
@@ -41,7 +39,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
     const [errorModalMessage, setErrorModalMessage] = useState('');
 
-    // --- STATE FOR RESPONSES ---
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [threadIdToReply, setThreadIdToReply] = useState(null);
     const [threadTypeToReply, setThreadTypeToReply] = useState(null);
@@ -53,19 +50,15 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     const [expandedThreadId, setExpandedThreadId] = useState(null);
     const [responses, setResponses] = useState({}); 
     const [isFetchingResponses, setIsFetchingResponses] = useState(false);
-    // ---------------------------------
     
-    // ⭐ MODIFIED: Removed expandedPostIds state. Added Read Modal states.
     const [isReadModalOpen, setIsReadModalOpen] = useState(false);
     const [readModalThread, setReadModalThread] = useState(null); 
-    // ---------------------------------
 
     const currentCategories = postType === 'job' ? jobCategories : postCategories;
 
     const firstName = userName ? userName.split(' ')[0] : 'Mawii';
     const userId = parseInt(localStorage.getItem('userId'), 10); 
 
-    // NEW HELPER: Function to render avatar based on URL presence
     const renderAvatar = (url, initial, size = 'small') => {
         let style;
         switch (size) {
@@ -98,7 +91,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         );
     };
 
-    // Function to fetch threads, including bookmark status check
     const fetchThreads = async () => {
         let allThreads = [];
         try {
@@ -154,7 +146,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         fetchThreads();
     }, [userId, profilePictureUrl]); 
 
-    // Function to handle saving/unsaving a thread
     const handleBookmark = async (threadId, threadType, isBookmarked) => {
         if (!userId) {
             setErrorModalMessage('You must be logged in to save a thread.');
@@ -162,7 +153,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             return;
         }
         
-        // Optimistic UI Update
         setThreads(prevThreads => prevThreads.map(t => 
             t.id === threadId && t.type === threadType ? { ...t, isBookmarked: !isBookmarked } : t
         ));
@@ -197,7 +187,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
-    // Function to fetch responses for a specific thread
     const fetchResponses = async (threadId, threadType) => {
         setResponses(prevResponses => {
             const newResponses = { ...prevResponses };
@@ -222,7 +211,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
     
-    // Function to toggle response view
     const toggleResponses = (threadId, threadType) => {
         if (expandedThreadId === threadId) {
             setExpandedThreadId(null);
@@ -232,7 +220,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // ⭐ NEW HANDLERS FOR READ MODAL
     const openReadModal = (thread) => {
         setReadModalThread(thread);
         setIsReadModalOpen(true);
@@ -243,15 +230,13 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setReadModalThread(null);
     };
     
-    // Handle category change when postType changes
     const handlePostTypeChange = (type) => {
         setPostType(type);
         setPostCategory(type === 'job' ? jobCategories[0] : postCategories[0]);
         setSelectedFile(null); 
-        setContactNumber(''); // Clear contact number on switch
+        setContactNumber(''); 
     };
 
-    // handlePostSubmit
     const handlePostSubmit = async () => {
         if (!userId) {
              setErrorModalMessage('User ID not found. Please log in again to post.');
@@ -271,25 +256,21 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             return;
         }
 
-        // Validation for job post contact number (Confirmed PH mobile format validation)
         if (postType === 'job') {
             if (!contactNumber.trim()) {
                 setErrorModalMessage('Contact number is required for job posts.');
                 setIsErrorModalOpen(true);
                 return;
             }
-            // Philippine mobile number regex: starts with 09 or +639, followed by 9 digits.
             const phNumberRegex = /^(09|\+639)\d{9}$/; 
             
             if (!phNumberRegex.test(contactNumber.trim())) {
                 setErrorModalMessage('The contact number is not in a valid Philippine mobile format. Please use 09xxxxxxxxx or +639xxxxxxxxx (no spaces or hyphens).');
                 setIsErrorModalOpen(true);
-                return; // Stop the post submission
+                return; 
             }
         }
-        // -------------------------------------------------------------
 
-        // --- File Upload Logic ---
         let mediaUrls = []; 
         if (selectedFile) {
             setIsUploadingFile(true);
@@ -320,7 +301,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 setIsUploadingFile(false);
             }
         }
-        // -----------------------------
 
         const tempId = Date.now();
         const optimisticThread = {
@@ -387,7 +367,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             setThreads(prevThreads => prevThreads.filter(t => t.id !== tempId));
         }
         
-        // Cleanup
         setPostContent('');
         setPostCategory(currentCategories[0]); 
         setPostType("post");
@@ -395,7 +374,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setContactNumber('');
     };
     
-    // handleReplyClick
     const handleReplyClick = (threadId, threadType, replyToResponseId = null, replyToAuthor = null, replyToContent = null) => {
         if (!userId) {
             setErrorModalMessage('You must be logged in to reply.');
@@ -424,7 +402,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setIsResponseModalOpen(true);
     };
 
-    // handleResponseSubmit
     const handleResponseSubmit = async () => {
         if (!responseContent.trim()) {
             setErrorModalMessage('Your response cannot be empty!');
@@ -480,7 +457,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         setParentResponseContent(null); 
     };
 
-    // handlePostKeyDown
     const handlePostKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -488,7 +464,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         }
     };
 
-    // handleResponseKeyDown
     const handleResponseKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault(); 
@@ -536,7 +511,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         ));
     };
 
-    // NEW HELPER: Function to render the media gallery 
     const renderMediaGallery = (mediaUrls) => {
         if (!mediaUrls || mediaUrls.length === 0) return null;
 
@@ -573,20 +547,17 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
         return null;
     };
 
-    // ⭐ MODIFIED: Function to render the post body with truncation (Opens Modal)
     const renderPostBody = (thread) => {
         const bodyContent = thread.body || "";
         const isLongPost = bodyContent.length > MAX_POST_LENGTH;
 
         if (isLongPost) { 
-            // Truncated content
             const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
             return (
                 <>
                     <p style={styles.threadBodyModified}>
                         {truncatedContent}
                     </p>
-                    {/* Read More button calls openReadModal */}
                     <div 
                         style={styles.readMoreButton} 
                         onClick={() => openReadModal(thread)}
@@ -597,7 +568,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
             );
         }
 
-        // Full content if not long
         return (
             <p style={styles.threadBodyModified}>
                 {bodyContent}
@@ -608,7 +578,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                {/* Main Content */}
                 <div style={styles.mainContent}>
                     <h2 style={styles.sectionTitle}>Community Feed</h2>
                     
@@ -620,11 +589,9 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             style={styles.postInput}
                             readOnly
                         />
-                        {/* ⭐ MODIFICATION: Replaced FiPaperclip with FiPlus icon */}
                         <FiPlus size={20} color="#3b82f6" style={{ cursor: 'pointer' }} />
                     </div>
 
-                    {/* Thread List */}
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading community threads...</p>
                     ) : (threads.length === 0) ? (
@@ -643,10 +610,8 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                                     <span style={styles.threadTagModified}>{thread.tag}</span>
                                 </div>
 
-                                {/* MODIFICATION: Use the updated renderPostBody helper */}
                                 {renderPostBody(thread)}
                                 
-                                {/* MODIFIED: Media Display */}
                                 {renderMediaGallery(thread.mediaUrls)}
 
                                 <div style={styles.threadFooter}>
@@ -695,7 +660,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     )}
                 </div>
 
-                {/* Right Panel */}
                 <RightPanel 
                     userName={userName} 
                     userEmail={userEmail} 
@@ -703,13 +667,10 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                 />
             </div>
 
-            {/* ⭐ MODIFIED: Full Read Details Modal for consistency (Same Width/Height/Radius) */}
             {isReadModalOpen && readModalThread && (
                 <div style={styles.modalOverlay} onClick={closeReadModal}>
-                    {/* Use styles.modalContent for consistent width, height, and border radius. Override padding to 0 for internal layout control. */}
                     <div style={{...styles.modalContent, padding: '0'}} onClick={(e) => e.stopPropagation()}>
                         
-                        {/* Header: Author info, Tag, and Close button - Uses NEW style */}
                         <div style={styles.readModalHeader}>
                             <div style={styles.threadAuthorInfo}>
                                 {renderAvatar(readModalThread.author_picture_url, readModalThread.author, 'small')}
@@ -722,18 +683,14 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             <FiX size={28} style={{ cursor: 'pointer', color: '#6b7280', marginLeft: '10px' }} onClick={closeReadModal} />
                         </div>
                         
-                        {/* Scrollable Body: Content and Media - Uses NEW style */}
                         <div style={styles.readModalBody}>
-                            {/* Full Content - Reusing the style for full thread body */}
                             <p style={styles.modalThreadBody}>
                                 {readModalThread.body}
                             </p>
 
-                            {/* Media (if any) */}
                             {renderMediaGallery(readModalThread.mediaUrls)}
                         </div>
 
-                        {/* Footer: Close button */}
                         <div style={{ padding: '0 25px 25px', borderTop: '1px solid #e5e7eb' }}>
                             <button style={styles.modalCloseButton} onClick={closeReadModal}>
                                 <FiChevronUp size={16} style={{ marginRight: '5px' }} /> Close View
@@ -742,9 +699,7 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                     </div>
                 </div>
             )}
-            {/* End Read Modal */}
 
-            {/* Post Modal */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -768,13 +723,11 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             </button>
                         </div>
 
-                        {/* User Section (Modal) */}
                         <div style={styles.modalUserSection}>
                             {renderAvatar(profilePictureUrl, firstName, 'large')}
                             <span style={styles.modalUserName}>{userName}</span>
                         </div>
                         
-                        {/* Category Selector */}
                         <div style={styles.categoryContainer}>
                             {currentCategories.map(cat => (
                                 <button 
@@ -790,7 +743,6 @@ export default function HomePage({ userName, userEmail, profilePictureUrl, setRe
                             ))}
                         </div>
 
-                        {/* Input for Contact Number */}
                         {postType === 'job' && (
                             <input
                                 type="tel" 

@@ -4,11 +4,9 @@ import { FiMail, FiLock } from "react-icons/fi";
 
 const BACKGROUND_IMAGE_PATH = require("../assets/philippine-barangay-community-hall.jpg");
 
-// --- Reusable InputField Component (CLEANED UP) ---
 const InputField = ({ label, type, value, onChange, placeholder }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
-  // The inputType toggle remains for password visibility
   const inputType = isPassword && showPassword ? "text" : type;
 
   const renderIcon = () => {
@@ -25,7 +23,6 @@ const InputField = ({ label, type, value, onChange, placeholder }) => {
   return (
     <div style={styles.inputWrapper}>
       <label style={styles.label}>{label}</label>
-      {/* Uses the generic inputContainer now */}
       <div style={styles.inputContainer}> 
         {renderIcon()}
         <input
@@ -33,11 +30,10 @@ const InputField = ({ label, type, value, onChange, placeholder }) => {
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          style={styles.input} // Uses the generic input style
+          style={styles.input}
         />
         {isPassword && (
           <div onClick={() => setShowPassword(!showPassword)} style={styles.iconBtn}>
-            {/* Note: In a real app, you'd use FiEye or FiEyeOff here for better UX */}
             <div style={{ ...styles.iconFade, opacity: showPassword ? 0 : 1 }}>
               <FiLock size={18} /> 
             </div>
@@ -50,30 +46,22 @@ const InputField = ({ label, type, value, onChange, placeholder }) => {
     </div>
   );
 };
-// --- END InputField Component ---
 
-// --- NEW VerificationCodeInput Component ---
 const VerificationCodeInput = ({ length = 6, value, onChange }) => {
-    // Split the external value prop into an array of digits for rendering
     const [digits, setDigits] = useState(Array(length).fill(''));
     const inputsRef = useRef([]);
 
-    // Sync external value prop with internal state when mounted or value changes
     useEffect(() => {
-        // Ensure the internal state reflects the full 6-digit code coming from the parent state
         document.title = "Mawii Forgot Password";
         const currentCodeArray = value.split('');
-        // Pad the array with empty strings if it's shorter than the required length
         const newDigits = Array(length).fill('').map((_, i) => currentCodeArray[i] || '');
         setDigits(newDigits);
     }, [value, length]);
 
 
     const handleChange = (index, e) => {
-        // Only take the last character typed (for security/simplicity)
         const newDigit = e.target.value.slice(-1); 
         
-        // Only allow digits (0-9)
         if (!/^\d*$/.test(newDigit)) return;
 
         const newDigits = [...digits];
@@ -81,23 +69,19 @@ const VerificationCodeInput = ({ length = 6, value, onChange }) => {
         setDigits(newDigits);
 
         const newValue = newDigits.join('');
-        onChange({ target: { value: newValue } }); // Propagate the full 6-digit string up to the parent
+        onChange({ target: { value: newValue } }); 
 
-        // Auto-focus to the next input field if a digit was entered
         if (newDigit && index < length - 1) {
             inputsRef.current[index + 1]?.focus();
         }
     };
 
     const handleKeyDown = (index, e) => {
-        // Handle Backspace to clear current and move to previous input
         if (e.key === 'Backspace') {
             if (!digits[index] && index > 0) {
-                // If the box is empty, move focus to the previous box
                 inputsRef.current[index - 1]?.focus();
             } else if (digits[index]) {
-                // If the box is not empty, clear the digit and propagate change
-                e.preventDefault(); // Prevent default backspace behavior (moving back)
+                e.preventDefault(); 
                 const newDigits = [...digits];
                 newDigits[index] = '';
                 setDigits(newDigits);
@@ -127,10 +111,8 @@ const VerificationCodeInput = ({ length = 6, value, onChange }) => {
         </div>
     );
 };
-// --- END NEW VerificationCodeInput Component ---
 
 
-// --- Password Validation Utility (Copied from CreateAccountPage.jsx) ---
 const PASSWORD_REQUIREMENTS_LIST = [
     "at least 8 characters",
     "at least 1 letter (uppercase or lowercase)",
@@ -149,7 +131,6 @@ const validatePassword = (password) => {
         errors.push("at least 1 letter (uppercase or lowercase)");
     }
 
-    // Checking for special character or space
     if (!/[^a-zA-Z0-9]/.test(password)) {
         errors.push("at least 1 special character (!@#$...) or space");
     }
@@ -160,16 +141,13 @@ const validatePassword = (password) => {
 
     return errors;
 };
-// --- END Password Validation Utility ---
 
 
 const ForgotPasswordPage = () => {
     const navigate = useNavigate();
 
-    // Step 1: Request Code | Step 2: Verify Code | Step 3: Reset Password
     const [step, setStep] = useState(1);
     const [email, setEmail] = useState('');
-    // Code state remains a single 6-digit string
     const [code, setCode] = useState(''); 
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -180,7 +158,6 @@ const ForgotPasswordPage = () => {
 
     useEffect(() => setFadeIn(true), []);
 
-    // --- STEP 1: Request Code Handler ---
     const handleRequestCode = async (e) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
@@ -202,7 +179,7 @@ const ForgotPasswordPage = () => {
 
             if (response.ok) {
                 setStatusMessage({ type: 'success', text: data.message });
-                setStep(2); // Move to code verification step
+                setStep(2); 
             } else {
                 setStatusMessage({ type: 'error', text: data.message || 'Failed to request reset code.' });
             }
@@ -213,13 +190,11 @@ const ForgotPasswordPage = () => {
         setIsLoading(false);
     };
 
-    // --- STEP 2: Verify Code Handler ---
     const handleVerifyCode = async (e) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
         setIsLoading(true);
 
-        // Check if the code is exactly 6 digits (the new component only allows digits)
         if (code.length !== 6) { 
             setStatusMessage({ type: 'error', text: 'The code must be 6 digits.' });
             setIsLoading(false);
@@ -236,7 +211,7 @@ const ForgotPasswordPage = () => {
 
             if (response.ok) {
                 setStatusMessage({ type: 'success', text: data.message });
-                setStep(3); // Move to password reset step
+                setStep(3); 
             } else {
                 setStatusMessage({ type: 'error', text: data.message || 'Invalid or expired code.' });
             }
@@ -247,13 +222,11 @@ const ForgotPasswordPage = () => {
         setIsLoading(false);
     };
 
-    // --- STEP 3: Reset Password Handler ---
     const handleResetPassword = async (e) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
         setIsLoading(true);
         
-        // 1. Client-side Validation Checks
         const errors = validatePassword(newPassword);
         setPasswordErrors(errors);
 
@@ -318,18 +291,15 @@ const ForgotPasswordPage = () => {
                         <h2 style={styles.title}>Verify Code</h2>
                         <p style={styles.subtitle}>A 6-digit code has been sent to: <strong style={{ color: '#2563eb' }}>{email}</strong></p>
                         <form onSubmit={handleVerifyCode}>
-                            {/* --- NEW 6-BOX INPUT COMPONENT --- */}
                             <VerificationCodeInput
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
                                 length={6}
                             />
-                            {/* --- END NEW COMPONENT --- */}
                             <button type="submit" style={styles.button} disabled={isLoading || code.length !== 6}>
                                 {isLoading ? "Verifying..." : "Verify Code"}
                             </button>
                             <div style={styles.resendRow}>
-                                {/* Resetting email and code, and going back to step 1 */}
                                 <span onClick={() => { setStep(1); setStatusMessage({ type: '', text: '' }); setCode(''); }} style={styles.link}>
                                     Change Email or Resend Code
                                 </span>
@@ -384,12 +354,8 @@ const ForgotPasswordPage = () => {
 
     return (
         <div style={styles.pageContainer}>
-            {/* --- ADDED BACKGROUND OVERLAY --- */}
             <div style={styles.backgroundOverlay} /> 
-            {/* The background style is still applied to pageContainer implicitly via background,
-                but for consistency with LoginPage, we add the overlay separately. */}
             <div style={{ ...styles.background, opacity: fadeIn ? 1 : 0 }} />
-            {/* --- UPDATED Z-INDEX TO BE ABOVE OVERLAY --- */}
             <div style={{ ...styles.formContainer, opacity: fadeIn ? 1 : 0, zIndex: 2 }}> 
                 {renderContent()}
 
@@ -422,19 +388,16 @@ const styles = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        // The background image is typically applied here in LoginPage, but in this structure,
-        // it's applied to the 'background' element with fixed positioning.
-        position: 'relative', // Necessary for z-indexing
+        position: 'relative', 
     },
-    // --- NEW: MATCHING BACKGROUND OVERLAY STYLE ---
     backgroundOverlay: {
-        position: "fixed", // Use fixed to cover the entire viewport
+        position: "fixed",
         top: 0,
         left: 0,
         width: "100%",
         height: "100%",
-        backgroundColor: "rgba(37, 99, 235, 0.4)", // Matching LoginPage
-        zIndex: 1, // Place between background image and form container
+        backgroundColor: "rgba(37, 99, 235, 0.4)", 
+        zIndex: 1,
     },
     background: {
         position: "fixed",
@@ -446,7 +409,7 @@ const styles = {
         backgroundSize: "cover",
         backgroundPosition: "center",
         transition: "opacity 1s ease-in-out",
-        zIndex: 0, // Base layer
+        zIndex: 0, 
     },
     formContainer: {
         width: "100%",
@@ -457,7 +420,7 @@ const styles = {
         boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
         border: "1px solid #eee",
         transition: "opacity 0.5s ease-in-out",
-        zIndex: 2, // Ensure it is above the overlay (zIndex: 1)
+        zIndex: 2, 
     },
     title: { fontSize: "24px", fontWeight: "800", marginBottom: "6px", textAlign: "center", color: "#333" },
     subtitle: { fontSize: "14px", color: "#666", marginBottom: "24px", textAlign: "center" },
@@ -473,7 +436,6 @@ const styles = {
         backgroundColor: "white",
         transition: "border 0.2s ease",
     },
-    // --- NEW STYLES FOR 6-BOX CODE INPUT ---
     codeDigitContainer: {
         display: 'flex',
         justifyContent: 'space-between',

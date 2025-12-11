@@ -1,5 +1,3 @@
-// frontend/src/admin/AdminJobPage.jsx
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { 
@@ -7,10 +5,8 @@ import {
     ExternalLink, User, Calendar, Tag, Plus, Trash2, XCircle 
 } from 'lucide-react';
 
-// NOTE: Ensure this matches your actual API base URL.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- CONSTANTS & PALETTE ---
 const PRIMARY_BLUE_DARK = '#2563eb';
 const PRIMARY_BLUE = '#1e40af';
 const LIGHT_ACCENT_BG = 'rgba(30, 64, 175, 0.1)';
@@ -23,38 +19,29 @@ const JOB_TAG_OPTIONS = [
     'All', 'Full-Time', 'Part-Time', 'Internship', 'Contract',
 ];
 
-// --- UTILITY FUNCTIONS (OUTSIDE MAIN COMPONENT) ---
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
-// --- START: NEW VALIDATION LOGIC FROM SERVICES PAGE ---
 
-// Allows digits, spaces, plus signs (+), hyphens (-), or parentheses for 7-20 characters.
 const JOB_PHONE_REGEX = /^[0-9\s\+\-()]{7,20}$/; 
 const JOB_PHONE_ERROR_MSG = 'Invalid contact number format. Must be 7-20 characters long and contain only digits, spaces, plus signs (+), or hyphens (-).';
 
 const validateContactNumberJob = (number) => {
     const cleanedNumber = (number || '').trim();
     
-    // The field is REQUIRED for job posts.
     if (cleanedNumber === '') {
         return 'Contact number is required.';
     }
     
-    // Check format using the more flexible regex
     if (!JOB_PHONE_REGEX.test(cleanedNumber)) {
         return JOB_PHONE_ERROR_MSG;
     }
     return null;
 };
 
-// --- END: NEW VALIDATION LOGIC ---
-
-
-// Helper function for hover effects on primary action buttons (like Read More)
 const handlePrimaryButtonHover = (e, isHovering) => {
     if (isHovering) {
         e.currentTarget.style.backgroundColor = PRIMARY_BLUE_DARK;
@@ -63,7 +50,6 @@ const handlePrimaryButtonHover = (e, isHovering) => {
     }
 };
 
-// Helper function for hover effects on delete button footer
 const handleDeleteButtonHover = (e, isHovering) => {
     if (isHovering) {
         e.currentTarget.style.backgroundColor = '#B91C1C';
@@ -72,7 +58,6 @@ const handleDeleteButtonHover = (e, isHovering) => {
     }
 };
 
-// Helper function for hover effects on confirmation/message buttons
 const handleModalButtonHover = (e, isSuccess) => {
     if (isSuccess) {
         e.currentTarget.style.backgroundColor = PRIMARY_BLUE_DARK;
@@ -81,7 +66,6 @@ const handleModalButtonHover = (e, isSuccess) => {
     }
 };
 
-// --- STYLES (MOVED OUTSIDE FOR PERFORMANCE) ---
 
 const styles = {
     pageContainer: { padding: '30px', backgroundColor: NEUTRAL_PAGE_BG, minHeight: '100vh', },
@@ -143,7 +127,6 @@ const styles = {
     clearFileButton: { padding: '8px 15px', backgroundColor: '#FCA5A5', color: '#B91C1C', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' },
     submitButton: { width: '100%', padding: '15px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: '700', transition: 'background-color 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', },
     formErrorText: { color: '#DC2626', fontWeight: '600', textAlign: 'center', backgroundColor: '#FEE2E2', padding: '10px', borderRadius: '8px', marginBottom: '15px' },
-    // New style for inline validation errors
     validationErrorText: { 
         fontSize: '12px', 
         color: '#DC2626', 
@@ -186,12 +169,6 @@ const messageModalStyles = {
 };
 
 
-// --- REFACTORED MODAL COMPONENTS (OUTSIDE MAIN COMPONENT) ---
-
-/**
- * Component: JobCard
- * ... (No changes to JobCard)
- */
 const JobCard = React.memo(({ job, onClick, promptDeleteJob }) => {
     const [isHovered, setIsHovered] = useState(false);
 
@@ -258,10 +235,6 @@ const JobCard = React.memo(({ job, onClick, promptDeleteJob }) => {
 });
 
 
-/**
- * Component: JobDetailModal
- * ... (No changes to JobDetailModal)
- */
 const JobDetailModal = React.memo(({ isDetailModalOpen, selectedJob, applications, applicationsLoading, applicationsError, closeDetailModal }) => {
     if (!isDetailModalOpen || !selectedJob) return null;
 
@@ -365,23 +338,17 @@ const JobDetailModal = React.memo(({ isDetailModalOpen, selectedJob, application
 });
 
 
-/**
- * Component: PostJobModal
- * MODIFIED to accept error state, implement live validation, and display inline error message.
- */
 const PostJobModal = React.memo(({ 
     isPostModalOpen, setIsPostModalOpen, title, setTitle, jobBody, setJobBody, contactNumber, setContactNumber, 
     selectedTag, setSelectedTag, selectedFile, setSelectedFile, error, isUploadingFile, handlePostJobSubmit, 
-    handleFileChange, // Existing Props
-    contactNumberError, setContactNumberError // NEW Props
+    handleFileChange, 
+    contactNumberError, setContactNumberError 
 }) => {
     if (!isPostModalOpen) return null;
 
-    // --- NEW HANDLER FOR LIVE VALIDATION ---
     const handleContactNumberChange = (e) => {
         const value = e.target.value;
         setContactNumber(value);
-        // Perform live validation check
         setContactNumberError(validateContactNumberJob(value)); 
     };
 
@@ -413,21 +380,17 @@ const PostJobModal = React.memo(({
                         style={{...styles.textareaField, marginBottom: '15px'}} 
                     />
 
-                    {/* CONTACT NUMBER INPUT FIELD WITH INLINE VALIDATION */}
                     <div style={{ marginBottom: contactNumberError ? '5px' : '15px' }}>
                         <input 
                             type="text" 
                             placeholder="Contact Number (e.g., 09xxxxxxxxx or +63 9xx xxx xxxx)"
                             value={contactNumber} 
-                            // Use the new handler for live validation
                             onChange={handleContactNumberChange} 
                             style={{
                                 ...styles.inputField,
-                                // Apply dynamic border color on error
                                 borderColor: contactNumberError ? '#DC2626' : styles.inputField.borderColor,
                             }}
                         />
-                        {/* Display validation error message */}
                         {contactNumberError && (
                             <p style={styles.validationErrorText}>
                                 {contactNumberError}
@@ -468,7 +431,6 @@ const PostJobModal = React.memo(({
                         )}
                     </div>
 
-                    {/* General form error message is kept for other errors */}
                     {error && <p style={styles.formErrorText}>{error}</p>}
                     
                     <button 
@@ -476,7 +438,7 @@ const PostJobModal = React.memo(({
                         style={styles.submitButton}
                         onMouseEnter={(e) => handlePrimaryButtonHover(e, true)}
                         onMouseLeave={(e) => handlePrimaryButtonHover(e, false)}
-                        disabled={isUploadingFile || !!contactNumberError} // Disable on upload or validation error
+                        disabled={isUploadingFile || !!contactNumberError} 
                     >
                         {isUploadingFile ? 'Uploading Media...' : 'Post Job'}
                     </button>
@@ -486,10 +448,6 @@ const PostJobModal = React.memo(({
     );
 });
 
-/**
- * Component: DeleteConfirmationModal
- * ... (No changes to DeleteConfirmationModal)
- */
 const DeleteConfirmationModal = React.memo(({ jobIdToDelete, closeConfirmationModal, executeDeleteJob }) => {
     if (!jobIdToDelete) return null;
     
@@ -528,10 +486,6 @@ const DeleteConfirmationModal = React.memo(({ jobIdToDelete, closeConfirmationMo
 });
 
 
-/**
- * Component: MessageModal
- * ... (No changes to MessageModal)
- */
 const MessageModal = React.memo(({ message, isSuccess, closeMessageModal }) => {
     if (!message) return null;
 
@@ -558,7 +512,6 @@ const MessageModal = React.memo(({ message, isSuccess, closeMessageModal }) => {
 });
 
 
-// --- Filter Option Component (MOVED OUTSIDE) ---
 const FilterOption = React.memo(({ tag, activeTagFilter, setActiveTagFilter }) => {
     const isSelected = activeTagFilter === tag;
     
@@ -579,9 +532,7 @@ const FilterOption = React.memo(({ tag, activeTagFilter, setActiveTagFilter }) =
 });
 
 
-// --- Main Component ---
 const AdminJobPage = () => {
-    // --- STATE DEFINITION ---
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -596,9 +547,7 @@ const AdminJobPage = () => {
     const [title, setTitle] = useState('');
     const [jobBody, setJobBody] = useState('');
     const [contactNumber, setContactNumber] = useState('');
-    // START: NEW STATE FOR CONTACT NUMBER VALIDATION
     const [contactNumberError, setContactNumberError] = useState(null);
-    // END: NEW STATE
     const [selectedTag, setSelectedTag] = useState(JOB_TAG_OPTIONS[1]); 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [isUploadingFile, setIsUploadingFile] = useState(false); 
@@ -607,7 +556,6 @@ const AdminJobPage = () => {
     const [jobIdToDelete, setJobIdToDelete] = useState(null);
 
 
-    // --- HANDLER DEFINITIONS ---
 
     const closeMessageModal = useCallback(() => {
         setMessage(null);
@@ -721,28 +669,23 @@ const AdminJobPage = () => {
         }
     }, [selectedFile]);
 
-    // START: MODIFIED handlePostJobSubmit to use new validation state
     const handlePostJobSubmit = useCallback(async () => {
         
-        // 1. Trigger final contact number validation and update error state
         const validationError = validateContactNumberJob(contactNumber);
         setContactNumberError(validationError);
 
-        // 2. Check for required fields (Title, Body, Tag)
         if (!title.trim() || !jobBody.trim() || !selectedTag) {
             setMessage('Job Title, Description, and Category are required.');
             setIsSuccess(false);
             return;
         }
         
-        // 3. Check for format validation error (blocks submission if inline validation failed)
         if (validationError) {
             setMessage('Please correct the invalid contact number format before posting.');
             setIsSuccess(false);
             return;
         }
 
-        // The old, simpler phone regex check is now removed/replaced by `validateContactNumberJob`.
         
         try {
             let mediaUrls = [];
@@ -759,7 +702,7 @@ const AdminJobPage = () => {
             const res = await axios.post(`${API_BASE_URL}/threads`, payload, { withCredentials: true });
 
             if (res.status === 201 || res.status === 200) {
-                setTitle(''); setJobBody(''); setContactNumber(''); setContactNumberError(null); // Clear errors and inputs
+                setTitle(''); setJobBody(''); setContactNumber(''); setContactNumberError(null); 
                 setSelectedTag(JOB_TAG_OPTIONS[1]); setSelectedFile(null);
                 setIsPostModalOpen(false);
                 fetchJobs(); 
@@ -775,15 +718,12 @@ const AdminJobPage = () => {
             setIsSuccess(false);
         }
     }, [title, jobBody, contactNumber, selectedTag, selectedFile, uploadMedia, fetchJobs, setContactNumberError]);
-    // END: MODIFIED handlePostJobSubmit
 
 
-    // --- EFFECTS ---
     useEffect(() => {
         fetchJobs();
     }, [fetchJobs]);
 
-    // --- MEMOIZED DATA ---
     const filteredAndSortedJobs = useMemo(() => {
         let currentJobs = [...jobs];
         if (searchQuery) {
@@ -802,10 +742,8 @@ const AdminJobPage = () => {
         return currentJobs;
     }, [jobs, searchQuery, activeTagFilter]);
 
-    // --- Main Render ---
     return (
         <div style={styles.pageContainer}>
-            {/* Header */}
             <div style={styles.pageHeader}>
                 <h1 style={styles.pageTitle}> Job Listings Management</h1>
                 <button 
@@ -818,7 +756,6 @@ const AdminJobPage = () => {
                 </button>
             </div>
 
-            {/* Controls: Filters and Search */}
             <div style={styles.controls}>
                 <div style={styles.filterContainer}>
                     {JOB_TAG_OPTIONS.map(tag => (
@@ -843,7 +780,6 @@ const AdminJobPage = () => {
                 </div>
             </div>
 
-            {/* Job Grid */}
             <div style={styles.jobGrid}>
                 {loading && <p style={styles.loadingText}>Loading job listings...</p>}
                 {error && <p style={styles.errorText}>{error}</p>}
@@ -864,7 +800,6 @@ const AdminJobPage = () => {
                 )}
             </div>
 
-            {/* Modals (Passed props to external components) */}
             <JobDetailModal 
                 isDetailModalOpen={isDetailModalOpen} 
                 selectedJob={selectedJob} 
@@ -879,10 +814,8 @@ const AdminJobPage = () => {
                 title={title} setTitle={setTitle}
                 jobBody={jobBody} setJobBody={setJobBody}
                 contactNumber={contactNumber} setContactNumber={setContactNumber}
-                // START: PASS NEW VALIDATION PROPS
                 contactNumberError={contactNumberError} 
                 setContactNumberError={setContactNumberError}
-                // END: PASS NEW VALIDATION PROPS
                 selectedTag={selectedTag} setSelectedTag={setSelectedTag}
                 selectedFile={selectedFile} setSelectedFile={setSelectedFile}
                 error={error} isUploadingFile={isUploadingFile}

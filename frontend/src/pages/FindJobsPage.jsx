@@ -3,9 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Briefcase, MapPin, Tag, Clock, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react'; 
 
 import Sidebar from '../components/Sidebar';
-// import RightPanel from '../components/RightPanel'; <-- REMOVED
 
-// Utility function to format the time (Copied from HomePage for consistency)
 const getTimeSince = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     let interval = seconds / 31536000;
@@ -21,26 +19,21 @@ const getTimeSince = (date) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// CONSTANT for truncation length
 const MAX_POST_LENGTH = 300; 
 
-// Define job categories
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
 const allCategories = ['All', ...jobCategories];
 
-// Color map for tags
 const categoryColors = {
-    "Full-Time": '#a5f3fc', // Light Cyan
-    "Part-Time": '#fde68a', // Light Yellow
-    "Contract": '#fbcfe8', // Light Pink
-    "Internship": '#d9f99d', // Light Green
+    "Full-Time": '#a5f3fc', 
+    "Part-Time": '#fde68a', 
+    "Contract": '#fbcfe8', 
+    "Internship": '#d9f99d', 
 };
 
-// Helper: Function to render the media gallery (Copied from SavedPage/HomePage)
 const renderMediaGallery = (mediaUrls) => {
     if (!mediaUrls || mediaUrls.length === 0) return null;
 
-    // Common style for images in the gallery
     const imageStyle = {
         width: '100%', 
         height: '100%', 
@@ -67,7 +60,6 @@ const renderMediaGallery = (mediaUrls) => {
         </div>
     );
 
-    // Only handles 1 photo now (consistent with other pages)
     if (mediaUrls.length >= 1) { 
         return (
             <div style={styles.mediaGalleryContainer}>
@@ -81,20 +73,18 @@ const renderMediaGallery = (mediaUrls) => {
 
 
 const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
-    const location = useLocation(); // Get location object to read URL query
+    const location = useLocation(); 
     const [jobs, setJobs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    // Helper function to determine the category from the URL
     const getInitialCategory = () => {
         const params = new URLSearchParams(location.search);
         const category = params.get('category');
         return allCategories.includes(category) ? category : 'All';
     };
     
-    const [selectedCategory, setSelectedCategory] = useState(getInitialCategory); // Set initial state from URL
+    const [selectedCategory, setSelectedCategory] = useState(getInitialCategory); 
     
-    // NEW STATES FOR MODAL 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalJob, setModalJob] = useState(null); 
     
@@ -102,9 +92,7 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
     const fetchJobs = async (category) => {
         setIsLoading(true);
         try {
-            // Fetch jobs from the server.js endpoint, using the category filter
             const categoryQuery = category && category !== 'All' ? `?category=${category}` : '';
-            // Assuming the server URL is correct
             const res = await fetch(`http://localhost:5000/api/jobs${categoryQuery}`); 
             
             if (!res.ok) throw new Error("Failed to fetch jobs");
@@ -119,13 +107,11 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
         }
     };
 
-    // Effect to fetch jobs whenever the selected category changes
     useEffect(() => {
         document.title = "Find Jobs";
         fetchJobs(selectedCategory);
     }, [selectedCategory]);
     
-    // NEW Effect: Update selectedCategory when the URL query changes (e.g., from sidebar link click)
     useEffect(() => {
         const newCategory = getInitialCategory();
         if (newCategory !== selectedCategory) {
@@ -137,7 +123,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
         setSelectedCategory(category);
     };
     
-    // NEW HANDLERS FOR MODAL
     const openJobModal = (job) => {
         setModalJob(job);
         setIsModalOpen(true);
@@ -149,20 +134,17 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
     };
 
 
-    // Helper: Function to render the post body with truncation (MODIFIED for Modal)
     const renderPostBody = (job) => {
         const bodyContent = job.body || ""; 
         const isLongPost = bodyContent.length > MAX_POST_LENGTH;
 
         if (isLongPost) { 
-            // Truncated content
             const truncatedContent = bodyContent.substring(0, MAX_POST_LENGTH).trim() + '...';
             return (
                 <>
                     <p style={styles.jobBody}>
                         {truncatedContent}
                     </p>
-                    {/* Read More button calls openJobModal */}
                     <div 
                         style={styles.readMoreButton} 
                         onClick={() => openJobModal(job)} 
@@ -173,7 +155,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
             );
         }
 
-        // Full content if not long
         return (
             <p style={styles.jobBody}>
                 {bodyContent}
@@ -181,7 +162,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
         );
     };
 
-    // Helper to render job author avatar/initials
     const renderAvatar = (job) => {
         const initials = job.author
             ? job.author.split(' ').map(n => n[0]).join('').toUpperCase()
@@ -198,7 +178,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
         );
     };
 
-    // Render a single job card
     const renderJobCard = (job) => {
         const tagColor = categoryColors[job.tag] || '#e5e7eb'; 
 
@@ -207,7 +186,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                 <div style={styles.jobHeader}>
                     {renderAvatar(job)}
                     <div style={styles.jobTitleArea}>
-                        {/* Job title removed as requested */}
                         <p style={styles.jobAuthor}>Posted by {job.author}</p>
                     </div>
                     <div style={{...styles.tag, backgroundColor: tagColor}}>
@@ -216,38 +194,29 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                     </div>
                 </div>
                 
-                {/* START: Job Content Wrapper - Takes up remaining space and handles overflow */}
                 <div style={styles.jobContentWrapper}>
-                    {/* Use the renderPostBody helper */}
                     {renderPostBody(job)} 
 
-                    {/* Display media gallery if URLs exist */}
                     {renderMediaGallery(job.mediaUrls)}
                 </div>
-                {/* END: Job Content Wrapper */}
                 
                 <div style={styles.jobMeta}>
                     <div style={styles.metaItem}><Clock size={14} /> {getTimeSince(job.time)}</div>
-                    {/* Display contact number if available */}
                     {job.contactNumber && (
                         <div style={styles.metaItem}><Briefcase size={14} /> Contact: {job.contactNumber}</div>
                     )}
                 </div>
-                {/* Button removed as requested */}
             </div>
         );
     };
 
     return (
         <div style={styles.pageContainer}>
-            {/* Sidebar (Left Panel) */}
             <Sidebar /> 
             
-            {/* Main Content Area - Now uses full width (minus sidebar) */}
             <div style={styles.mainContent}>
                 <h1 style={styles.heading}>Explore Job Opportunities</h1>
                 
-                {/* Category Filter Buttons */}
                 <div style={styles.filterContainer}>
                     {allCategories.map(cat => (
                         <button 
@@ -260,7 +229,6 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                     ))}
                 </div>
                 
-                {/* Job List */}
                 <div style={styles.jobListContainer}>
                     {isLoading ? (
                         <p style={styles.loadingText}>Loading jobs...</p>
@@ -274,11 +242,8 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
             
 
             {isModalOpen && modalJob && (
-                // ⭐ MODIFIED: Add onClick handler to close the modal when clicking the overlay
                 <div style={styles.modalOverlay} onClick={closeJobModal}>
-                    {/* ⭐ MODIFIED: Add onClick handler to stop propagation so clicks inside don't close it */}
                     <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        {/* MODIFIED: Removed modalJobTitle element. Only show close button */}
                         <div style={styles.modalHeader}>
                             <X size={28} style={{ cursor: 'pointer', color: '#1e3a8a' }} onClick={closeJobModal} />
                         </div>
@@ -289,12 +254,10 @@ const FindJobsPage = ({ userName, userEmail, profilePictureUrl }) => {
                             <span style={styles.modalTime}>{getTimeSince(modalJob.time)}</span>
                         </div>
                         
-                        {/* Full Content */}
                         <p style={styles.modalJobBody}>
                             {modalJob.body}
                         </p>
 
-                        {/* Media (if any) */}
                         {renderMediaGallery(modalJob.mediaUrls)}
 
                         <button onClick={closeJobModal} style={styles.modalCloseButton}>
@@ -314,10 +277,8 @@ const styles = {
         justifyContent: 'flex-start',
     },
     mainContent: {
-        // marginRight: '290px', <-- REMOVED
-        // paddingRight: '60px', <-- REMOVED
         paddingLeft: '15px',
-        paddingRight: '60px', // Re-add padding to the right edge
+        paddingRight: '60px', 
         paddingTop: '20px', 
         paddingBottom: '20px', 
         flexGrow: 1,
@@ -359,7 +320,6 @@ const styles = {
     },
     jobListContainer: {
         display: 'grid',
-        // ENSURED: 3 columns per row
         gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '25px',
     },
@@ -371,13 +331,11 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         transition: 'transform 0.2s',
-        // MODIFIED: Fixed Height for horizontal alignment of footer
         height: '480px', 
     },
-    // NEW: Wrapper for variable content
     jobContentWrapper: {
-        flex: 1, // Allows it to take up all available vertical space
-        overflowY: 'auto', // Adds scrollbar if content overflows
+        flex: 1, 
+        overflowY: 'auto',
         paddingBottom: '15px', 
         marginBottom: '10px',
     },
@@ -386,7 +344,7 @@ const styles = {
         alignItems: 'center',
         marginBottom: '15px',
         gap: '15px',
-        flexShrink: 0, // Ensure header does not shrink
+        flexShrink: 0,
     },
     jobTitleArea: {
         flexGrow: 1,
@@ -422,7 +380,7 @@ const styles = {
         marginBottom: '15px',
         borderRadius: '10px',
         overflow: 'hidden',
-        flexShrink: 0, // Ensure media container doesn't shrink inside content wrapper
+        flexShrink: 0, 
     },
     readMoreButton: {
         display: 'flex',
@@ -435,19 +393,17 @@ const styles = {
         marginTop: '10px',
         marginBottom: '15px', 
         width: 'fit-content',
-        flexShrink: 0, // Ensure button does not shrink
+        flexShrink: 0,
     },
     jobMeta: {
         display: 'flex',
         gap: '20px',
-        // ADJUSTED: Padding and border moved up to maintain alignment after button removal
-        // Also removed marginBottom which was intended for spacing before the button
         paddingTop: '10px',
         borderTop: '1px solid #f3f4f6',
-        flexShrink: 0, // Ensure meta section does not shrink
-        marginTop: 'auto', // Push meta and clock to the bottom (since no button is below it)
+        flexShrink: 0, 
+        marginTop: 'auto', 
         marginBottom: '0', 
-        paddingBottom: '10px', // Added padding bottom to give space from the card edge
+        paddingBottom: '10px', 
     },
     metaItem: {
         display: 'flex',
@@ -456,7 +412,6 @@ const styles = {
         fontSize: '12px',
         color: '#6b7280',
     },
-    // applyButton style removed
     loadingText: {
         fontSize: '16px',
         color: '#6b7280',
@@ -492,7 +447,6 @@ const styles = {
         objectFit: 'cover',
     },
     
-    // MODAL STYLES (Kept as is)
     modalOverlay: { 
         position: 'fixed', 
         top: 0, 

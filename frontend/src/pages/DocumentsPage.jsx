@@ -1,4 +1,3 @@
-// frontend/src/pages/DocumentsPage.jsx
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -7,15 +6,10 @@ import {
 } from 'react-icons/fi'; 
 import { useNavigate } from 'react-router-dom';
 
-// --- Configuration Constants ---
 const API_BASE_URL = 'http://localhost:5000/api';
-// Define the host where the generated files are served (must match your server's host/port)
 const BASE_HOST = 'http://localhost:5000'; 
-// Define the max download limit
-const MAX_DOWNLOAD_LIMIT = 2; // NEW CONSTANT
-// -------------------------------
+const MAX_DOWNLOAD_LIMIT = 2; 
 
-// Utility function to get the correct badge style
 const getStatusBadge = (status) => {
     let color = '#374151';
     let backgroundColor = '#f3f4f6';
@@ -60,11 +54,7 @@ const getStatusBadge = (status) => {
     };
 };
 
-// --- Helper Components ---
-
-// Document Template Component
 const DocumentTemplates = () => {
-    // The path in the href attribute is relative to the public/ directory
     const templates = [
         { name: 'Barangay Blotter Form', path: '/forms/Blotter.pdf', icon: <FiFileText /> },
         { name: 'Barangay Volunteer Application Form', path: '/forms/Volunteer.pdf', icon: <FiUser /> },
@@ -79,7 +69,7 @@ const DocumentTemplates = () => {
                     <a 
                         key={index} 
                         href={template.path} 
-                        download // This attribute triggers the browser to download the file
+                        download 
                         style={styles.templateCard}
                         target="_blank" 
                         rel="noopener noreferrer"
@@ -96,7 +86,6 @@ const DocumentTemplates = () => {
     );
 };
 
-// Confirmation Modal Component
 const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText, confirmStyle }) => {
     if (!isOpen) return null;
 
@@ -153,18 +142,14 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
     );
 };
 
-// Application Modal Component (Simplified for brevity, assuming existing styles are present)
 const ApplicationModal = ({ 
     show, document, onClose, onSubmit, fullName, setFullName, purpose, setPurpose, 
     requirementsFiles, handleRequirementsChange, paymentMethod, setPaymentMethod, 
     referenceNumber, setReferenceNumber, barangayPaymentDetails, feeRequired,
-    // START OF CHANGE: Add new props
     purok, setPurok, birthdate, setBirthdate 
-    // END OF CHANGE
 }) => {
     if (!show || !document) return null;
     
-    // Use the existing modalStyles for the structure
     const modalStyles = styles.modalStyles;
 
     return (
@@ -175,13 +160,11 @@ const ApplicationModal = ({
                     <button onClick={onClose} style={modalStyles.closeButton}><FiX size={20} /></button>
                 </div>
                 <form onSubmit={onSubmit}>
-                    {/* Form Groups */}
                     <div style={modalStyles.formGroup}>
                         <label style={modalStyles.label}>Applicant Full Name *</label>
                         <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} style={modalStyles.input} required />
                     </div>
                     
-                    {/* START OF CHANGE: Add Purok and Birthdate fields */}
                     <div style={{ display: 'flex', gap: '15px' }}>
                         <div style={{ ...modalStyles.formGroup, flex: 1 }}>
                             <label style={modalStyles.label}>Purok / Zone *</label>
@@ -192,14 +175,12 @@ const ApplicationModal = ({
                             <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={modalStyles.input} required />
                         </div>
                     </div>
-                    {/* END OF CHANGE */}
 
                     <div style={modalStyles.formGroup}>
                         <label style={modalStyles.label}>Purpose of Application *</label>
                         <textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} style={modalStyles.textarea} placeholder="e.g., Job application, School registration, Business permit renewal" required />
                     </div>
                     
-                    {/* Requirements Section */}
                     <div style={modalStyles.requirementsBox}>
                         <h3 style={modalStyles.requirementsHeader}><FiPaperclip /> Required Documents</h3>
                         <p style={modalStyles.requirementsList}> {document.requirements} </p>
@@ -211,7 +192,6 @@ const ApplicationModal = ({
                         </div>
                     </div>
                     
-                    {/* Payment Section (if fee is required) */}
                     {feeRequired && (
                         <div style={modalStyles.paymentBox}>
                             <h3 style={modalStyles.requirementsHeader}>Payment Details (Fee: ₱{document.fee.toLocaleString()})</h3>
@@ -223,9 +203,7 @@ const ApplicationModal = ({
                                             key={index} 
                                             value={detail.method_name}
                                         >
-                                            {/* START OF CHANGE: Display method name and account number */}
                                             {detail.method_name} (No: {detail.account_number})
-                                            {/* END OF CHANGE */}
                                         </option>
                                     ))}
                                 </select>
@@ -246,14 +224,12 @@ const ApplicationModal = ({
 };
 
 
-// --- Main Component ---
 const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const [documents, setDocuments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState('');
     
-    // History, Modal, Confirmation states
     const [applicationHistory, setApplicationHistory] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDocument, setCurrentDocument] = useState(null);
@@ -261,20 +237,14 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const [confirmAction, setConfirmAction] = useState(null); 
     const [targetApplication, setTargetApplication] = useState(null); 
     
-    // START OF CHANGE: Add state to track download counts per application
-    const [downloadCounts, setDownloadCounts] = useState({}); // { applicationId: count, ... }
-    // END OF CHANGE
+    const [downloadCounts, setDownloadCounts] = useState({}); 
     
-    // Form States
     const [fullName, setFullName] = useState(userName || '');
-    // START OF CHANGE: Add new form states
     const [purok, setPurok] = useState('');
     const [birthdate, setBirthdate] = useState('');
-    // END OF CHANGE
     const [purpose, setPurpose] = useState('');
     const [requirementsFiles, setRequirementsFiles] = useState([]); 
     
-    // Payment States
     const [paymentMethod, setPaymentMethod] = useState(''); 
     const [referenceNumber, setReferenceNumber] = useState(''); 
     const [barangayPaymentDetails, setBarangayPaymentDetails] = useState([]); 
@@ -325,7 +295,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const fetchApplicationHistory = async () => {
         if (!userEmail) return;
         try {
-            // Server endpoint should return generated_path and exclude soft-deleted documents
             const response = await fetch(`${API_BASE_URL}/documents/history/${userEmail}`); 
             if (!response.ok) {
                 throw new Error('Failed to fetch application history.');
@@ -383,7 +352,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
 
     const executeDeleteApplication = async (applicationId, documentName) => {
         try {
-            // Soft-delete endpoint
             const response = await fetch(`${API_BASE_URL}/documents/remove-from-history/${applicationId}`, {
                 method: 'PUT', 
                 headers: { 'Content-Type': 'application/json' },
@@ -398,7 +366,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 setApplicationHistory(prevHistory => 
                     prevHistory.filter(app => app.id !== applicationId)
                 );
-                // Also remove from download counts if it's being removed
                 setDownloadCounts(prevCounts => {
                     const newCounts = { ...prevCounts };
                     delete newCounts[applicationId];
@@ -421,10 +388,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
         setCurrentDocument(doc);
         setFullName(userName || ''); 
-        // START OF CHANGE: Reset new form states
         setPurok('');
         setBirthdate('');
-        // END OF CHANGE
         setPurpose('');
         setRequirementsFiles([]); 
         setPaymentMethod(barangayPaymentDetails.length > 0 ? barangayPaymentDetails[0].method_name : '');
@@ -444,12 +409,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
     const handleApply = async (e) => {
         e.preventDefault();
         
-        // START OF CHANGE: Include new form fields in validation
         if (!currentDocument || !fullName || !purok || !birthdate || !purpose || requirementsFiles.length === 0) {
             alert('Please fill out all required text fields (Name, Purok, Birthdate, Purpose) and upload the necessary requirements.');
             return;
         }
-        // END OF CHANGE
         
         const feeRequired = currentDocument.fee > 0;
         
@@ -464,10 +427,8 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         formData.append('document_id', currentDocument.id);
         formData.append('user_email', userEmail);
         formData.append('full_name', fullName);
-        // START OF CHANGE: Append new form fields to FormData
         formData.append('purok', purok);
         formData.append('birthdate', birthdate);
-        // END OF CHANGE
         formData.append('purpose', purpose);
         formData.append('requirements_details', currentDocument.requirements); 
         
@@ -505,7 +466,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
     };
     
-    // START OF CHANGE: Download logic updated to enforce max download limit
     const handleDownload = (application) => {
         const applicationId = application.id;
         const currentCount = downloadCounts[applicationId] || 0;
@@ -516,11 +476,9 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
         }
         
         if (application.generated_path && (application.status === 'Approved' || application.status === 'Completed')) {
-            // Prepend the host/port to the partial path to create the full, publicly accessible URL
             const fullUrl = `${BASE_HOST}${application.generated_path}`;
             window.open(fullUrl, '_blank');
             
-            // Increment the count only if the download is initiated (client-side enforcement)
             setDownloadCounts(prevCounts => ({
                 ...prevCounts,
                 [applicationId]: currentCount + 1
@@ -529,7 +487,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             alert('The document is not yet approved or the generated file is not available.');
         }
     };
-    // END OF CHANGE
 
 
     if (loading) {
@@ -558,7 +515,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             
             <DocumentTemplates />
 
-            {/* Document Cards Section */}
             <div style={styles.documentGrid}>
                 {documents.map(doc => (
                     <div key={doc.id} style={styles.documentCard}>
@@ -587,7 +543,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 ))}
             </div>
 
-            {/* Application History Section - Professional Design */}
             {isLoggedIn && (
                 <div style={styles.historySection}>
                     <h2 style={styles.historyHeader}><FiClock size={20} style={{marginRight: '10px'}} /> Application History</h2>
@@ -597,12 +552,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                         <div style={styles.historyGrid}>
                             {applicationHistory.map(app => {
                                 const statusBadge = getStatusBadge(app.status);
-                                // START OF CHANGE: Determine if download is disabled
                                 const applicationId = app.id;
                                 const currentCount = downloadCounts[applicationId] || 0;
                                 const isDownloadLimitReached = currentCount >= MAX_DOWNLOAD_LIMIT;
                                 const isDownloadAvailable = (app.status === 'Approved' || app.status === 'Completed') && app.generated_path;
-                                // END OF CHANGE
                                 
                                 return (
                                 <div key={app.id} style={styles.proHistoryItem}> 
@@ -634,8 +587,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
 
 
                                     <div style={styles.historyActions}>
-                                        {/* Download Button for Approved/Completed Documents */}
-                                        {/* START OF CHANGE: Add disabled condition and title attribute */}
                                         {isDownloadAvailable && (
                                             <button 
                                                 onClick={() => handleDownload(app)} 
@@ -646,9 +597,7 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                                 <FiDownload size={18} /> {isDownloadLimitReached ? 'Limit Reached' : 'Download'}
                                             </button>
                                         )}
-                                        {/* END OF CHANGE */}
                                         
-                                        {/* Cancel Button */}
                                         {(app.status === 'Pending' || app.status === 'Rejected') && (
                                             <button 
                                                 onClick={() => handleOpenConfirmation('cancel', app.id, app.document_name)}
@@ -658,7 +607,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                                             </button>
                                         )}
                                         
-                                        {/* Delete Button (Remove from History - Soft Delete) */}
                                         {(app.status === 'Cancelled' || app.status === 'Rejected' || app.status === 'Completed') && (
                                             <button 
                                                 onClick={() => handleOpenConfirmation('delete', app.id, app.document_name)}
@@ -676,7 +624,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
             )}
 
 
-            {/* Application Modal */}
             <ApplicationModal
                 show={isModalOpen}
                 document={currentDocument}
@@ -684,12 +631,10 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 onSubmit={handleApply}
                 fullName={fullName}
                 setFullName={setFullName}
-                // START OF CHANGE: Pass new props
                 purok={purok}
                 setPurok={setPurok}
                 birthdate={birthdate}
                 setBirthdate={setBirthdate}
-                // END OF CHANGE
                 purpose={purpose}
                 setPurpose={setPurpose}
                 requirementsFiles={requirementsFiles}
@@ -702,7 +647,6 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 feeRequired={currentDocument?.fee > 0}
             />
 
-            {/* Confirmation Modal */}
             <ConfirmationModal
                 isOpen={isConfirmModalOpen}
                 title={confirmAction === 'delete' ? 'Remove from History?' : 'Cancel Application?'}
@@ -717,21 +661,17 @@ const DocumentsPage = ({ userEmail, userName, profilePictureUrl }) => {
                 confirmStyle={confirmAction}
             />
 
-            {/* Styles Definition (Included for completeness) */}
             <style jsx>{` /* Global Styles */ button { transition: background-color 0.2s; } button:hover:not(:disabled) { opacity: 0.9; } button:disabled { cursor: not-allowed; opacity: 0.6; } `}</style> 
         </div>
     );
 };
 
-// Styles object for DocumentsPage (Partial styles for brevity, assuming existing comprehensive styles)
 const styles = {
-    // ... (Existing styles for container, header, subheader, successBox, loginAlert, documentGrid, etc.)
     container: { padding: '20px', maxWidth: '1200px', margin: '0 auto', },
     header: { fontSize: '24px', fontWeight: '700', color: '#1e40af', marginBottom: '15px', },
     subheader: { color: '#4b5563', marginBottom: '30px', fontSize: '16px', },
     successBox: { backgroundColor: '#d1fae5', color: '#065f46', padding: '15px', borderRadius: '8px', marginBottom: '20px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid #1e40af', },
     
-    // MODIFIED: Enforce 3 columns
     documentGrid: { 
         display: 'grid', 
         gridTemplateColumns: 'repeat(3, 1fr)', 
@@ -739,7 +679,6 @@ const styles = {
         marginBottom: '40px', 
     },
     
-    // MODIFIED: Added hover effect
     documentCard: { 
         backgroundColor: 'white', 
         borderRadius: '12px', 
@@ -747,7 +686,7 @@ const styles = {
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)', 
         display: 'flex', 
         flexDirection: 'column', 
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease', // Added transition for hover
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease', 
         ':hover': { 
             transform: 'translateY(-5px)', 
             boxShadow: '0 10px 20px rgba(0, 0, 0, 0.15)',
@@ -763,25 +702,21 @@ const styles = {
     applyButton: { backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '600', marginTop: 'auto', },
     disabledButton: { backgroundColor: '#9ca3af', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', marginTop: 'auto', },
     
-    // History Section Styles
     historySection: { marginBottom: '40px', },
     historyHeader: { fontSize: '22px', fontWeight: '700', color: '#1e40af', marginBottom: '20px', display: 'flex', alignItems: 'center', },
     
-    // MODIFIED: Enforce 3 columns
     historyGrid: { 
         display: 'grid', 
         gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '20px', 
     },
     
-    // --- PROFESSIONAL HISTORY CARD STYLES ---
-    // MODIFIED: Added smoother transition and enhanced hover effect
     proHistoryItem: { 
         backgroundColor: 'white', 
         padding: '20px', 
         borderRadius: '12px', 
         boxShadow: '0 8px 15px rgba(0, 0, 0, 0.08)', 
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease', // Added transition for hover
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease', 
         position: 'relative', 
         overflow: 'hidden', 
         ':hover': { 
@@ -798,7 +733,7 @@ const styles = {
     },
     historyDocumentName: { fontSize: '1.4rem', fontWeight: '700', color: '#1f2937', margin: '0', },
     
-    historyMetaRow: { // New Row for ID and Date
+    historyMetaRow: { 
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -811,8 +746,8 @@ const styles = {
     
     historyDetailsWrapper: { marginBottom: '15px', },
     proHistoryDetail: { fontSize: '0.9rem', color: '#4b5563', margin: '5px 0', display: 'flex', alignItems: 'center', },
-    proHistoryPurpose: { fontSize: '0.9rem', color: '#4b5563', margin: '5px 0', display: 'flex', alignItems: 'flex-start', }, // For purpose
-    proIcon: { marginRight: '8px', color: '#1e40af', minWidth: '14px', }, // MODIFIED: Icon color changed to #1e40af
+    proHistoryPurpose: { fontSize: '0.9rem', color: '#4b5563', margin: '5px 0', display: 'flex', alignItems: 'flex-start', }, 
+    proIcon: { marginRight: '8px', color: '#1e40af', minWidth: '14px', }, 
     
     historyActions: { 
         marginTop: '20px', 
@@ -827,14 +762,10 @@ const styles = {
     historyCancelButton: { backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #dc2626', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', },
     historyDeleteButton: { backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', },
     historyDownloadButton: { backgroundColor: '#1e40af', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', },
-    // START OF CHANGE: Add disabled download button style
     historyDisabledDownloadButton: { backgroundColor: '#9ca3af', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'not-allowed', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', opacity: 0.7, },
-    // END OF CHANGE
     
     noHistory: { color: '#6b7280', fontStyle: 'italic', textAlign: 'center', padding: '20px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', },
-    // --- END PROFESSIONAL HISTORY CARD STYLES ---
 
-    // Template Section Styles
     templatesSection: { padding: '25px', backgroundColor: '#f0f9ff', borderRadius: '12px', marginBottom: '40px', border: '1px solid #bae6fd' },
     templatesHeader: { fontSize: '1.5rem', color: '#0369a1', fontWeight: '700', marginBottom: '10px', display: 'flex', alignItems: 'center' },
     templatesSubheader: { color: '#4b5563', marginBottom: '20px' },
@@ -845,7 +776,6 @@ const styles = {
     templateName: { color: '#1f2937', fontWeight: '600', fontSize: '0.95rem' },
     templateDownloadIcon: { color: '#3b82f6' },
     
-    // Modal Styles (Partial/Placeholder)
     modalStyles: {
         backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, },
         modal: { backgroundColor: '#ffffff', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', position: 'relative' },

@@ -3100,6 +3100,94 @@ app.delete('/api/admin/contact-messages/:id', (req, res) => {
         res.status(200).json({ message: 'Contact message deleted successfully.' });
     });
 });
+const getAuthenticatedUserId = (req) => { 
+    
+    const id = req.query.userId || req.body.userId; 
+    
+    return id ? parseInt(id, 10) : null; 
+};
+
+const CATEGORY_SCHEMA_MAP = {
+    'announcement': { 
+        tableName: 'barangay_announcements', 
+        dateColumn: 'date_published' 
+    },
+    'news': { 
+        tableName: 'barangay_news', 
+        dateColumn: 'date_published' 
+    },
+    'service': { 
+        tableName: 'barangay_services', 
+        dateColumn: 'created_at' 
+    },
+};
+
+app.get('/api/unread-counts', async (req, res) => {
+    const userId = getAuthenticatedUserId(req); 
+
+    if (!userId) {
+        return res.status(401).json({ message: 'Authentication required for unread counts.' });
+    }
+    const categories = Object.keys(CATEGORY_SCHEMA_MAP);
+    const counts = {};
+    let queriesCompleted = 0;
+
+    const checkAndSendResponse = () => {
+        queriesCompleted++;
+        if (queriesCompleted === categories.length) {
+            res.status(200).json(counts);
+        }
+    };
+
+    categories.forEach(category => {
+        const schema = CATEGORY_SCHEMA_MAP[category];
+        
+        const SQL_COUNT_UNREAD = `
+            SELECT 
+                (SELECT COUNT(*) 
+                 FROM ${schema.tableName} 
+                 WHERE ${schema.dateColumn} > IFNULL(
+                    (SELECT last_read_at FROM user_unread_counts WHERE user_id = ? AND category = ?), 
+                    '2000-01-01 00:00:00'
+                 )
+                ) as count
+        `;
+        
+        db.query(SQL_COUNT_UNREAD, [userId, category], (err, results) => {
+            if (err) {
+                console.error(`Database error fetching unread count for ${category}:`, err);
+                counts[category] = 0; 
+            } else {
+                counts[category] = results.length > 0 ? parseInt(results[0].count, 10) : 0;
+            }
+            checkAndSendResponse();
+        });
+    });
+});
+
+
+app.post('/api/mark-as-read', (req, res) => {
+    const userId = getAuthenticatedUserId(req); 
+    const { category } = req.body; 
+
+    if (!userId || !category) {
+        return res.status(400).json({ message: 'User ID and category are required.' });
+    }
+    
+    const SQL_MARK_AS_READ = `
+        INSERT INTO user_unread_counts (user_id, category, last_read_at)
+        VALUES (?, ?, NOW())
+        ON DUPLICATE KEY UPDATE last_read_at = NOW();
+    `;
+
+    db.query(SQL_MARK_AS_READ, [userId, category], (err, result) => {
+        if (err) {
+            console.error(`Database error marking ${category} as read:`, err);
+            return res.status(500).json({ message: 'Failed to update read status.' });
+        }
+        res.status(200).json({ message: `${category} marked as read.` });
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

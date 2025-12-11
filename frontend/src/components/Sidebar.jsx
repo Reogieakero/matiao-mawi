@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Bell, File, Settings, Bookmark, Rss } from 'lucide-react'; // Import Bookmark
+import { Home, FileText, Bell, File, Settings, Bookmark, Rss } from 'lucide-react'; 
 
 // Define job categories (matching those in HomePage.jsx)
 const jobCategories = ["Full-Time", "Part-Time", "Contract", "Internship"];
@@ -13,16 +13,87 @@ const categoryColors = {
     "Internship": '#d9f99d',
 };
 
-// MODIFIED: Accepts refetchTrigger prop
-const Sidebar = ({ refetchTrigger }) => {
+// Map of link names to the backend category key used in the database
+const BADGED_LINKS_MAP = {
+    'Announcements': 'announcement',
+    'News': 'news',
+    'Services': 'service',
+};
+
+// Helper style for the badge used in the main navigation links (to fit inline)
+// FINAL UPDATE: Styled as a small red circle for notifications.
+const navBadgeStyle = {
+    backgroundColor: '#ef4444', // Bright red color
+    color: '#fff',
+    fontWeight: 700,
+    borderRadius: '50%', // Perfect circle
+    width: '20px',       // Fixed width
+    height: '20px',      // Fixed height
+    display: 'flex',     // Use flexbox for centering
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontSize: '10px',    // Small font size for a tight fit
+    marginLeft: 'auto',  // Push badge to the right
+    minWidth: '20px',    // Ensures width is not overridden
+    textAlign: 'center',
+    lineHeight: '1',     // Ensure vertical centering
+};
+
+
+const Sidebar = ({ refetchTrigger, userId }) => { 
     const location = useLocation();
     const [hoveredLink, setHoveredLink] = useState(null);
     const [jobCounts, setJobCounts] = useState([]); 
     
-    // NEW: Function to fetch job counts
+    // NEW STATE: To hold unread counts for Announcement, News, and Service
+    const [unreadCounts, setUnreadCounts] = useState({ announcement: 0, news: 0, service: 0 });
+    
+    // 2. We use the prop 'userId' directly instead of a hardcoded constant.
+    const currentUserId = userId; 
+
+
+    // NEW: Function to fetch unread counts
+    const fetchUnreadCounts = async () => {
+        if (!currentUserId) return; // Guard clause updated to use currentUserId (which is the prop)
+
+        try {
+            // Fetch counts, passing userId as a query parameter
+            const res = await fetch(`http://localhost:5000/api/unread-counts?userId=${currentUserId}`); 
+            if (!res.ok) throw new Error("Failed to fetch unread counts");
+            
+            const data = await res.json();
+            // Data structure expected: { announcement: 5, news: 2, service: 0 }
+            setUnreadCounts(data);
+        } catch (error) {
+            console.error("Error fetching unread counts:", error);
+            setUnreadCounts({ announcement: 0, news: 0, service: 0 });
+        }
+    };
+    
+    // NEW: Function to mark a category as read
+    const markAsRead = async (category) => {
+        if (!currentUserId || !BADGED_LINKS_MAP[category]) return; // Guard clause updated
+
+        try {
+            // Post to the backend to update the user's 'last_read_at' timestamp
+            const res = await fetch('http://localhost:5000/api/mark-as-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUserId, category: BADGED_LINKS_MAP[category] }), // Uses currentUserId
+            });
+            if (!res.ok) throw new Error(`Failed to mark ${category} as read`);
+
+            // Optimistic UI update: Immediately reset the count for the clicked tab
+            setUnreadCounts(prev => ({ ...prev, [BADGED_LINKS_MAP[category]]: 0 }));
+            
+        } catch (error) {
+            console.error(`Error marking ${category} as read:`, error);
+        }
+    };
+    
+    // EXISTING: Function to fetch job counts
     const fetchJobCounts = async () => {
         try {
-            // FIX: Corrected URL to match the endpoint in server.js
             const res = await fetch("http://localhost:5000/api/job-categories"); 
             if (!res.ok) throw new Error("Failed to fetch job category counts");
             
@@ -50,16 +121,16 @@ const Sidebar = ({ refetchTrigger }) => {
         }
     };
 
-    // MODIFIED: useEffect now depends on refetchTrigger
+    // MODIFIED: useEffect now calls both fetch functions
     useEffect(() => {
-        // This effect re-runs whenever refetchTrigger changes, forcing an update
         fetchJobCounts();
-    }, [refetchTrigger]); 
+        fetchUnreadCounts(); 
+    }, [refetchTrigger, currentUserId]); 
 
 
     const navItems = [
         { name: 'Home', path: '/home', icon: <Home size={20} /> },
-        { name: 'Saved', path: '/saved', icon: <Bookmark size={20} /> }, // NEW SAVED ITEM
+        { name: 'Saved', path: '/saved', icon: <Bookmark size={20} /> }, 
         { name: 'News', path: '/news', icon: <Rss size={20} /> },
         { name: 'Announcements', path: '/announcements', icon: <Bell size={20} /> },
         { name: 'Documents', path: '/documents', icon: <File size={20} /> },
@@ -72,6 +143,7 @@ const Sidebar = ({ refetchTrigger }) => {
         gap: '10px',
         padding: '10px 15px',
         textDecoration: 'none',
+        // Check location.pathname for active style
         color: location.pathname === path
             ? '#2563eb'
             : hoveredLink === path
@@ -91,18 +163,33 @@ const Sidebar = ({ refetchTrigger }) => {
     return (
         <aside style={styles.sidebar}>
             {/* Navigation Links */}
-            {navItems.map(item => (
-                <Link
-                    key={item.path}
-                    to={item.path}
-                    style={getLinkStyle(item.path)}
-                    onMouseEnter={() => setHoveredLink(item.path)}
-                    onMouseLeave={() => setHoveredLink(null)}
-                >
-                    {item.icon}
-                    <span>{item.name}</span>
-                </Link>
-            ))}
+            {navItems.map(item => {
+                const categoryKey = BADGED_LINKS_MAP[item.name];
+                const count = categoryKey ? unreadCounts[categoryKey] : 0;
+                const showBadge = count > 0;
+                
+                return (
+                    <Link
+                        key={item.path}
+                        to={item.path}
+                        style={getLinkStyle(item.path)}
+                        onMouseEnter={() => setHoveredLink(item.path)}
+                        onMouseLeave={() => setHoveredLink(null)}
+                        // NEW: Attach markAsRead handler if the item has a badge
+                        onClick={categoryKey ? () => markAsRead(item.name) : undefined} 
+                    >
+                        {item.icon}
+                        <span>{item.name}</span>
+
+                        {/* FINAL: Badge rendering uses the circular red style */}
+                        {showBadge && (
+                            <span style={navBadgeStyle}>
+                                {count}
+                            </span>
+                        )}
+                    </Link>
+                );
+            })}
 
             {/* Find Jobs Section */}
             <div style={styles.findJobCard}>
@@ -113,7 +200,6 @@ const Sidebar = ({ refetchTrigger }) => {
 
                 <ul style={styles.jobList}>
                     {jobCounts.map((job, index) => (
-                        // MODIFIED: Use li as a wrapper, and Link for the clickable area
                         <li key={index} style={styles.jobItemWrapper}>
                             <Link 
                                 to={`/find-jobs?category=${job.title}`}
@@ -127,6 +213,7 @@ const Sidebar = ({ refetchTrigger }) => {
                                 }}></div>
 
                                 <span style={styles.jobTitle}>{job.title}</span>
+                                {/* EXISTING: The job badge uses the vacancyCount style */}
                                 <span style={styles.vacancyCount}>{job.vacancies}</span>
                             </Link>
                         </li>
@@ -145,7 +232,7 @@ const Sidebar = ({ refetchTrigger }) => {
     );
 };
 
-// Styles remain unchanged
+// Styles remain unchanged from your provided code
 const styles = {
     sidebar: {
         position: 'fixed',
@@ -159,7 +246,7 @@ const styles = {
         gap: '15px',
         backgroundColor: '#f7f9fc',
         boxShadow: '2px 0 15px rgba(0,0,0,0.1)',
-        zIndex: 10, // Ensure sidebar is above main content
+        zIndex: 10, 
     },
     findJobCard: {
         padding: '20px',
@@ -192,13 +279,11 @@ const styles = {
         flexDirection: 'column',
         gap: '12px',
     },
-    // NEW style for the li wrapper
     jobItemWrapper: {
         listStyle: 'none',
         padding: 0,
         margin: 0,
     },
-    // NEW style for the Link component
     jobLink: {
         position: 'relative',
         display: 'flex',
@@ -214,7 +299,7 @@ const styles = {
         backgroundColor: '#ffffff',
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         transition: 'transform 0.2s, box-shadow 0.2s',
-        textDecoration: 'none', // Remove underline
+        textDecoration: 'none', 
         width: '85%',
     },
     wavyBackground: {
@@ -231,6 +316,7 @@ const styles = {
         position: 'relative',
         zIndex: 1,
     },
+    // This style is used for the Find Jobs badge (still rectangular rounded corner)
     vacancyCount: {
         position: 'relative',
         zIndex: 1,

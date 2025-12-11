@@ -1,15 +1,11 @@
-// frontend/src/admin/AdminDashboardPage.jsx
-
 import React, { useState, useEffect } from 'react'; 
 import { useNavigate } from 'react-router-dom'; 
 import axios from 'axios'; 
 import { 
-    // Enhanced "Pro" Icons
     UserCircle, ClipboardList, Briefcase, MessageCircle, Send,
     Rss, Megaphone, Layers, UserCheck, Headset 
 } from 'lucide-react';
 
-// --- Styles Object ---
 const styles = {
     pageContainer: {
         backgroundColor: '#F9FAFB',
@@ -88,7 +84,6 @@ const styles = {
     }
 };
 
-// --- StatCard Component ---
 const StatCard = ({ icon: Icon, title, value, color, to }) => { 
     const [isHovered, setIsHovered] = useState(false);
     const navigate = useNavigate(); 
@@ -123,17 +118,14 @@ const StatCard = ({ icon: Icon, title, value, color, to }) => {
 };
 
 
-// --- Main AdminDashboardPage Component ---
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
     const [stats, setStats] = useState({
-        // Base Stats
         totalUsers: 0,
         totalPosts: 0,
         totalJobs: 0,
         totalApplications: 0,
         totalContacts: 0,
-        // NEW STATS 
         totalNews: 0,
         totalAnnouncements: 0,
         totalServices: 0,
@@ -147,10 +139,8 @@ const AdminDashboardPage = () => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Fetch base stats (Users, Applications, etc.) - Placeholder endpoint
             const baseStatsPromise = axios.get('http://localhost:5000/api/admin/dashboard-stats');
 
-            // 2. Fetch content stats (News, Officials, etc.) - The new endpoint from server.js
             const contentStatsPromise = axios.get('http://localhost:5000/api/admin/dashboard-stats-content');
 
             const [baseStatsResponse, contentStatsResponse] = await Promise.all([
@@ -161,7 +151,6 @@ const AdminDashboardPage = () => {
             const baseStats = baseStatsResponse.data || { totalUsers: 0, totalPosts: 0, totalJobs: 0, totalApplications: 0, totalContacts: 0 };
             const contentStats = contentStatsResponse.data;
 
-            // Merge both sets of statistics
             setStats(prevStats => ({
                 ...prevStats,
                 ...baseStats,
@@ -202,28 +191,16 @@ const AdminDashboardPage = () => {
             <p style={styles.subtitle}>Welcome to the management control panel.</p>
 
             <div style={styles.statsGrid}>
-                {/* BASE STATS CARDS */}
-                {/* Users: UserCircle */}
                 <StatCard icon={UserCircle} title="Total Users" value={stats.totalUsers} color="#10B981" to="/admin/users" />
-                {/* Posts: MessageCircle */}
                 <StatCard icon={MessageCircle} title="Community Posts" value={stats.totalPosts} color="#6366F1" to="/admin/community" />
-                {/* Jobs: Briefcase */}
                 <StatCard icon={Briefcase} title="Job Listings" value={stats.totalJobs} color="#F59E0B" to="/admin/jobs" />
-                {/* Applications: ClipboardList */}
                 <StatCard icon={ClipboardList} title="Doc. Applications" value={stats.totalApplications} color="#F97316" to="/admin/documents" />
-                {/* Contacts: Send */}
                 <StatCard icon={Send} title="Contact Messages" value={stats.totalContacts} color="#06B6D4" to="/admin/messages" />
 
-                {/* NEW CONTENT MANAGEMENT STATS CARDS */}
-                {/* News: Rss */}
                 <StatCard icon={Rss} title="Active News" value={stats.totalNews} color="#EF4444" to="/admin/news" />
-                {/* Announcements: Megaphone */}
                 <StatCard icon={Megaphone} title="Active Announcements" value={stats.totalAnnouncements} color="#A855F7" to="/admin/announcements" />
-                {/* Services: Layers */}
                 <StatCard icon={Layers} title="Active Services" value={stats.totalServices} color="#10B981" to="/admin/services" />
-                {/* Officials: UserCheck */}
                 <StatCard icon={UserCheck} title="Active Officials" value={stats.totalOfficials} color="#F59E0B" to="/admin/officials" />
-                {/* Hotlines: Headset */}
                 <StatCard icon={Headset} title="Active Hotlines" value={stats.totalHotlines} color="#6366F1" to="/admin/hotlines" />
             </div>
 

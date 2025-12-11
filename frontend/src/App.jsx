@@ -165,7 +165,13 @@ const App = () => {
                 onLogout={handleLogout} 
             />
             
-            <Sidebar refetchTrigger={refetchTrigger} /> 
+            {/* CRITICAL UPDATE: Pass currentUser?.id as the userId prop to the Sidebar.
+                The Sidebar component now expects this prop to fetch unread counts.
+            */}
+            <Sidebar 
+                refetchTrigger={refetchTrigger} 
+                userId={currentUser?.id} 
+            /> 
             
             <div style={appStyles.contentArea}>
                 <Routes>
@@ -317,4 +323,4 @@ const appStyles = {
     }
 };
 
-export default App;
+export default App; 

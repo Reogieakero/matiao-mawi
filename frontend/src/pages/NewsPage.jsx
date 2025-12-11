@@ -9,6 +9,7 @@ import {
 const MATI_LAT = 6.95508; 
 const MATI_LON = 126.217; 
 const API_KEY = '19b56e51c81ae2ba703c3dfdb8840517'; 
+
 const WEATHER_API_BASE_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
@@ -215,9 +216,7 @@ const styles = {
         padding: '20px',
         maxWidth: '1200px',
         margin: '0 auto',
-        backgroundColor: '#f8fafc',
         borderRadius: '10px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
     },
     header: {
         fontSize: '24px',
@@ -229,9 +228,6 @@ const styles = {
         marginBottom: '40px',
         padding: '20px',
         backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-        border: '1px solid #e2e8f0',
     },
     weatherHeader: {
         fontSize: '1.4rem', 

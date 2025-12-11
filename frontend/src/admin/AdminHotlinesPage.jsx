@@ -1,19 +1,13 @@
-// frontend/src/admin/AdminHotlinesPage.jsx
-// This file now uses a Card/Grid layout for displaying hotlines instead of a table.
-
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // ADDED useRef, useCallback for CustomSelect
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; 
 import axios from 'axios';
 import { 
-    Search, Trash2, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, // ADDED ChevronDown, ChevronUp for CustomSelect
+    Search, Trash2, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, 
     Phone, X, Save, XCircle, Volume2, Shield,
-    // ADDED ICONS for consistency with public page
     Zap, Stethoscope, Home, HeartHandshake, PhoneCall 
 } from 'lucide-react'; 
 
-// NOTE: Ensure this matches your actual API base URL from server.js.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- Utility Function: Format Date (Reused from other Admin Pages) ---
 const formatDate = (dateString, includeTime = true) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -22,47 +16,40 @@ const formatDate = (dateString, includeTime = true) => {
     };
     let formattedDate = date.toLocaleDateString('en-US', options);
     if (includeTime) {
-        // NOTE: Adjusted to match the time format in AdminAnnouncementsPage.jsx/AdminNewsPage.jsx
         formattedDate += ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     }
     return formattedDate;
 };
 
-// --- Constants for Dropdowns ---
 const HOTLINE_CATEGORIES = [
     'Emergency (Police/Fire/Medical)', 'Barangay Office', 'Health Services', 
     'Disaster Management', 'Social Welfare', 'General Inquiry', 'Other'
 ];
 
-// --- Base Input Style (for consistency across all forms) ---
 const baseInputStyle = {
-    width: '100%', padding: '10px', border: '1px solid #D1D5DB', // Use consistent border color
+    width: '100%', padding: '10px', border: '1px solid #D1D5DB',
     borderRadius: '8px', boxSizing: 'border-box', 
     fontSize: '16px', color: '#1F2937',
     transition: 'border-color 0.2s',
 };
 
-// --- Shared Modal Styles (Consistent with AdminNewsPage/AdminAnnouncementPage) ---
 const baseModalStyles = {
     backdrop: {
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
         backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 1000, 
         display: 'flex', justifyContent: 'center', alignItems: 'center'
     },
-    // Main Form Modal Container Style (for Add/Edit Hotlines)
     formModal: {
         backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', 
         width: '90%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto',
-        boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)', position: 'relative' // Consistent shadow and radius
+        boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)', position: 'relative' 
     },
-    // Header for Form Modal (Consistent typography)
     header: { 
         margin: '0 0 25px 0', fontSize: '28px', color: '#1F2937', 
         borderBottom: '2px solid #F3F4F6', paddingBottom: '15px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: '10px', fontWeight: '700'
     },
-    // Form Elements
     formGroup: { 
         display: 'flex', flexDirection: 'column', marginBottom: '15px' 
     },
@@ -74,18 +61,17 @@ const baseModalStyles = {
     textarea: { 
         ...baseInputStyle, minHeight: '100px', resize: 'vertical' 
     },
-    // Buttons (Consistent colors, padding, and border-radius)
-    buttonPrimary: { // Save/Add button (Indigo: #6366F1)
+    buttonPrimary: {
         padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', 
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s', fontSize: '16px'
     },
-    buttonDanger: { // Delete button (Red: #DC2626)
+    buttonDanger: { 
         padding: '10px 20px', backgroundColor: '#DC2626', color: 'white', 
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s', fontSize: '16px'
     },
-    buttonSecondary: { // Cancel button (Gray: #9CA3AF)
+    buttonSecondary: {
         padding: '10px 20px', backgroundColor: '#9CA3AF', color: 'white', 
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s', fontSize: '16px'
@@ -93,7 +79,6 @@ const baseModalStyles = {
     buttonContainer: { 
         display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' 
     },
-    // Message Modal / Delete Confirmation Modal Small Container
     smallModal: {
         backgroundColor: '#FFFFFF', padding: '30px', borderRadius: '12px', 
         width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)', 
@@ -101,16 +86,12 @@ const baseModalStyles = {
     }
 };
 
-// ==================================================================================================
-// CustomSelect Component (Copied and adapted from AdminOfficialsPage.jsx for consistent design)
-// ==================================================================================================
 const CustomSelect = ({ label, name, value, options, onChange, required = false, style = {} }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(options.findIndex(opt => opt === value));
     const containerRef = useRef(null);
     const [isFocused, setIsFocused] = useState(false);
 
-    // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -123,7 +104,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Handle Keyboard Navigation
     const handleKeyDown = useCallback((e) => {
         if (!isOpen) {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -163,9 +143,7 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         }
     }, [isOpen, options, activeIndex, name, onChange]);
 
-    // Update activeIndex when options or value changes externally
     useEffect(() => {
-        // Find index, default to -1 if not found
         const newIndex = options.findIndex(opt => opt === value);
         setActiveIndex(newIndex > -1 ? newIndex : 0); 
     }, [options, value]);
@@ -179,7 +157,7 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
     };
 
     const selectDisplayStyles = {
-        ...baseInputStyle, // Use baseInputStyle from AdminHotlinesPage.jsx
+        ...baseInputStyle,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -188,10 +166,9 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         fontWeight: '500',
         color: value && options.includes(value) ? '#1F2937' : '#9CA3AF',
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        // Dynamic focus styles (color #6366F1 from AdminOfficialsPage.jsx)
         borderColor: isFocused || isOpen ? '#6366F1' : '#D1D5DB',
         boxShadow: isFocused || isOpen ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
-        height: '42px', // Ensure consistent height with input for aesthetics
+        height: '42px',
     };
     
     const listContainerStyles = {
@@ -226,7 +203,7 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
 
     const handleListLeave = (e, index) => {
         if (options[index] === value) {
-             e.currentTarget.style.backgroundColor = '#EFF6FF'; // Keep highlight for selected item
+             e.currentTarget.style.backgroundColor = '#EFF6FF';
         } else {
              e.currentTarget.style.backgroundColor = 'white';
         }
@@ -239,7 +216,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
             ref={containerRef} 
             style={{ 
                 position: 'relative', 
-                // Allow external styles (baseModalStyles.formGroup) to manage margin 
                 ...style
             }}
             onKeyDown={handleKeyDown}
@@ -250,10 +226,8 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
                 onClick={() => setIsOpen(!isOpen)}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => {
-                    // Slight delay to allow list item click to register before focus leaves
                     setTimeout(() => setIsFocused(false), 150);
                 }}
-                // Hover styles consistent with AdminOfficialsPage.jsx
                 onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6366F1'}
                 onMouseLeave={(e) => e.currentTarget.style.borderColor = isFocused || isOpen ? '#6366F1' : '#D1D5DB'}
                 style={selectDisplayStyles}
@@ -295,10 +269,6 @@ const CustomSelect = ({ label, name, value, options, onChange, required = false,
         </div>
     );
 };
-
-// ===========================================
-// HOTLINE FORM MODAL COMPONENT (Add/Edit Logic)
-// ===========================================
 
 const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -355,10 +325,8 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
 
         try {
             if (initialData) {
-                // EDIT operation
                 await axios.put(`${API_BASE_URL}/hotlines/${initialData.id}`, formData);
             } else {
-                // ADD operation
                 await axios.post(`${API_BASE_URL}/hotlines`, formData);
             }
             onSave(true);
@@ -384,7 +352,6 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                 <form onSubmit={handleSubmit}>
                     {formError && <p style={{ color: '#DC2626', marginBottom: '20px', padding: '10px', border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', borderRadius: '8px' }}>Error: {formError}</p>}
 
-                    {/* Title */}
                     <div style={baseModalStyles.formGroup}>
                         <label style={baseModalStyles.label}>Hotline Title (e.g., Police Emergency)</label>
                         <input 
@@ -398,7 +365,6 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                         />
                     </div>
 
-                    {/* Hotline Number */}
                     <div style={baseModalStyles.formGroup}>
                         <label style={baseModalStyles.label}>Hotline Number</label>
                         <input 
@@ -412,8 +378,6 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                         />
                     </div>
 
-                    {/* Category */}
-                    {/* Replaced native <select> with CustomSelect for consistent design */}
                     <div style={baseModalStyles.formGroup}>
                         <CustomSelect 
                             label="Category"
@@ -425,7 +389,6 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
                         />
                     </div>
 
-                    {/* Description */}
                     <div style={baseModalStyles.formGroup}>
                         <label style={baseModalStyles.label}>Description (e.g., Operating Hours, Services offered)</label>
                         <textarea 
@@ -451,9 +414,6 @@ const HotlineFormModal = ({ show, initialData, categories, onClose, onSave }) =>
     );
 };
 
-// ===========================================
-// DELETE CONFIRMATION MODAL (Consistent with AdminNewsPage)
-// ===========================================
 const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
     if (!show) return null;
 
@@ -479,9 +439,6 @@ const DeleteConfirmationModal = ({ show, title, onConfirm, onCancel }) => {
     );
 };
 
-// ===========================================
-// ADMIN MESSAGE MODAL (Success/Error) (Consistent with AdminNewsPage)
-// ===========================================
 const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
     if (!show) return null;
 
@@ -518,60 +475,51 @@ const AdminMessageModal = ({ show, title, body, isSuccess, onClose }) => {
 };
 
 
-// ===========================================
-// HOTLINE CARD COMPONENT (Replacing Table Rows)
-// ===========================================
-
-// --- Helper function to select icon and color based on category (UPDATED) ---
 const getHotlineIconAndColor = (category) => {
-    let Icon = PhoneCall; // Default Icon
-    let color = '#6B7280'; // Default Gray
-    const editColor = '#3B82F6'; // Consistent Edit button color (Blue)
+    let Icon = PhoneCall; 
+    let color = '#6B7280'; 
+    const editColor = '#3B82F6';
 
     switch(category) {
         case 'Emergency (Police/Fire/Medical)':
-            Icon = Zap; // Consistent with public page
-            color = '#EF4444'; // Red
+            Icon = Zap; 
+            color = '#EF4444';
             break;
         case 'Barangay Office':
-            Icon = Home; // Consistent with public page
-            color = '#2563EB'; // Blue
+            Icon = Home; 
+            color = '#2563EB';
             break;
         case 'Health Services':
-            Icon = Stethoscope; // Consistent with public page
-            color = '#10B981'; // Green
+            Icon = Stethoscope; 
+            color = '#10B981'; 
             break;
         case 'Disaster Management':
-            Icon = Shield; // Consistent with public page
-            color = '#F97316'; // Orange
+            Icon = Shield; 
+            color = '#F97316'; 
             break;
         case 'Social Welfare':
-            Icon = HeartHandshake; // Consistent with public page
-            color = '#9333ea'; // Purple
+            Icon = HeartHandshake; 
+            color = '#9333ea';
             break;
         case 'General Inquiry':
         case 'Other':
         default:
             Icon = PhoneCall; 
-            color = '#6B7280'; // Gray
+            color = '#6B7280'; 
     }
     return { Icon, color, editColor };
 };
 
 const HotlineCard = ({ hotline, onEdit, onDelete }) => {
-    // State to manage hover for dynamic styling
     const [isHovered, setIsHovered] = useState(false);
     
-    // UPDATED: Use the new consistent function and Icon name
     const { Icon: CategoryIcon, color: iconColor, editColor } = getHotlineIconAndColor(hotline.category);
     
-    // Styles for the card display (based on user's image)
     const cardStyles = {
         padding: '25px',
-        backgroundColor: '#FFFFFF', // Card itself keeps white background
+        backgroundColor: '#FFFFFF', 
         borderRadius: '16px',
         border: `1px solid #E5E7EB`, 
-        // Dynamic box shadow based on hover state
         boxShadow: isHovered 
             ? '0 8px 20px rgba(0, 0, 0, 0.15)' 
             : '0 4px 12px rgba(0, 0, 0, 0.05)',
@@ -581,13 +529,12 @@ const HotlineCard = ({ hotline, onEdit, onDelete }) => {
         position: 'relative',
         transition: 'all 0.3s ease',
         cursor: 'pointer',
-        // Dynamic transform for a subtle lift on hover
         transform: isHovered ? 'translateY(-3px)' : 'translateY(0)',
     };
 
     const iconContainerStyle = {
         color: iconColor,
-        border: `2px solid ${iconColor}40`, // Lightened border for the icon container
+        border: `2px solid ${iconColor}40`,
         borderRadius: '8px',
         padding: '5px',
         width: 'fit-content',
@@ -636,13 +583,12 @@ const HotlineCard = ({ hotline, onEdit, onDelete }) => {
         transition: 'color 0.2s',
     };
     
-    // NEW: Style for the Category Tag (Consistent with HotlinesPage.jsx)
     const categoryTagStyle = {
         position: 'absolute',
         top: '20px',
-        left: '20px', // Positioning changed to left to avoid collision with actions
+        left: '20px', 
         padding: '4px 10px',
-        backgroundColor: iconColor, // Use the determined color
+        backgroundColor: iconColor,
         color: 'white',
         borderRadius: '15px',
         fontSize: '12px',
@@ -659,41 +605,35 @@ const HotlineCard = ({ hotline, onEdit, onDelete }) => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* NEW: Category Tag */}
             <span style={categoryTagStyle}>{hotline.category}</span>
             
-            {/* Actions */}
             <div style={actionContainerStyle}>
                 <button 
                     onClick={() => onEdit(hotline)} 
-                    style={{...actionButtonStyle, color: editColor}} // Color is applied here
+                    style={{...actionButtonStyle, color: editColor}} 
                     title="Edit Hotline"
                 >
                     <Edit size={18} />
                 </button>
                 <button 
                     onClick={() => onDelete(hotline)} 
-                    style={{...actionButtonStyle, color: '#DC2626'}} // Red for delete
+                    style={{...actionButtonStyle, color: '#DC2626'}} 
                     title="Delete Hotline"
                 >
                     <Trash2 size={18} />
                 </button>
             </div>
             
-            {/* Icon Container - Adjust padding/margin if overlap occurs with tag */}
             <div style={{...iconContainerStyle, marginTop: '25px'}}> 
                 <CategoryIcon size={20} />
             </div>
 
-            {/* Title */}
             <h3 style={titleStyle}>{hotline.title}</h3>
             
-            {/* Description */}
             {hotline.description && (
                 <p style={descriptionStyle}>{hotline.description}</p>
             )}
 
-            {/* Hotline Number */}
             <div style={numberStyle}>
                 <Phone size={18} />
                 <span>{hotline.hotline_number}</span>
@@ -706,15 +646,10 @@ const HotlineCard = ({ hotline, onEdit, onDelete }) => {
     );
 };
 
-// ===========================================
-// MAIN ADMIN HOTLINES PAGE
-// ===========================================
-
-// --- Main Page Styles ---
 const styles = {
     container: {
         padding: '30px',
-        backgroundColor: '#F9FAFB', // Light gray background
+        backgroundColor: '#F9FAFB', 
         minHeight: '100vh',
     },
     header: {
@@ -722,7 +657,7 @@ const styles = {
     },
     addButton: {
         display: 'flex', alignItems: 'center', padding: '10px 20px', 
-        backgroundColor: '#1e40af', // Indigo primary color
+        backgroundColor: '#1e40af', 
         color: 'white', border: 'none', borderRadius: '8px', 
         cursor: 'pointer', fontWeight: '600', 
         transition: 'background-color 0.2s'
@@ -743,7 +678,7 @@ const styles = {
     },
     cardGridContainer: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', // Responsive card grid
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
         gap: '25px',
     },
     noResults: {
@@ -752,11 +687,10 @@ const styles = {
         fontSize: '18px',
         color: '#6B7280',
         fontWeight: '500',
-        gridColumn: '1 / -1' // Span across the entire grid
+        gridColumn: '1 / -1' 
     },
 };
 
-// Removed getCategoryTagStyle function
 
 const AdminHotlinesPage = () => {
     const [hotlines, setHotlines] = useState([]);
@@ -765,16 +699,13 @@ const AdminHotlinesPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingHotline, setEditingHotline] = useState(null);
 
-    // Search and Sort
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'ascending' });
     
-    // Modals
     const [deleteModal, setDeleteModal] = useState({ show: false, id: null, title: '' });
     const [messageModal, setMessageModal] = useState({ show: false, title: '', body: '', isSuccess: false });
 
 
-    // --- Data Fetching ---
     const fetchHotlines = async () => {
         setIsLoading(true);
         setError(null);
@@ -793,17 +724,15 @@ const AdminHotlinesPage = () => {
         fetchHotlines();
     }, []);
 
-    // Function to close/reset form modal states
     const handleCloseAddEditModal = () => {
         setIsModalOpen(false);
         setEditingHotline(null);
     };
 
-    // Function to handle save complete (refetch data, show message)
     const handleSaveComplete = (success) => {
         handleCloseAddEditModal();
         if (success) {
-            fetchHotlines(); // Refresh data
+            fetchHotlines();
             setMessageModal({ 
                 show: true, 
                 title: 'Success!', 
@@ -820,7 +749,6 @@ const AdminHotlinesPage = () => {
         }
     };
 
-    // --- CRUD Handlers ---
     const handleAddHotline = () => {
         setEditingHotline(null);
         setIsModalOpen(true);
@@ -837,11 +765,10 @@ const AdminHotlinesPage = () => {
     
     const confirmDelete = async () => {
         const id = deleteModal.id;
-        setDeleteModal({ show: false, id: null, title: '' }); // Close confirmation modal
+        setDeleteModal({ show: false, id: null, title: '' }); 
         
         try {
             await axios.delete(`${API_BASE_URL}/hotlines/${id}`);
-            // Optimistically update the list by filtering the deleted item
             setHotlines(prev => prev.filter(h => h.id !== id));
             setMessageModal({ 
                 show: true, 
@@ -860,12 +787,10 @@ const AdminHotlinesPage = () => {
         }
     };
 
-    // --- Sorting Logic (Used internally to order cards) ---
     const sortedHotlines = useMemo(() => {
         let sortableItems = [...hotlines];
         if (sortConfig.key) {
             sortableItems.sort((a, b) => {
-                // Handle null/undefined values for comparison safety
                 const aValue = a[sortConfig.key] || '';
                 const bValue = b[sortConfig.key] || '';
                 
@@ -898,7 +823,6 @@ const AdminHotlinesPage = () => {
                 Admin Hotline Management
             </h1>
             
-            {/* Controls Section (Search & Add Button) */}
             <div style={styles.controls}>
                 <div style={{ position: 'relative', width: '350px' }}>
                     <Search size={20} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#6B7280' }}/>
@@ -918,10 +842,8 @@ const AdminHotlinesPage = () => {
                 </button>
             </div>
 
-            {/* Error Message */}
             {error && <div style={{ color: '#DC2626', marginBottom: '20px', padding: '15px', border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', borderRadius: '8px' }}>Error: {error}</div>}
 
-            {/* Main Content Area (Card Grid) */}
             {isLoading ? (
                 <div style={styles.noResults}>Loading hotlines...</div>
             ) : (
@@ -943,7 +865,6 @@ const AdminHotlinesPage = () => {
                 </div>
             )}
             
-            {/* ADD/EDIT MODAL (Form) */}
             <HotlineFormModal
                 show={isModalOpen}
                 initialData={editingHotline}
@@ -952,7 +873,6 @@ const AdminHotlinesPage = () => {
                 onSave={handleSaveComplete}
             />
 
-            {/* DELETE CONFIRMATION MODAL */}
             <DeleteConfirmationModal
                 show={deleteModal.show}
                 title={deleteModal.title}
@@ -960,7 +880,6 @@ const AdminHotlinesPage = () => {
                 onCancel={() => setDeleteModal({ ...deleteModal, show: false })}
             />
             
-            {/* MESSAGE MODAL */}
             <AdminMessageModal
                 show={messageModal.show}
                 title={messageModal.title}

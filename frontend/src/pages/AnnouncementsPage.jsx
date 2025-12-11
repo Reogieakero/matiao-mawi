@@ -1,27 +1,19 @@
-// AnnouncementPage.jsx
-// frontend/src/pages/AnnouncementPage.jsx
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios'; 
-// Using Lucide icons for visual elements
 import { 
     RefreshCw, AlertTriangle, Search, Bell, Calendar, User, Users, 
     XCircle, Clock, Globe, Zap, FileText, Volume2, Eye 
 } from 'lucide-react'; 
 
-// NOTE: Ensure this matches your actual API base URL from server.js.
 const API_BASE_URL = 'http://localhost:5000/api'; 
 
-// --- Constants (Reused from AdminAnnouncementsPage.jsx) ---
 const ANNOUNCEMENT_CATEGORIES = [
     'General Information', 'Closure Notice', 'Service Interruption', 
     'Urgent Call to Action', 'Office Hours Update', 'Upcoming Event', 
     'Official Statement'
 ];
 
-// --- Utility Functions (Reused/Adapted) ---
 
-// 1. Date Formatting (Reused from AdminAnnouncementsPage.jsx)
 const formatDate = (dateString, includeTime = true) => {
     if (!dateString) return 'N/A';
     const options = { 
@@ -31,29 +23,24 @@ const formatDate = (dateString, includeTime = true) => {
     return new Date(dateString).toLocaleDateString(undefined, options);
 }; //
 
-// 2. Category Color and Icon (Reused from AdminAnnouncementsPage.jsx)
 const getCategoryColor = (category) => {
     switch (category) {
-        case 'Urgent Call to Action': return { bg: '#FEE2E2', text: '#DC2626', icon: Zap }; // Red
-        case 'Service Interruption': return { bg: '#FEF3C7', text: '#D97706', icon: XCircle }; // Amber
-        case 'General Information': return { bg: '#D1FAE5', text: '#059669', icon: Globe }; // Green
-        case 'Official Statement': return { bg: '#DBEAFE', text: '#2563EB', icon: FileText }; // Blue
-        case 'Upcoming Event': return { bg: '#EDE9FE', text: '#7C3AED', icon: Calendar }; // Violet
-        default: return { bg: '#F3F4F6', text: '#6B7280', icon: Volume2 }; // Gray
+        case 'Urgent Call to Action': return { bg: '#FEE2E2', text: '#DC2626', icon: Zap }; 
+        case 'Service Interruption': return { bg: '#FEF3C7', text: '#D97706', icon: XCircle }; 
+        case 'General Information': return { bg: '#D1FAE5', text: '#059669', icon: Globe }; 
+        case 'Official Statement': return { bg: '#DBEAFE', text: '#2563EB', icon: FileText };
+        case 'Upcoming Event': return { bg: '#EDE9FE', text: '#7C3AED', icon: Calendar }; 
+        default: return { bg: '#F3F4F6', text: '#6B7280', icon: Volume2 }; 
     }
 }; //
 
-// -------------------------------------------------------------------
-// --- Announcement Card Component (Adapted from NewsPage.jsx Card) ---
-// -------------------------------------------------------------------
 const AnnouncementCard = ({ announcementItem, onReadMore }) => {
     const [isHovered, setIsHovered] = useState(false);
     const tagColor = getCategoryColor(announcementItem.category);
     const TagIcon = tagColor.icon;
 
-    // Styles for the card (ADAPTED TO MATCH NewsPage.jsx)
     const styles = {
-        card: { // Matches styles.newsCard
+        card: { 
             backgroundColor: '#ffffff',
             borderRadius: '10px',
             boxShadow: '0 4px 10px rgba(0, 0, 0, 0.05)',
@@ -64,30 +51,30 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
             cursor: 'pointer',
             border: '1px solid #e5e7eb',
         },
-        cardHover: { // Matches styles.newsCardHover
+        cardHover: { 
             transform: 'translateY(-3px)',
             boxShadow: '0 6px 15px rgba(0, 0, 0, 0.1)',
         },
-        cardImage: { // Matches styles.cardImage
+        cardImage: { 
             width: '100%',
             height: '200px',
             objectFit: 'cover',
-            backgroundColor: '#f3f4f6', // Placeholder background
+            backgroundColor: '#f3f4f6',
             display: 'block',
             borderBottom: '1px solid #f3f4f6',
         },
-        cardContent: { // Matches styles.cardContent
+        cardContent: { 
             padding: '15px',
             flexGrow: 1,
         },
-        cardTitle: { // Matches styles.cardTitle (reduced size)
+        cardTitle: {
             fontSize: '1.25rem',
             fontWeight: '700',
             color: '#1f2937',
             marginBottom: '8px',
             lineHeight: '1.3',
         },
-        cardTag: (color) => ({ // Converted to function to match NewsPage styles.cardTag
+        cardTag: (color) => ({ 
             backgroundColor: color.bg,
             color: color.text,
             padding: '4px 8px',
@@ -99,7 +86,7 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
             gap: '5px',
             marginBottom: '10px',
         }),
-        readMoreButton: { // Matches styles.readMoreButton
+        readMoreButton: { 
             background: '#1e40af', 
             color: 'white', 
             border: 'none', 
@@ -113,7 +100,7 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
             fontSize: '0.9rem',
             marginTop: '10px',
         },
-        cardMeta: { // Matches styles.cardMeta
+        cardMeta: { 
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -125,12 +112,10 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
         },
     };
 
-    // Use a maximum of 150 characters for the summary preview
     const summary = announcementItem.content.substring(0, 100) + 
                     (announcementItem.content.length > 100 ? '...' : '');
 
     const handleCardClick = (e) => {
-        // Only open the modal if the button wasn't clicked directly
         if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) { 
             onReadMore(announcementItem);
         }
@@ -143,7 +128,6 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
             onMouseLeave={() => setIsHovered(false)}
             onClick={handleCardClick}
         >
-            {/* Image/Placeholder Block */}
             {announcementItem.featured_image_url ? (
                 <img 
                     src={announcementItem.featured_image_url} 
@@ -163,16 +147,13 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
             )}
             
             <div style={styles.cardContent}>
-                {/* Category Tag */}
                 <span style={styles.cardTag(tagColor)}>
                     <TagIcon size={14} /> {announcementItem.category} 
                 </span>
                 
-                {/* Title and Snippet */}
                 <h3 style={styles.cardTitle}>{announcementItem.title}</h3>
                 <p style={{ color: '#4b5563', fontSize: '1rem', marginBottom: '10px' }}>{summary}</p>
                 
-                {/* Read More Button */}
                 <button 
                     style={styles.readMoreButton}
                     onClick={() => onReadMore(announcementItem)}
@@ -180,7 +161,6 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
                     <Eye size={16} style={{ marginRight: '6px' }} /> Read More
                 </button>
 
-                {/* Footer/Meta */}
                 <div style={styles.cardMeta}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <User size={14} /> {announcementItem.posted_by}
@@ -195,43 +175,40 @@ const AnnouncementCard = ({ announcementItem, onReadMore }) => {
 };
 
 
-// -------------------------------------------------------------------
-// --- Announcement View Modal (Reused/Adapted from AdminAnnouncementsPage.jsx) ---
-// -------------------------------------------------------------------
 const baseViewModalStyles = {
     backdrop: {
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
         backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 1000, 
         display: 'flex', justifyContent: 'center', alignItems: 'center'
-    }, //
+    }, 
     modal: {
         backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', 
         width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto',
         boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)', position: 'relative'
-    }, //
+    },
     header: { 
         margin: '0 0 25px 0', fontSize: '28px', color: '#1F2937', 
         borderBottom: '2px solid #F3F4F6', paddingBottom: '15px',
         display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '700'
-    }, //
+    }, 
     contentGrid: { 
         display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', marginBottom: '20px' 
-    }, //
+    }, 
     detailBox: { 
         padding: '15px', border: '1px solid #E5E7EB', borderRadius: '10px', 
         backgroundColor: '#F9FAFB' 
-    }, //
+    }, 
     detailLabel: { 
         fontSize: '13px', fontWeight: '600', color: '#6B7280', marginBottom: '5px' 
-    }, //
+    }, 
     detailValue: { 
         fontSize: '16px', color: '#1F2937', fontWeight: '500' 
-    }, //
+    }, 
     closeButton: { 
         padding: '10px 20px', backgroundColor: '#6B7280', color: 'white', 
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', 
         fontSize: '16px', transition: 'background-color 0.2s', width: '100%' 
-    } //
+    } 
 };
 
 const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
@@ -240,7 +217,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
     const tagColor = getCategoryColor(announcementItem.category);
     const TagIcon = tagColor.icon;
     
-    // Attachments should already be parsed by the backend
     let attachments = Array.isArray(announcementItem.attachments) 
         ? announcementItem.attachments 
         : []; 
@@ -270,7 +246,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
                 </button>
 
                 <div style={baseViewModalStyles.contentGrid}>
-                    {/* Main Content Area */}
                     <div>
                         <div style={{ marginBottom: '20px' }}>
                             <span style={cardTagStyle(tagColor)}>
@@ -294,7 +269,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
                             {announcementItem.content}
                         </div>
                         
-                        {/* Attachments Section */}
                         {attachments.length > 0 && (
                             <div style={{ marginTop: '30px', borderTop: '1px solid #E5E7EB', paddingTop: '20px' }}>
                                 <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#1F2937', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -317,7 +291,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
                         )}
                     </div>
                     
-                    {/* Side Details */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={baseViewModalStyles.detailBox}>
                             <div style={baseViewModalStyles.detailLabel}><Clock size={16} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Date Published</div>
@@ -338,7 +311,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
                             </div>
                         </div>
                         
-                        {/* Closing Button */}
                         <div style={{marginTop: '15px'}}>
                             <button onClick={onClose} style={baseViewModalStyles.closeButton}> 
                                 Close View 
@@ -352,9 +324,6 @@ const AnnouncementViewModal = ({ show, announcementItem, onClose }) => {
 };
 
 
-// -------------------------------------------------------------------
-// --- Main Announcement Page Component ---
-// -------------------------------------------------------------------
 const AnnouncementPage = () => {
     const [announcements, setAnnouncements] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -363,13 +332,11 @@ const AnnouncementPage = () => {
     const [selectedAnnouncementForView, setSelectedAnnouncementForView] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Styles for the main page layout (Adapted from NewsPage.jsx)
     const styles = {
         container: {
             padding: '20px',
             maxWidth: '1200px',
             margin: '0 auto',
-            // Background is removed as requested earlier
         },
         header: {
             fontSize: '24px', 
@@ -382,11 +349,9 @@ const AnnouncementPage = () => {
             color: '#4B5563',
             marginBottom: '25px',
         },
-        // NEW searchContainer: Aligns to the left, smaller width.
         searchContainer: {
-            // New styles for alignment and width reduction
             width: '100%', 
-            maxWidth: '500px', // Reduced max width
+            maxWidth: '500px', 
             display: 'flex',
             gap: '15px',
             alignItems: 'center',
@@ -394,7 +359,7 @@ const AnnouncementPage = () => {
             border: '1px solid #D1D5DB',
             borderRadius: '10px',
             backgroundColor: 'white',
-            marginBottom: '30px', // Moved spacing back here
+            marginBottom: '30px', 
         },
         searchInput: {
             flexGrow: 1,
@@ -430,12 +395,10 @@ const AnnouncementPage = () => {
         },
     };
 
-    // --- Data Fetching ---
     const fetchAnnouncements = async () => {
         setLoading(true);
         setError(null);
         try {
-            // Using the new API endpoint
             const response = await axios.get(`${API_BASE_URL}/announcements`);
             setAnnouncements(response.data);
         } catch (err) {
@@ -451,7 +414,6 @@ const AnnouncementPage = () => {
         fetchAnnouncements();
     }, []);
 
-    // --- Handlers ---
     const handleReadMore = (announcementItem) => {
         setSelectedAnnouncementForView(announcementItem);
         setIsViewModalOpen(true);
@@ -462,7 +424,6 @@ const AnnouncementPage = () => {
         setSelectedAnnouncementForView(null);
     };
 
-    // --- Search Filtering ---
     const filteredAnnouncements = announcements.filter(a =>
         a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -478,7 +439,6 @@ const AnnouncementPage = () => {
                 Stay informed with the latest public notices, advisories, and updates directly from the Barangay administration.
             </p>
 
-            {/* Search Bar (Left-aligned and reduced width) */}
             <div style={styles.searchContainer}>
                 <Search size={20} style={{ color: '#6B7280' }}/>
                 <input
@@ -516,7 +476,6 @@ const AnnouncementPage = () => {
                 </div>
             )}
             
-            {/* VIEW MODAL */}
             <AnnouncementViewModal
                 show={isViewModalOpen}
                 announcementItem={selectedAnnouncementForView}
